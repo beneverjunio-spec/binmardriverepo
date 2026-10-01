@@ -1,0 +1,12 @@
+{
+  "name": "binmar-rent-project",
+  "private": true,
+  "version": "1.0.0",
+  "description": "BinmarDrive Vehicle Marketplace and Rental Platform",
+  "scripts": {
+    "build": "npm --prefix frontend run build",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "start:backend": "npm --prefix backend start",
+    "dev:backend": "npm --prefix backend run dev"
+  }
+}
