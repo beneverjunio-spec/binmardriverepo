@@ -37,6 +37,16 @@ Open **[http://localhost:3000](http://localhost:3000)** in your browser.
 
 ---
 
+## Netlify Deployment
+
+The root `netlify.toml` defines the frontend build command and publishes
+`frontend/dist`. The build installs frontend dependencies from the lockfile with
+`npm ci --include=dev` so Vite and its React plugin are available even when the
+build environment sets `NODE_ENV=production`. No environment-variable changes
+are required for this configuration.
+
+---
+
 ## 🔑 Default Administrator Credentials
 - **Email**: `admin@binmardrive.com`
 - **Password**: `admin123`
