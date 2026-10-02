@@ -116,30 +116,20 @@ router.post('/login', async (req, res) => {
 router.post('/admin-login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@binmardrive.com';
-    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'admin@binmardrive.com').toLowerCase();
+    const userEmail = (email || '').toLowerCase();
 
-    // Allow admin credentials or standard admin email
-    if (email && email.toLowerCase() === adminEmail.toLowerCase()) {
+    // Allow your specific email, fallback admin email, or any email containing 'admin'
+    if (userEmail === adminEmail || userEmail === 'beneverjunio@gmail.com' || userEmail.includes('admin')) {
       const token = jwt.sign({ id: 1, user_type: 'admin', name: 'Binmar Admin' }, JWT_SECRET, { expiresIn: '7d' });
       return res.json({
         success: true,
-        user: { id: 1, user_type: 'admin', name: 'Binmar Admin', email: adminEmail },
+        user: { id: 1, user_type: 'admin', name: 'Binmar Admin', email: userEmail },
         token
       });
     }
 
-    // Also support any staff login with password
-    if (email && email.includes('admin') && password) {
-      const token = jwt.sign({ id: 1, user_type: 'admin', name: 'Binmar Admin' }, JWT_SECRET, { expiresIn: '7d' });
-      return res.json({
-        success: true,
-        user: { id: 1, user_type: 'admin', name: 'Binmar Admin', email: email },
-        token
-      });
-    }
-
-    res.status(401).json({ error: 'Invalid admin credentials. Use admin@binmardrive.com / admin123' });
+    res.status(401).json({ error: 'Invalid admin credentials.' });
   } catch (err) {
     res.status(500).json({ error: 'Admin login failed' });
   }
