@@ -33,9 +33,9 @@ Open **[http://localhost:8889](http://localhost:8889)** in your browser. Use Net
 
 ## Staff Sign-In
 
-Authentication uses Netlify Identity. In the site's Netlify dashboard, invite the staff member under Identity and assign the `admin` role to their account. The staff member follows the invitation link to set a password, then signs in through the Admin Portal. Only server-managed Identity roles authorize administrative requests; an email address containing “admin” does not grant access.
+Authentication uses Netlify Identity. The Admin Portal accepts the staff account configured in `netlify/functions/api.mts` (email `beneverjunio@gmail.com`; the password is stored only as a salted scrypt hash). On the first successful sign-in, the API creates that Identity account, or restores its password and `admin` role if the account already exists, and the portal then signs in normally.
 
-There are no default administrator credentials. The former demo login did not verify passwords and is not used by the deployed application. Existing demo accounts must be replaced with real Identity accounts. New public accounts require email confirmation before signing in, unless auto-confirmation is explicitly enabled in Identity settings.
+To rotate the credentials, set the `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables in the Netlify dashboard (Functions scope) and redeploy; they override the built-in values. Additional staff can still be invited under Identity and given the `admin` role. Only server-managed Identity roles authorize administrative requests.
 
 ## Deployment And Data
 

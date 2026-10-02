@@ -29,3 +29,14 @@ export async function loadProfile() {
   const data = await apiRequest('/api/auth/me');
   return data.user;
 }
+
+export async function grantAdminAccess(email, password) {
+  const response = await fetch('/api/admin/access', {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
+  const data = response.headers.get('content-type')?.includes('application/json') ? await response.json() : {};
+  if (!response.ok || !data.success) throw new Error(data.error || 'Unable to sign in. Please try again.');
+}
