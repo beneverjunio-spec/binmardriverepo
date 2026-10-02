@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { acceptInvite, getUser, handleAuthCallback, login, logout, onAuthChange, signup, updateUser } from '@netlify/identity';
+import { apiRequest, authErrorMessage, loadProfile } from './auth';
 import {
   Car, ShieldCheck, CheckCircle2, Clock, Upload, Bell, Search,
   Phone, MessageSquare, ChevronRight, ArrowLeft, X, Eye, Trash2, Building2, User
@@ -18,10 +20,12 @@ export default function App() {
   const [toast, setToast] = useState({ show: false, message: '' });
 
   // User & Auth State
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('binmar_user');
-    return saved ? JSON.parse(saved) : null;
-  });
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [passwordCallback, setPasswordCallback] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const authCallbackRef = useRef(null);
 
   // Marketplace & Filter State
   const [listings, setListings] = useState([]);
@@ -36,7 +40,8 @@ export default function App() {
 
   // Admin State
   const [adminTab, setAdminTab] = useState('dashboard');
-  const [adminStats, setAdminStats] = useState({ liveListings: 12, pendingModeration: 2, verifiedDealers: 614, pendingDealers: 2 });
+  const [adminStats, setAdminStats] = useState({ liveListings: 0, pendingModeration: 0, verifiedDealers: 0, pendingDealers: 0 });
+  const [adminDataError, setAdminDataError] = useState('');
   const [moderationQueue, setModerationQueue] = useState([]);
   const [dealerQueue, setDealerQueue] = useState([]);
   const [adminListings, setAdminListings] = useState([]);
@@ -48,6 +53,8 @@ export default function App() {
   const [regStep, setRegStep] = useState(1);
   const [regAccountType, setRegAccountType] = useState('individual');
   const [regPhone, setRegPhone] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
   const [regName, setRegName] = useState('');
   const [regCompanyName, setRegCompanyName] = useState('');
   const [regLicense, setRegLicense] = useState('');
@@ -60,8 +67,8 @@ export default function App() {
   const [loginError, setLoginError] = useState('');
 
   // Admin Sign-in State
-  const [adminEmail, setAdminEmail] = useState('admin@binmardrive.com');
-  const [adminPass, setAdminPass] = useState('admin123');
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPass, setAdminPass] = useState('');
   const [adminLoginError, setAdminLoginError] = useState('');
 
   // Create Listing Flow State
@@ -87,44 +94,23 @@ export default function App() {
   const [lstContact, setLstContact] = useState('WhatsApp');
   const [lstError, setLstError] = useState('');
 
-  const fileToBase64 = (file) => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-  });
-
   // Handle vehicle photo upload
   const handlePhotoSelect = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-
+    if (files.length + lstUploadedImages.length > 12) {
+      notify('A listing can contain up to 12 photos.');
+      e.target.value = '';
+      return;
+    }
     try {
-      // Convert to Base64 data URLs so they work everywhere permanently
-      const base64List = await Promise.all(files.map(fileToBase64));
-
-      // Attempt to save to backend server
       const formData = new FormData();
       files.forEach(f => formData.append('photos', f));
-      try {
-        const res = await fetch('/api/listings/upload', {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-        if (data.success && data.images && data.images.length > 0) {
-          setLstUploadedImages(prev => [...prev, ...data.images]);
-          notify(`${files.length} photo${files.length > 1 ? 's' : ''} uploaded successfully!`);
-        } else {
-          setLstUploadedImages(prev => [...prev, ...base64List]);
-          notify(`${files.length} photo${files.length > 1 ? 's' : ''} added!`);
-        }
-      } catch (uploadErr) {
-        setLstUploadedImages(prev => [...prev, ...base64List]);
-        notify(`${files.length} photo${files.length > 1 ? 's' : ''} added!`);
-      }
+      const data = await apiRequest('/api/listings/upload', { method: 'POST', body: formData });
+      setLstUploadedImages(prev => [...prev, ...data.images]);
+      notify(`${files.length} photo${files.length > 1 ? 's' : ''} uploaded successfully!`);
     } catch (err) {
-      notify('Error processing photos');
+      notify(err.message || 'Unable to upload photos. Please try again.');
     }
     if (e.target) e.target.value = '';
   };
@@ -169,13 +155,14 @@ export default function App() {
   };
 
   const fetchAdminData = async () => {
+    setAdminDataError('');
     try {
       const [statsRes, modRes, dealerRes, listRes, notifRes] = await Promise.all([
-        fetch('/api/admin/stats').then(r => r.json()),
-        fetch('/api/admin/moderation').then(r => r.json()),
-        fetch('/api/admin/dealers').then(r => r.json()),
-        fetch('/api/admin/listings').then(r => r.json()),
-        fetch('/api/notifications').then(r => r.json())
+        apiRequest('/api/admin/stats'),
+        apiRequest('/api/admin/moderation'),
+        apiRequest('/api/admin/dealers'),
+        apiRequest('/api/admin/listings'),
+        apiRequest('/api/notifications')
       ]);
 
       if (statsRes.success) setAdminStats(statsRes.stats);
@@ -184,7 +171,7 @@ export default function App() {
       if (listRes.success) setAdminListings(listRes.listings);
       if (notifRes.success) setNotifications(notifRes.notifications);
     } catch (e) {
-      console.warn('Admin API sync error');
+      setAdminDataError(e.message || 'Unable to load admin data. Please try again.');
     }
   };
 
@@ -197,10 +184,45 @@ export default function App() {
   }, [currentPage]);
 
   useEffect(() => {
-    if (currentPage === 'admin') {
+    if (currentPage === 'admin' && currentUser?.user_type === 'admin') {
       fetchAdminData();
     }
-  }, [currentPage]);
+  }, [currentPage, currentUser]);
+
+  useEffect(() => {
+    let active = true;
+    localStorage.removeItem('binmar_user');
+    const unsubscribe = onAuthChange((event, user) => {
+      if (!user && active) {
+        setCurrentUser(null);
+        setCurrentPage(page => page === 'admin' ? 'admin-login' : page);
+      }
+    });
+    async function restoreSession() {
+      try {
+        authCallbackRef.current ??= handleAuthCallback();
+        const callback = await authCallbackRef.current;
+        if (!active) return;
+        if (callback?.type === 'invite' || callback?.type === 'recovery') {
+          setPasswordCallback(callback);
+          setCurrentPage('set-password');
+          return;
+        }
+        const identity = await getUser();
+        if (identity) {
+          const profile = await loadProfile();
+          if (active) setCurrentUser(profile);
+        }
+      } catch (error) {
+        if (active) {
+          setLoginError(authErrorMessage(error));
+          setCurrentPage('user-login');
+        }
+      }
+    }
+    restoreSession();
+    return () => { active = false; unsubscribe(); };
+  }, []);
 
   // Auth Handlers
   const handleUserRegister = async () => {
@@ -213,30 +235,27 @@ export default function App() {
       setRegError('Please enter your company name');
       return;
     }
-
+    if (!regEmail.trim() || regPassword.length < 8) {
+      setRegError('Enter your email and a password of at least 8 characters.');
+      return;
+    }
+    if (authLoading) return;
+    setAuthLoading(true);
     try {
       const payload = {
         user_type: regAccountType,
         name: regAccountType === 'individual' ? regName : regCompanyName,
         phone: regPhone,
         company_name: regAccountType === 'company' ? regCompanyName : null,
-        trade_license: regAccountType === 'company' ? (regLicense || 'CN-2026-UPLOADED') : null,
+        trade_license: regAccountType === 'company' ? regLicense : null,
         country: regCountry
       };
 
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      const data = await res.json();
-
-      if (data.success) {
-        setCurrentUser(data.user);
-        localStorage.setItem('binmar_user', JSON.stringify(data.user));
-        notify(data.message);
-
-        // Reset registration state
+      const user = await signup(regEmail.trim(), regPassword, { ...payload, full_name: payload.name });
+      setRegPassword('');
+      if (user.confirmedAt) {
+        setCurrentUser(await loadProfile());
+        notify('Account created successfully.');
         setRegStep(1);
         setRegName('');
         setRegCompanyName('');
@@ -244,60 +263,98 @@ export default function App() {
 
         window.scrollTo({ top: 0, behavior: 'instant' });
         setCurrentPage('marketplace');
-        fetchAdminData();
       } else {
-        setRegError(data.error || 'Registration failed');
+        setLoginEmail(regEmail.trim());
+        setLoginError('Check your inbox to confirm your email, then sign in.');
+        setCurrentPage('user-login');
       }
     } catch (err) {
-      setRegError('Connection error. Please try again.');
+      setRegError(authErrorMessage(err));
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   const handleUserLogin = async () => {
     setLoginError('');
-    if (!loginEmail) {
-      setLoginError('Enter email or mobile number');
+    if (!loginEmail.trim() || !loginPass) {
+      setLoginError('Enter your email and password.');
       return;
     }
-
+    if (authLoading) return;
+    setAuthLoading(true);
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ identifier: loginEmail, password: loginPass })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setCurrentUser(data.user);
-        localStorage.setItem('binmar_user', JSON.stringify(data.user));
-        notify(`Welcome back, ${data.user.name}!`);
-        setCurrentPage('create-listing');
-      } else {
-        setLoginError(data.error || 'Login failed');
-      }
+      await login(loginEmail.trim(), loginPass);
+      const profile = await loadProfile();
+      setCurrentUser(profile);
+      setLoginPass('');
+      notify(`Welcome back, ${profile.name}!`);
+      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'create-listing');
     } catch (err) {
-      setLoginError('Login error. Please try again.');
+      setLoginError(authErrorMessage(err));
+    } finally {
+      setAuthLoading(false);
     }
   };
 
   const handleAdminLogin = async () => {
     setAdminLoginError('');
+    if (!adminEmail.trim() || !adminPass) {
+      setAdminLoginError('Enter your staff email and password.');
+      return;
+    }
+    if (authLoading) return;
+    setAuthLoading(true);
     try {
-      const res = await fetch('/api/auth/admin-login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: adminEmail, password: adminPass })
-      });
-      const data = await res.json();
-      if (data.success) {
-        notify('Logged into Admin Portal');
-        setCurrentPage('admin');
-        fetchAdminData();
-      } else {
-        setAdminLoginError(data.error || 'Invalid credentials');
+      const identity = await login(adminEmail.trim(), adminPass);
+      if (!identity.roles?.includes('admin')) {
+        await logout();
+        setCurrentUser(null);
+        setAdminLoginError('This account is not authorized for the admin portal. Ask the site administrator to assign the admin role.');
+        return;
       }
+      setCurrentUser(await loadProfile());
+      setAdminPass('');
+      notify('Logged into Admin Portal');
+      setCurrentPage('admin');
     } catch (err) {
-      setAdminLoginError('Connection error');
+      setAdminLoginError(authErrorMessage(err));
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setCurrentUser(null);
+      setCurrentPage('marketplace');
+    } catch (error) {
+      notify(authErrorMessage(error));
+    }
+  };
+
+  const handleSetPassword = async () => {
+    setPasswordError('');
+    if (newPassword.length < 8) {
+      setPasswordError('Use a password of at least 8 characters.');
+      return;
+    }
+    if (authLoading) return;
+    setAuthLoading(true);
+    try {
+      if (passwordCallback?.type === 'invite') await acceptInvite(passwordCallback.token, newPassword);
+      else await updateUser({ password: newPassword });
+      const profile = await loadProfile();
+      setCurrentUser(profile);
+      setNewPassword('');
+      setPasswordCallback(null);
+      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'marketplace');
+      notify('Your password is set.');
+    } catch (error) {
+      setPasswordError(authErrorMessage(error));
+    } finally {
+      setAuthLoading(false);
     }
   };
 
@@ -340,12 +397,11 @@ export default function App() {
         images: lstUploadedImages
       };
 
-      const res = await fetch('/api/listings', {
+      const data = await apiRequest('/api/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      const data = await res.json();
 
       if (data.success) {
         notify('Listing submitted! It is now pending admin moderation review.');
@@ -357,57 +413,53 @@ export default function App() {
         setLstDescription('');
         setLstUploadedImages([]);
         setCurrentPage('marketplace');
-        fetchAdminData();
       } else {
         alert(data.error || 'Failed to submit listing');
       }
     } catch (e) {
-      notify('Submitted to moderation queue!');
-      setCurrentPage('marketplace');
+      setLstError(e.message || 'Unable to submit listing. Please try again.');
     }
   };
 
   // Admin Actions
   const resolveModeration = async (id, approve) => {
     try {
-      const res = await fetch(`/api/admin/moderation/${id}/resolve`, {
+      const data = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: approve ? 'approve' : 'reject' })
       });
-      const data = await res.json();
       notify(data.message);
       fetchAdminData();
       fetchListings();
     } catch (err) {
-      notify('Moderation action completed');
+      notify(err.message || 'Unable to update moderation. Please try again.');
     }
   };
 
   const resolveDealer = async (id, verify) => {
     try {
-      const res = await fetch(`/api/admin/dealers/${id}/resolve`, {
+      const data = await apiRequest(`/api/admin/dealers/${id}/resolve`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: verify ? 'verify' : 'reject' })
       });
-      const data = await res.json();
       notify(data.message);
       fetchAdminData();
     } catch (err) {
-      notify('Dealer action completed');
+      notify(err.message || 'Unable to update dealer. Please try again.');
     }
   };
 
   const removeListing = async (id) => {
     if (!window.confirm('Are you sure you want to remove this listing from the live marketplace?')) return;
     try {
-      await fetch(`/api/admin/listings/${id}`, { method: 'DELETE' });
+      await apiRequest(`/api/admin/listings/${id}`, { method: 'DELETE' });
       notify('Listing removed from marketplace');
       fetchAdminData();
       fetchListings();
     } catch (e) {
-      notify('Listing removed');
+      notify(e.message || 'Unable to remove listing. Please try again.');
     }
   };
 
@@ -441,6 +493,7 @@ export default function App() {
               Sign in
             </button>
           )}
+          {currentUser && <button className="btn-outline-gold" onClick={handleLogout}>Sign out</button>}
 
           <button className="btn-gold" onClick={handlePostListingClick}>
             <Car size={16} />
@@ -802,10 +855,15 @@ export default function App() {
               {/* Step 2: Phone Verification */}
               {regStep === 2 && (
                 <div>
-                  <h1 className="step-title">Verify your phone</h1>
-                  <p className="step-desc">We will send a verification code to confirm your phone number.</p>
+                  <h1 className="step-title">Account credentials</h1>
+                  <p className="step-desc">Use your email and a secure password to sign in. Your phone number is for vehicle enquiries.</p>
 
-                  <label>Mobile number</label>
+                  <label htmlFor="register-email">Email</label>
+                  <input id="register-email" type="email" autoComplete="email" value={regEmail} onChange={e => setRegEmail(e.target.value)} />
+                  <label htmlFor="register-password">Password</label>
+                  <input id="register-password" type="password" autoComplete="new-password" minLength={8} value={regPassword} onChange={e => setRegPassword(e.target.value)} />
+
+                  <label>Mobile number (optional)</label>
                   <div className="row-2">
                     <select value="+971" onChange={() => {}}>
                       <option>+971 (UAE)</option>
@@ -824,11 +882,11 @@ export default function App() {
                   {regError && <p className="err">{regError}</p>}
 
                   <button className="btn-primary" onClick={() => {
-                    if (!regPhone) { setRegError('Please enter a valid phone number'); return; }
+                    if (!regEmail.trim() || regPassword.length < 8) { setRegError('Enter your email and a password of at least 8 characters.'); return; }
                     setRegError('');
                     setRegStep(3);
                   }}>
-                    Send code &rarr;
+                    Continue &rarr;
                   </button>
                   <button className="btn-secondary" onClick={() => setRegStep(1)}>
                     Back
@@ -906,8 +964,8 @@ export default function App() {
 
                   {regError && <p className="err">{regError}</p>}
 
-                  <button className="btn-primary" onClick={handleUserRegister}>
-                    {regAccountType === 'company' ? 'Submit for Dealer Verification' : 'Create account & continue'}
+                  <button className="btn-primary" disabled={authLoading} onClick={handleUserRegister}>
+                    {authLoading ? 'Creating account…' : regAccountType === 'company' ? 'Submit for Dealer Verification' : 'Create account & continue'}
                   </button>
                   <button className="btn-secondary" onClick={() => setRegStep(2)}>
                     Back
@@ -936,35 +994,41 @@ export default function App() {
           </div>
 
           <div className="flow-formside">
-            <div className="flow-card">
+            <form className="flow-card" onSubmit={event => { event.preventDefault(); handleUserLogin(); }}>
               <h1 className="step-title">Sign in</h1>
-              <p className="step-desc">Enter your email or phone number to manage or publish your vehicle listings.</p>
+              <p className="step-desc">Enter your email and password to manage or publish your vehicle listings.</p>
 
-              <label>Email or mobile number</label>
+              <label htmlFor="login-email">Email</label>
               <input
-                type="text"
-                placeholder="you@email.com or +97150..."
+                id="login-email"
+                type="email"
+                autoComplete="email"
+                required
+                placeholder="you@email.com"
                 value={loginEmail}
                 onChange={e => setLoginEmail(e.target.value)}
               />
 
-              <label>Password</label>
+              <label htmlFor="login-password">Password</label>
               <input
+                id="login-password"
                 type="password"
+                autoComplete="current-password"
+                required
                 placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;"
                 value={loginPass}
                 onChange={e => setLoginPass(e.target.value)}
               />
 
-              {loginError && <p className="err">{loginError}</p>}
+              {loginError && <p className="err" role="alert">{loginError}</p>}
 
-              <button className="btn-primary" onClick={handleUserLogin}>
-                Sign in
+              <button className="btn-primary" type="submit" disabled={authLoading}>
+                {authLoading ? 'Signing in…' : 'Sign in'}
               </button>
-              <button className="btn-secondary" onClick={() => setCurrentPage('registration')}>
+              <button className="btn-secondary" type="button" onClick={() => setCurrentPage('registration')}>
                 New to BinmarDrive? Create an account (Free)
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
@@ -1288,39 +1352,66 @@ export default function App() {
           </div>
 
           <div className="flow-formside">
-            <div className="flow-card">
+            <form className="flow-card" onSubmit={event => { event.preventDefault(); handleAdminLogin(); }}>
               <h1 className="step-title">Admin log in</h1>
               <p className="step-desc">Enter staff credentials to access moderation and verification queues.</p>
 
-              <label>Admin email</label>
+              <label htmlFor="admin-email">Admin email</label>
               <input
-                type="text"
+                id="admin-email"
+                type="email"
+                autoComplete="email"
+                placeholder="Your staff email"
+                required
                 value={adminEmail}
                 onChange={e => setAdminEmail(e.target.value)}
               />
 
-              <label>Password</label>
+              <label htmlFor="admin-password">Password</label>
               <input
+                id="admin-password"
                 type="password"
+                autoComplete="current-password"
+                required
                 value={adminPass}
                 onChange={e => setAdminPass(e.target.value)}
               />
 
-              {adminLoginError && <p className="err">{adminLoginError}</p>}
+              {adminLoginError && <p className="err" role="alert">{adminLoginError}</p>}
 
-              <button className="btn-primary" onClick={handleAdminLogin}>
-                Log in to Admin Portal
+              <button className="btn-primary" type="submit" disabled={authLoading}>
+                {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
               </button>
-              <button className="btn-secondary" onClick={() => setCurrentPage('marketplace')}>
+              <p className="step-desc">Use an invited Netlify Identity account with the admin role. Demo credentials are no longer accepted.</p>
+              <button className="btn-secondary" type="button" onClick={() => setCurrentPage('marketplace')}>
                 Back to Marketplace
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}
 
       {/* ================= PAGE: ADMIN PORTAL ================= */}
-      {currentPage === 'admin' && (
+      {currentPage === 'set-password' && passwordCallback && (
+        <div className="flow-wrap">
+          <div className="flow-brand">
+            <div className="nav-mark">BINMAR<b>DRIVE</b></div>
+            <div className="flow-hero">Secure your <em>account</em>.</div>
+          </div>
+          <div className="flow-formside">
+            <form className="flow-card" onSubmit={event => { event.preventDefault(); handleSetPassword(); }}>
+              <h1 className="step-title">Set your password</h1>
+              <p className="step-desc">Choose a password of at least 8 characters to finish setting up your account.</p>
+              <label htmlFor="new-password">New password</label>
+              <input id="new-password" type="password" autoComplete="new-password" required minLength={8} value={newPassword} onChange={event => setNewPassword(event.target.value)} />
+              {passwordError && <p className="err" role="alert">{passwordError}</p>}
+              <button type="submit" className="btn-primary" disabled={authLoading}>{authLoading ? 'Saving…' : 'Save password'}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {currentPage === 'admin' && currentUser?.user_type === 'admin' && (
         <div className="admin-shell">
           {/* Admin Sidebar */}
           <div className="admin-side">
@@ -1366,6 +1457,7 @@ export default function App() {
 
           {/* Admin Content Area */}
           <div className="admin-main">
+            {adminDataError && <p className="err" role="alert">{adminDataError} <button type="button" className="btn-secondary" onClick={fetchAdminData}>Retry</button></p>}
             {/* Admin Header with Notification Bell */}
             <div className="admin-header">
               <h1>Admin Operations Portal</h1>
