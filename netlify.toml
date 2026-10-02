@@ -1,0 +1,17 @@
+[build]
+  command = "npm --prefix frontend ci --include=dev && npm --prefix frontend run build"
+  publish = "frontend/dist"
+
+[functions]
+  directory = "netlify/functions"
+
+[dev]
+  command = "npm --prefix frontend run dev"
+  targetPort = 3000
+  port = 8889
+  autoLaunch = false
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

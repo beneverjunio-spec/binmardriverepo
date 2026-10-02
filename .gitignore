@@ -29,3 +29,6 @@ Thumbs.db
 # User uploaded files in backend (keep directory structure if needed)
 backend/uploads/*
 !backend/uploads/.gitkeep
+
+# Local Netlify folder
+.netlify
