@@ -1,4 +1,5 @@
-import { getUser, type User } from '@netlify/identity';
+import { scryptSync, timingSafeEqual } from 'node:crypto';
+import { admin, getUser, type User } from '@netlify/identity';
 import { and, count, desc, eq, ilike, lte, or } from 'drizzle-orm';
 import type { Config } from '@netlify/functions';
 import { getDatabase } from '../../db/index.js';
@@ -29,6 +30,42 @@ async function syncProfile(identity: User) {
   return profile;
 }
 
+// Built-in staff credentials. ADMIN_EMAIL / ADMIN_PASSWORD environment variables override them when set.
+const DEFAULT_ADMIN_EMAIL = 'beneverjunio@gmail.com';
+const DEFAULT_ADMIN_PASSWORD_HASH = 'scrypt:528b1edbaf3420881a4124d6a85eaf90:1e8fab4246aa0317e77fdce9beb3576b5f0ecbbeab96665d3399facba3b312a5b245c806fc5f7e6973cff6d452b87079de806a5a3f3a1ba61fb2a4a557c084b6';
+
+function matchesAdminCredentials(email: unknown, password: unknown) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !password) return false;
+  const adminEmail = (process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
+  if (email.trim().toLowerCase() !== adminEmail) return false;
+  const configuredPassword = process.env.ADMIN_PASSWORD;
+  if (configuredPassword) {
+    const expected = Buffer.from(configuredPassword);
+    const given = Buffer.from(password);
+    return expected.length === given.length && timingSafeEqual(expected, given);
+  }
+  const [, salt, hash] = DEFAULT_ADMIN_PASSWORD_HASH.split(':');
+  return timingSafeEqual(scryptSync(password, salt, 64), Buffer.from(hash, 'hex'));
+}
+
+// Creates the staff Identity account, or restores its password and admin role, once the credentials check out.
+async function provisionAdmin(email: string, password: string) {
+  const normalized = email.trim().toLowerCase();
+  const existing = (await admin.listUsers({ perPage: 1000 })).find(user => user.email?.toLowerCase() === normalized);
+  if (!existing) {
+    await admin.createUser({ email: normalized, password, data: {
+      app_metadata: { roles: ['admin'] }, user_metadata: { full_name: 'Administrator' }
+    } });
+    return;
+  }
+  const appMetadata = existing.appMetadata ?? {};
+  const roles = Array.isArray(appMetadata.roles) ? appMetadata.roles.filter(role => typeof role === 'string') : [];
+  await admin.updateUser(existing.id, {
+    password, confirm: true,
+    app_metadata: { ...appMetadata, roles: roles.includes('admin') ? roles : [...roles, 'admin'] }
+  });
+}
+
 export default async (request: Request) => {
   const url = new URL(request.url);
   const path = url.pathname.replace(/\/$/, '');
@@ -56,6 +93,15 @@ export default async (request: Request) => {
       if (sort === 'low') rows.sort((first, second) => Number(first.price) - Number(second.price));
       if (sort === 'high') rows.sort((first, second) => Number(second.price) - Number(first.price));
       return reply({ success: true, count: rows.length, listings: rows });
+    }
+
+    if (path === '/api/admin/access' && method === 'POST') {
+      const body = await request.json();
+      if (!matchesAdminCredentials(body.email, body.password)) {
+        return reply({ error: 'Invalid email or password. Please try again.' }, 401);
+      }
+      await provisionAdmin(body.email, body.password);
+      return reply({ success: true });
     }
 
     const identity = await getUser();

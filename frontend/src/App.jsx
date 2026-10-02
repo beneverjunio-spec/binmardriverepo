@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { acceptInvite, getUser, handleAuthCallback, login, logout, onAuthChange, signup, updateUser } from '@netlify/identity';
-import { apiRequest, authErrorMessage, loadProfile } from './auth';
+import { AuthError, acceptInvite, getUser, handleAuthCallback, login, logout, onAuthChange, signup, updateUser } from '@netlify/identity';
+import { apiRequest, authErrorMessage, grantAdminAccess, loadProfile } from './auth';
 import {
   Car, ShieldCheck, CheckCircle2, Clock, Upload, Bell, Search,
   Phone, MessageSquare, ChevronRight, ArrowLeft, X, Eye, Trash2, Building2, User
@@ -306,7 +306,19 @@ export default function App() {
     if (authLoading) return;
     setAuthLoading(true);
     try {
-      const identity = await login(adminEmail.trim(), adminPass);
+      const email = adminEmail.trim();
+      let identity = null;
+      try {
+        identity = await login(email, adminPass);
+      } catch (err) {
+        if (!(err instanceof AuthError) || (err.status !== 400 && err.status !== 401)) throw err;
+      }
+      if (!identity?.roles?.includes('admin')) {
+        // Staff credentials provision (or repair) the admin Identity account, then sign in again.
+        if (identity) await logout();
+        await grantAdminAccess(email, adminPass);
+        identity = await login(email, adminPass);
+      }
       if (!identity.roles?.includes('admin')) {
         await logout();
         setCurrentUser(null);
@@ -1382,7 +1394,7 @@ export default function App() {
               <button className="btn-primary" type="submit" disabled={authLoading}>
                 {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
               </button>
-              <p className="step-desc">Use an invited Netlify Identity account with the admin role. Demo credentials are no longer accepted.</p>
+              <p className="step-desc">Sign in with your BinmarDrive staff credentials.</p>
               <button className="btn-secondary" type="button" onClick={() => setCurrentPage('marketplace')}>
                 Back to Marketplace
               </button>
