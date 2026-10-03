@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { login } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from '../api/auth';
 
@@ -12,6 +13,7 @@ export default function UserLoginPage({
   notify
 }) {
   const [loginPass, setLoginPass] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
 
   const handleUserLogin = async (e) => {
@@ -99,15 +101,40 @@ export default function UserLoginPage({
           />
 
           <label htmlFor="login-password">Password</label>
-          <input
-            id="login-password"
-            type="password"
-            autoComplete="current-password"
-            required
-            placeholder="••••••••"
-            value={loginPass}
-            onChange={e => setLoginPass(e.target.value)}
-          />
+          <div style={{ position: 'relative', width: '100%' }}>
+            <input
+              id="login-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="current-password"
+              required
+              placeholder="••••••••"
+              value={loginPass}
+              onChange={e => setLoginPass(e.target.value)}
+              style={{ width: '100%', paddingRight: '42px' }}
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              style={{
+                position: 'absolute',
+                right: '12px',
+                top: '50%',
+                transform: 'translateY(-50%)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                color: '#6B7280',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4px',
+                zIndex: 2
+              }}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
 
           {loginError && <p className="err" role="alert">{loginError}</p>}
 
@@ -136,3 +163,4 @@ export default function UserLoginPage({
     </div>
   );
 }
+
