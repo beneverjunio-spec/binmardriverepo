@@ -1,6 +1,6 @@
 [build]
-  command = "npm --prefix frontend install --include=dev && npm --prefix frontend run build"
-  publish = "frontend/dist"
+  command = "node scripts/build.js"
+  publish = "dist"
 
 [functions]
   directory = "backend/functions"
@@ -15,3 +15,4 @@
   from = "/*"
   to = "/index.html"
   status = 200
+

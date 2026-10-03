@@ -4,9 +4,9 @@
   "version": "1.0.0",
   "description": "BinmarDrive Vehicle Marketplace and Rental Platform",
   "scripts": {
-    "dev": "netlify dev --port 8889",
+    "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
-    "build": "npm --prefix frontend run build",
+    "build": "node scripts/build.js",
     "typecheck": "npm --prefix backend run typecheck",
     "db:generate": "npm --prefix backend run db:generate"
   },
@@ -16,11 +16,19 @@
     "@netlify/functions": "^6.0.2",
     "@netlify/identity": "^2.0.0",
     "drizzle-orm": "^1.0.0-beta.22",
+    "lucide-react": "^0.378.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "serverless-http": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "@vitejs/plugin-react": "^4.2.1",
     "drizzle-kit": "^1.0.0-beta.22",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vite": "^5.2.0"
   }
 }
+
