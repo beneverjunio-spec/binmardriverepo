@@ -1,46 +1,107 @@
 # 🚗 BinmarDrive — GCC Vehicle Marketplace
 
-> Premium vehicle marketplace and rental platform for the GCC region (UAE, Saudi Arabia, Qatar, Oman, Kuwait, and Bahrain).
-
-[![React](https://img.shields.io/badge/Frontend-React%2018%20%7C%20Vite-blue)](./frontend)
-[![Netlify Functions](https://img.shields.io/badge/Backend-Netlify%20Functions-green)](./netlify/functions)
-[![Database](https://img.shields.io/badge/Database-Netlify%20Postgres-orange)](./db/schema.ts)
+A full-stack, serverless automotive marketplace and rental platform built for the GCC region (*United Arab Emirates, Saudi Arabia, Qatar, Oman, Kuwait, and Bahrain*).
 
 ---
 
-## 📚 Complete Documentation Folder
+## 🌟 Key Features
 
-Detailed documentation is available in the [**`readme/`**](./readme/) folder:
+- **Public Vehicle Marketplace**: Filter vehicles by Make, Country, Category (SUV, Sedan, Pickup, Luxury), Listing Type (Buy/Rent), and Price.
+- **Listing Creation Wizard**: Multi-step vehicle submission workflow with image upload support.
+- **Commercial Dealer Verification**: Business verification system with trade license review.
+- **Administrative Portal**: Complete management portal with real-time statistics, listing moderation queue, dealer approval workflow, and live inventory management.
+- **Regional Support**: Built-in support for GCC currencies (AED, SAR, QAR, KWD, BHD, OMR) and phone formatting.
 
-- 📖 [**Project Overview & Features**](./readme/README.md)
-- 🚀 [**Setup & Installation Guide**](./readme/SETUP_GUIDE.md)
-- 📡 [**REST API Documentation**](./readme/API_DOCUMENTATION.md)
-- 🗄️ [**Database Schema & Architecture**](./readme/DATABASE_SCHEMA.md)
+---
+
+## 🏗️ Architecture & Technology Stack
+
+| Component | Technology | Description |
+| :--- | :--- | :--- |
+| **Frontend** | React 18, Vite, Lucide Icons | Modular Single Page Application (SPA) with clean component hierarchy |
+| **Backend / API** | Netlify Functions (TypeScript) | Serverless REST API endpoints for listings, moderation, and notifications |
+| **Database** | PostgreSQL + Drizzle ORM | Type-safe schema definition and query builder |
+| **Authentication** | Netlify Identity | Role-based authorization (`individual`, `company`, `admin`) |
+| **Storage** | Netlify Blobs | Cloud blob storage for vehicle imagery |
+
+---
+
+## 📁 Project Structure
+
+```text
+binmardriverepo/
+├── frontend/                   # 🌐 Dedicated Frontend Application
+│   ├── src/
+│   │   ├── api/                # API client & domain service modules
+│   │   │   ├── admin.js        # Moderation and admin operations API
+│   │   │   ├── auth.js         # Authentication profile & error handlers
+│   │   │   ├── client.js       # Base HTTP client
+│   │   │   └── listings.js     # Public listings and photo uploads
+│   │   ├── components/         # Reusable UI components
+│   │   │   ├── admin/          # Admin portal components & tabs
+│   │   │   ├── common/         # Navbar, Footer, Toast
+│   │   │   └── marketplace/    # Cards, detail modals, category chips
+│   │   ├── constants/          # GCC regional data & application constants
+│   │   ├── pages/              # Clean routed page views
+│   │   ├── App.jsx             # Main application orchestrator
+│   │   ├── index.css           # Design system and stylesheets
+│   │   └── main.jsx            # Application entry point
+│   ├── index.html
+│   ├── package.json
+│   └── vite.config.js
+│
+├── backend/                    # ⚙️ Dedicated Backend Application
+│   ├── db/                     # Database schema & ORM client
+│   │   ├── index.ts            # Database connection helper
+│   │   └── schema.ts           # Drizzle ORM PostgreSQL schema
+│   ├── functions/              # Serverless API functions
+│   │   ├── api.mts             # Primary REST API handler
+│   │   └── photos.mts          # Photo upload and blob storage handler
+│   ├── drizzle.config.ts       # Database migration configuration
+│   ├── package.json            # Backend dependencies & scripts
+│   └── tsconfig.json           # Backend TypeScript configuration
+│
+├── netlify.toml                # Netlify deployment and routing configuration
+├── package.json                # Root workspace configuration and scripts
+└── README.md
+```
 
 ---
 
 ## ⚡ Quick Start
 
+### 1. Install Dependencies
 ```bash
 npm install --include=dev
 npm --prefix frontend install --include=dev
-netlify dev --port 8889
+npm --prefix backend install --include=dev
 ```
 
-Open **[http://localhost:8889](http://localhost:8889)** in your browser. Use Netlify Dev rather than Vite alone so authentication, API routes, and file storage run together.
+### 2. Run Local Development Server
+Use Netlify Dev so that frontend, backend serverless functions, identity, and database run together:
+```bash
+npx netlify dev --port 8889
+```
+
+Open [http://localhost:8889](http://localhost:8889) in your browser.
 
 ---
 
-## Staff Sign-In
+## 🛡️ Authentication & Administration
 
-Authentication uses Netlify Identity. The Admin Portal accepts the staff account configured in `netlify/functions/api.mts` (email `beneverjunio@gmail.com`; the password is stored only as a salted scrypt hash). On the first successful sign-in, the API creates that Identity account, or restores its password and `admin` role if the account already exists, and the portal then signs in normally.
+1. **User Accounts**: Users can register as an *Individual Owner* or *Commercial Dealer*.
+2. **Staff / Admin Access**:
+   - Invite staff members through the **Netlify Identity** dashboard.
+   - Assign the `admin` role to the account.
+   - Staff members accept the invite, set a password, and log in via the **Admin Portal**.
+   - Role-based authorization is enforced at both the API layer and the UI layer.
 
-To rotate the credentials, set the `ADMIN_EMAIL` and `ADMIN_PASSWORD` environment variables in the Netlify dashboard (Functions scope) and redeploy; they override the built-in values. Additional staff can still be invited under Identity and given the `admin` role. Only server-managed Identity roles authorize administrative requests.
+---
 
-## Deployment And Data
+## 📜 Available Scripts
 
-`netlify.toml` publishes the React frontend and deploys the API functions together. The deployed API uses Netlify Database with the schema in `db/schema.ts` and migrations in `netlify/database/migrations`. Generate a migration after changing the schema with `npm run db:generate -- --name descriptive_change_name`. Vehicle photos use Netlify Blobs rather than the server filesystem.
-
-The managed database starts empty; dashboard counts reflect actual records, not demo statistics. Historical MySQL or in-memory sample data is not automatically imported. The old `backend/` Express server and the documentation in `readme/` describe the earlier standalone demo, not the deployed authentication or database configuration.
-
-Run `npm run typecheck` to validate the function and database types. Successful staff sign-in requires an enabled Identity service and a confirmed account with the `admin` role.
+- `npm run dev`: Starts the unified local dev environment on port 8889.
+- `npm run dev:frontend`: Runs the Vite frontend development server independently.
+- `npm run build`: Compiles the frontend for production distribution.
+- `npm run typecheck`: Runs TypeScript checks across backend functions and database schemas.
+- `npm run db:generate`: Generates new Drizzle schema migrations.

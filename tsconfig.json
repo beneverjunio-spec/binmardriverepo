@@ -9,5 +9,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["db/**/*.ts", "netlify/functions/**/*.mts", "drizzle.config.ts"]
+  "include": ["backend/db/**/*.ts", "backend/functions/**/*.mts", "backend/drizzle.config.ts"]
 }

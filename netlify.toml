@@ -3,11 +3,11 @@
   publish = "frontend/dist"
 
 [functions]
-  directory = "netlify/functions"
+  directory = "backend/functions"
 
 [dev]
   command = "npm --prefix frontend run dev"
-  targetPort = 3000
+  targetPort = 5173
   port = 8889
   autoLaunch = false
 

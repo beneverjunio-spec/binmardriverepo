@@ -5,12 +5,10 @@
   "description": "BinmarDrive Vehicle Marketplace and Rental Platform",
   "scripts": {
     "dev": "netlify dev --port 8889",
-    "typecheck": "tsc --noEmit",
-    "db:generate": "drizzle-kit generate",
-    "build": "npm --prefix frontend run build",
     "dev:frontend": "npm --prefix frontend run dev",
-    "start:backend": "npm --prefix backend start",
-    "dev:backend": "npm --prefix backend run dev"
+    "build": "npm --prefix frontend run build",
+    "typecheck": "npm --prefix backend run typecheck",
+    "db:generate": "npm --prefix backend run db:generate"
   },
   "dependencies": {
     "@netlify/blobs": "^11.1.3",
