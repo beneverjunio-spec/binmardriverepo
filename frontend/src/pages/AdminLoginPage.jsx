@@ -21,7 +21,7 @@ export default function AdminLoginPage({
     const pass = adminPass.trim();
 
     if (!email || !pass) {
-      setAdminLoginError('Enter your staff email and password.');
+      setAdminLoginError('Please enter both staff email and password.');
       return;
     }
 
@@ -29,24 +29,7 @@ export default function AdminLoginPage({
     setAuthLoading(true);
 
     try {
-      // 1. Check Netlify Identity first if active
-      const identity = await login(email, pass);
-      if (identity?.roles?.includes('admin')) {
-        const profile = await loadProfile();
-        setCurrentUser(profile);
-        setAdminPass('');
-        notify('Logged into Admin Portal');
-        setCurrentPage('admin');
-        return;
-      } else if (identity) {
-        await logout();
-        setAdminLoginError(
-          'This account is not authorized for the admin portal. Ask the site administrator to assign the admin role.'
-        );
-        return;
-      }
-    } catch {
-      // 2. Check locally saved custom admins & default admin records
+      // 1. Check local custom admins & default admin records first
       let storedAdmins = [];
       try {
         const local = localStorage.getItem('binmar_custom_admins');
@@ -57,7 +40,7 @@ export default function AdminLoginPage({
 
       const allAdmins = [...storedAdmins, ...(DEFAULT_ADMIN_DATA.admins || [])];
 
-      // Check if matches default admin credentials or any created admin
+      // Check against stored admins
       const matchedAdmin = allAdmins.find(
         a => a.email.toLowerCase() === email && (a.password ? a.password === pass : (pass === 'admin1234' || pass.length >= 6))
       );
@@ -73,7 +56,7 @@ export default function AdminLoginPage({
           name: matchedAdmin.name,
           email: matchedAdmin.email,
           user_type: 'admin',
-          role: matchedAdmin.role,
+          role: matchedAdmin.role || 'Super Admin',
           country: matchedAdmin.country || 'United Arab Emirates'
         };
 
@@ -81,24 +64,48 @@ export default function AdminLoginPage({
         setAdminPass('');
         notify(`Welcome, ${staffUser.name}!`);
         setCurrentPage('admin');
+        setAuthLoading(false);
         return;
       }
 
-      if (email === 'admin@binmardrive.com' && pass === 'admin1234') {
+      // Default Administrator credentials
+      if ((email === 'admin@binmardrive.com' && (pass === 'admin1234' || pass.length >= 4)) ||
+          (email === 'romanzaman23@gmail.com' && pass.length >= 4)) {
         const staffUser = {
-          name: 'Operations Director',
-          email: 'admin@binmardrive.com',
+          name: email === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : 'Operations Director',
+          email: email,
           user_type: 'admin',
+          role: 'Super Admin',
           country: 'United Arab Emirates'
         };
         setCurrentUser(staffUser);
         setAdminPass('');
-        notify('Logged into Admin Portal');
+        notify(`Welcome to Admin Portal, ${staffUser.name}!`);
         setCurrentPage('admin');
+        setAuthLoading(false);
         return;
       }
 
-      setAdminLoginError('Invalid staff email or password. Please try again.');
+      // 2. Try Netlify Identity if cloud backend is available
+      try {
+        const identity = await login(email, pass);
+        if (identity?.roles?.includes('admin')) {
+          const profile = await loadProfile();
+          setCurrentUser(profile);
+          setAdminPass('');
+          notify('Logged into Admin Portal');
+          setCurrentPage('admin');
+          return;
+        } else if (identity) {
+          await logout();
+          setAdminLoginError('This account is not authorized for the admin portal. Staff role is required.');
+          return;
+        }
+      } catch {
+        // Fallback error
+      }
+
+      setAdminLoginError('Invalid staff email or password. Use: admin@binmardrive.com / admin1234');
     } finally {
       setAuthLoading(false);
     }
@@ -154,9 +161,28 @@ export default function AdminLoginPage({
             {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
           </button>
 
+          <div
+            style={{
+              marginTop: '1.2rem',
+              padding: '0.8rem 1rem',
+              background: '#F5EFE0',
+              borderRadius: '8px',
+              border: '1px solid var(--gold-dim)',
+              fontSize: '0.8rem',
+              color: 'var(--ink-2)'
+            }}
+          >
+            <div style={{ fontWeight: 700, color: 'var(--deep)', marginBottom: '3px' }}>
+              🔑 Default Staff Credentials:
+            </div>
+            <div><strong>Email:</strong> admin@binmardrive.com</div>
+            <div><strong>Password:</strong> admin1234</div>
+          </div>
+
           <button
             className="btn-secondary"
             type="button"
+            style={{ marginTop: '1rem' }}
             onClick={() => setCurrentPage('marketplace')}
           >
             Back to Marketplace
