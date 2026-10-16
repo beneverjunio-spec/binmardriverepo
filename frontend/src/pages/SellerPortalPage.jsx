@@ -537,7 +537,7 @@ export default function SellerPortalPage({
             <Store className="w-5 h-5 text-white" />
           </div>
           <div className="seller-brand-text">
-            <span className="seller-brand-title">BINMAR<b>DRIVE</b></span>
+            <span className="seller-brand-title">Motors ME</span>
             <span className="seller-brand-subtitle">SELLER STUDIO</span>
           </div>
           {mobileMenuOpen && (
@@ -585,12 +585,24 @@ export default function SellerPortalPage({
             </li>
             <li>
               <button
-                className={`seller-nav-item ${activeTab === 'inquiries' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('inquiries'); setMobileMenuOpen(false); }}
+                className={`seller-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('orders'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'orders' && <span className="seller-active-indicator" />}
                 <Tag size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Buyer Leads</span>
-                <span className="seller-badge-pill">{totalInquiries}</span>
+                <span className="seller-nav-label">Orders</span>
+                <span className="seller-badge-pill">2</span>
+              </button>
+            </li>
+            <li>
+              <button
+                className={`seller-nav-item ${activeTab === 'messages' ? 'active' : ''}`}
+                onClick={() => { setActiveTab('messages'); setMobileMenuOpen(false); }}
+              >
+                {activeTab === 'messages' && <span className="seller-active-indicator" />}
+                <MessageSquare size={18} className="seller-nav-icon" />
+                <span className="seller-nav-label">Messages</span>
+                <span className="seller-badge-pill">5</span>
               </button>
             </li>
             <li>
@@ -715,7 +727,8 @@ export default function SellerPortalPage({
         </div>
 
         {/* Top Header */}
-        <header className="seller-top-header">
+        {activeTab !== 'orders' && activeTab !== 'messages' && (
+          <header className="seller-top-header">
           <div className="seller-header-inner">
             <div>
               <p className="seller-header-kicker">SELLER STUDIO</p>
@@ -776,6 +789,7 @@ export default function SellerPortalPage({
             </div>
           </div>
         </header>
+      )}
 
         {/* Content Body */}
         <div className="seller-body-content">
@@ -1245,38 +1259,43 @@ export default function SellerPortalPage({
             </div>
           )}
 
-          {/* TAB 4: LEADS / INQUIRIES */}
-          {activeTab === 'inquiries' && (
-            <div className="bg-white rounded-2xl border border-tan/60 p-6">
-              <h2 className="text-xl font-bold font-serif-display text-ink mb-1">Direct Buyer Leads & Messages</h2>
-              <p className="text-sm text-ink-soft mb-6">
-                Interested buyers connect directly with your team through verified WhatsApp and direct telephone contact.
-              </p>
-              <div className="space-y-3">
-                {sellerListings.map((l, idx) => (
-                  <div key={l.id} className="p-4 rounded-xl bg-cream/50 border border-tan/40 flex items-center justify-between flex-wrap gap-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700 font-bold text-sm">
-                        L{idx + 1}
-                      </div>
-                      <div>
-                        <p className="font-bold text-ink text-sm">Inquiry for {l.title}</p>
-                        <p className="text-xs text-ink-soft">Targeting listing in {l.city} &bull; WhatsApp: {l.whatsapp_number}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`https://wa.me/${(l.whatsapp_number || '').replace(/[^0-9]/g, '')}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm"
-                      >
-                        <Phone size={12} /> Contact via WhatsApp
-                      </a>
-                    </div>
-                  </div>
-                ))}
+          {/* TAB 4: ORDERS (Exact match with user screenshot) */}
+          {activeTab === 'orders' && (
+            <div className="seller-orders-center-view">
+              <div className="seller-orders-icon-box">
+                <Store size={26} className="text-[#A87B2E]" />
               </div>
+              <p className="seller-orders-kicker">SELLER STUDIO</p>
+              <h1 className="seller-orders-title">Orders</h1>
+              <p className="seller-orders-desc">
+                Track reservations, deposits, and completed sales for your published vehicles.
+              </p>
+              <button
+                onClick={() => setActiveTab('listings')}
+                className="seller-back-listings-btn"
+              >
+                Back to My Listings
+              </button>
+            </div>
+          )}
+
+          {/* TAB 5: MESSAGES */}
+          {activeTab === 'messages' && (
+            <div className="seller-orders-center-view">
+              <div className="seller-orders-icon-box">
+                <MessageSquare size={26} className="text-[#A87B2E]" />
+              </div>
+              <p className="seller-orders-kicker">SELLER STUDIO</p>
+              <h1 className="seller-orders-title">Messages</h1>
+              <p className="seller-orders-desc">
+                Direct buyer inquiries and message threads for your published vehicles.
+              </p>
+              <button
+                onClick={() => setActiveTab('listings')}
+                className="seller-back-listings-btn"
+              >
+                Back to My Listings
+              </button>
             </div>
           )}
 
