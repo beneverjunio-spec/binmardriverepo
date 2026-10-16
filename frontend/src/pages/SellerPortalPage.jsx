@@ -4,6 +4,7 @@ import {
   Car,
   LayoutDashboard,
   Plus,
+  PlusCircle,
   Tag,
   MessageSquare,
   BarChart3,
@@ -571,7 +572,7 @@ export default function SellerPortalPage({
                 {activeTab === 'listings' && <span className="seller-active-indicator" />}
                 <Car size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">My Listings</span>
-                <span className="seller-badge-count">{publishedCount + pendingCount}</span>
+                <span className="seller-nav-badge">{publishedCount + pendingCount || 4}</span>
               </button>
             </li>
             <li>
@@ -579,7 +580,7 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'add-listing' ? 'active' : ''}`}
                 onClick={() => { setShowAddModal(true); setMobileMenuOpen(false); }}
               >
-                <Plus size={18} className="seller-nav-icon" />
+                <PlusCircle size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Add Listing</span>
               </button>
             </li>
@@ -591,7 +592,7 @@ export default function SellerPortalPage({
                 {activeTab === 'orders' && <span className="seller-active-indicator" />}
                 <Tag size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Orders</span>
-                <span className="seller-badge-pill">2</span>
+                <span className="seller-nav-badge">2</span>
               </button>
             </li>
             <li>
@@ -602,7 +603,7 @@ export default function SellerPortalPage({
                 {activeTab === 'messages' && <span className="seller-active-indicator" />}
                 <MessageSquare size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Messages</span>
-                <span className="seller-badge-pill">5</span>
+                <span className="seller-nav-badge">5</span>
               </button>
             </li>
             <li>
@@ -623,8 +624,9 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'profile' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('profile'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'profile' && <span className="seller-active-indicator" />}
                 <User size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Profile & Trade License</span>
+                <span className="seller-nav-label">Profile</span>
               </button>
             </li>
             <li>
@@ -632,6 +634,7 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'wallet' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('wallet'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'wallet' && <span className="seller-active-indicator" />}
                 <Wallet size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Wallet</span>
               </button>
@@ -641,6 +644,7 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'settings' && <span className="seller-active-indicator" />}
                 <Settings size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Settings</span>
               </button>
@@ -650,6 +654,7 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'help' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('help'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'help' && <span className="seller-active-indicator" />}
                 <HelpCircle size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Help Center</span>
               </button>
@@ -661,9 +666,9 @@ export default function SellerPortalPage({
         <div className="seller-upgrade-card">
           <div className="seller-card-dec1" />
           <div className="seller-card-dec2" />
-          <p className="seller-card-tag">PREMIUM DEALER</p>
+          <p className="seller-card-tag">PREMIUM</p>
           <p className="seller-card-title">Boost your listings</p>
-          <p className="seller-card-desc">Get up to 5x more verified buyer inquiries across UAE & GCC.</p>
+          <p className="seller-card-desc">Get up to 5x more buyer inquiries.</p>
           <button
             className="seller-upgrade-btn"
             onClick={() => notify('Premium dealer boost feature active for verified accounts.')}
