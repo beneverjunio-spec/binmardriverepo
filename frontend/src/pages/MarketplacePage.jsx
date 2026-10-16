@@ -36,7 +36,8 @@ export default function MarketplacePage({
       />
 
       {/* Trust Metrics */}
-      <TrustBanner listingsCount={listings.length} selectedCountry={selectedCountry} />
+      <TrustBanner listings={listings} listingsCount={listings.length} selectedCountry={selectedCountry} />
+
 
       {/* Category Chips Strip */}
       <CategoryStrip
