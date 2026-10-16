@@ -1186,7 +1186,8 @@ export default function SellerPortalPage({
 
           {/* TAB 3: DASHBOARD / OVERVIEW */}
           {activeTab === 'dashboard' && (
-            <div className="space-y-6">
+            <div className="seller-dashboard-wrap">
+              {/* Metric Stats Cards */}
               <div className="seller-metrics-grid">
                 <div className="seller-stat-card bg-emerald-50 border-emerald-100">
                   <div className="seller-stat-icon-wrap text-emerald-600 bg-white">
@@ -1222,43 +1223,111 @@ export default function SellerPortalPage({
                 </div>
               </div>
 
-              <div className="bg-white rounded-2xl border border-tan/60 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-serif-display text-lg font-bold text-ink">Recent Studio Listings</h3>
-                  <button
-                    className="text-xs font-semibold text-gold-deep hover:underline"
-                    onClick={() => setActiveTab('listings')}
-                  >
-                    View All &rarr;
-                  </button>
-                </div>
-                <div className="divide-y divide-tan/30">
-                  {sellerListings.slice(0, 4).map(l => (
-                    <div key={l.id} className="py-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={l.images?.[0] || 'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop'}
-                          alt={l.title}
-                          className="w-12 h-12 rounded-lg object-cover"
-                        />
-                        <div>
-                          <p className="font-bold text-ink text-sm">{l.title}</p>
-                          <p className="text-xs text-ink-soft">{l.city}, {l.country} &bull; {l.views || 0} views</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="font-bold text-gold-deep text-sm">
-                          {Number(l.price).toLocaleString()} {l.currency || 'AED'}
-                        </span>
-                        <button
-                          className="text-xs px-2.5 py-1 rounded bg-cream-deep border border-tan/60 font-medium text-ink hover:border-gold"
-                          onClick={() => handleStartEdit(l)}
-                        >
-                          Edit
-                        </button>
-                      </div>
+              {/* 2-Column Dashboard Body */}
+              <div className="seller-dash-grid-2">
+                {/* Recent Inventory List */}
+                <div className="seller-dashboard-card">
+                  <div className="seller-dashboard-header">
+                    <div>
+                      <h3 className="seller-dashboard-card-title">Recent Studio Listings</h3>
+                      <p className="text-xs text-ink-soft mt-0.5">Quickly edit or view your latest inventory.</p>
                     </div>
-                  ))}
+                    <button
+                      className="seller-dashboard-link-btn"
+                      onClick={() => setActiveTab('listings')}
+                    >
+                      View All Listings &rarr;
+                    </button>
+                  </div>
+
+                  <div className="seller-dash-table-wrap">
+                    {sellerListings.slice(0, 5).map(l => {
+                      const img = (Array.isArray(l.images) && l.images[0]) ||
+                        'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
+                      const isRent = (l.listing_type || l.type) === 'rent';
+
+                      return (
+                        <div key={l.id} className="seller-dash-vehicle-row">
+                          <div className="seller-dash-vehicle-left">
+                            <img
+                              src={img}
+                              alt={l.title}
+                              className="seller-dash-thumb"
+                              loading="lazy"
+                            />
+                            <div className="seller-dash-meta">
+                              <p className="seller-dash-title">{l.title}</p>
+                              <div className="seller-dash-submeta">
+                                <span>{l.category || 'SUV'}</span>
+                                <span>&bull;</span>
+                                <span>{l.city || 'Dubai'}</span>
+                                <span>&bull;</span>
+                                <span>{l.views || 0} views</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="seller-dash-vehicle-right">
+                            <span className="seller-dash-price">
+                              {Number(l.price || 0).toLocaleString()} {l.currency || 'AED'}
+                              {isRent ? '/mo' : ''}
+                            </span>
+                            <button
+                              className="seller-dash-action-btn"
+                              onClick={() => handleStartEdit(l)}
+                            >
+                              <Edit size={13} /> Edit
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Quick Showroom Overview Panel */}
+                <div className="seller-dashboard-card space-y-4">
+                  <div className="seller-dashboard-header">
+                    <h3 className="seller-dashboard-card-title">Showroom Status</h3>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-3">
+                    <ShieldCheck size={24} className="text-emerald-600 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold text-emerald-900">Verified Seller Account</p>
+                      <p className="text-[11px] text-emerald-700">Commercial trade license verified by admin.</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between py-2 border-b border-tan/30">
+                      <span className="text-ink-soft">Dealership</span>
+                      <span className="font-semibold text-ink">{sellerDisplayName}</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-tan/30">
+                      <span className="text-ink-soft">Live Inventory</span>
+                      <span className="font-semibold text-ink">{publishedCount} published</span>
+                    </div>
+                    <div className="flex justify-between py-2 border-b border-tan/30">
+                      <span className="text-ink-soft">WhatsApp Leads</span>
+                      <span className="font-semibold text-emerald-600 font-bold">{totalInquiries} inquiries</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 flex flex-col gap-2">
+                    <button
+                      className="seller-new-listing-btn w-full"
+                      onClick={() => setShowAddModal(true)}
+                    >
+                      <Plus size={16} /> Post New Vehicle
+                    </button>
+                    <button
+                      className="seller-public-link-btn w-full justify-center"
+                      onClick={() => setCurrentPage('marketplace')}
+                    >
+                      <ExternalLink size={14} /> Open Public Showroom
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
