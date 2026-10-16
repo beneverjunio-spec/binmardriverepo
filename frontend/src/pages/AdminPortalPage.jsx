@@ -73,9 +73,18 @@ export default function AdminPortalPage({
 
   const handleResolveModeration = async (id, approve) => {
     try {
+      const targetItem = moderationQueue.find(item => item.id === id);
       const data = await resolveModerationListing(id, approve);
       notify(data.message);
       setModerationQueue(prev => prev.filter(item => item.id !== id));
+      if (approve && targetItem) {
+        const approvedItem = {
+          ...targetItem,
+          status: 'approved',
+          approved_at: new Date().toISOString()
+        };
+        setAdminListings(prev => [approvedItem, ...prev.filter(l => l.id !== id)]);
+      }
       setAdminStats(prev => ({
         ...prev,
         pendingModeration: Math.max(0, prev.pendingModeration - 1),
@@ -86,6 +95,7 @@ export default function AdminPortalPage({
       notify(err.message || 'Unable to update moderation. Please try again.');
     }
   };
+
 
   const handleResolveDealer = async (id, verify) => {
     try {

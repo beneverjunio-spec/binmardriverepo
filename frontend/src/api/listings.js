@@ -79,9 +79,16 @@ export async function fetchPublicListings(filters = {}) {
     localCustom = [];
   }
 
-  // Filter combined listings (only approved listings appear on the public marketplace)
-  const approvedCustom = localCustom.filter(item => item.status === 'approved');
-  let filtered = [...approvedCustom, ...DEFAULT_LISTINGS.map(sanitizeListing)];
+  let deletedListingIds = [];
+  try {
+    const rawDel = localStorage.getItem('binmar_deleted_listings');
+    if (rawDel) deletedListingIds = JSON.parse(rawDel);
+  } catch {}
+
+  // Filter combined listings (only approved listings appear on the public marketplace, excluding deleted)
+  const approvedCustom = localCustom.filter(item => item.status === 'approved' && !deletedListingIds.includes(String(item.id)));
+  let filtered = [...approvedCustom, ...DEFAULT_LISTINGS.filter(d => !deletedListingIds.includes(String(d.id))).map(sanitizeListing)];
+
   if (filters.make) {
     filtered = filtered.filter(item => item.make.toLowerCase() === filters.make.toLowerCase());
   }
