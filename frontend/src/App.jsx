@@ -22,9 +22,25 @@ import HowItWorksPage from './pages/HowItWorksPage';
 import ContactPage from './pages/ContactPage';
 import SellerPortalPage from './pages/SellerPortalPage';
 
+function getInitialPage() {
+  try {
+    const path = (window.location.pathname || '').toLowerCase();
+    if (path.includes('seller') || path.includes('studio')) return 'seller';
+    if (path.includes('admin-login')) return 'admin-login';
+    if (path.includes('admin')) return 'admin';
+    if (path.includes('login') || path.includes('signin')) return 'user-login';
+    if (path.includes('register') || path.includes('signup')) return 'registration';
+    if (path.includes('create') || path.includes('post')) return 'create-listing';
+    if (path.includes('about')) return 'about';
+    if (path.includes('how-it-works')) return 'how-it-works';
+    if (path.includes('contact')) return 'contact';
+  } catch {}
+  return 'marketplace';
+}
+
 export default function App() {
   // Navigation & Page State
-  const [currentPage, setCurrentPage] = useState('marketplace');
+  const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [toast, setToast] = useState({ show: false, message: '' });
 
   // User & Auth State
@@ -72,9 +88,37 @@ export default function App() {
     loadListings();
   }, [selectedMake, selectedCountry, selectedType, selectedCategory, maxPrice, sortBy]);
 
+  // Synchronize browser URL bar and scroll position
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
+    try {
+      const pageToPath = {
+        'marketplace': '/',
+        'seller': '/seller',
+        'user-login': '/login',
+        'admin-login': '/admin-login',
+        'admin': '/admin',
+        'registration': '/register',
+        'create-listing': '/create-listing',
+        'about': '/about',
+        'how-it-works': '/how-it-works',
+        'contact': '/contact'
+      };
+      const targetPath = pageToPath[currentPage] || '/';
+      if (window.location.pathname !== targetPath) {
+        window.history.pushState({ page: currentPage }, '', targetPath);
+      }
+    } catch {}
   }, [currentPage]);
+
+  // Handle browser back / forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPage(getInitialPage());
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   // Handle Netlify Identity auth state and invitations safely
   useEffect(() => {
