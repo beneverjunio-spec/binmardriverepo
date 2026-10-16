@@ -215,10 +215,31 @@ export async function resolveDealerApplication(id, verify) {
       const items = JSON.parse(raw);
       const matchIndex = items.findIndex(item => String(item.id) === String(id));
       if (matchIndex !== -1) {
-        dealerName = items[matchIndex].name || items[matchIndex].company_name || 'Dealer';
+        const dealerItem = items[matchIndex];
+        dealerName = dealerItem.name || dealerItem.company_name || 'Dealer';
         items[matchIndex].status = verify ? 'verified' : 'rejected';
         items[matchIndex].verified_at = new Date().toISOString();
         localStorage.setItem('binmar_custom_dealers', JSON.stringify(items));
+
+        // Synchronize with registered user credentials in binmar_custom_users
+        try {
+          const rawUsers = localStorage.getItem('binmar_custom_users');
+          if (rawUsers) {
+            const users = JSON.parse(rawUsers);
+            const userIndex = users.findIndex(u =>
+              (dealerItem.email && u.email && u.email.toLowerCase() === dealerItem.email.toLowerCase()) ||
+              (dealerItem.company_name && u.company_name && u.company_name.toLowerCase() === dealerItem.company_name.toLowerCase()) ||
+              (dealerItem.trade_license && u.trade_license && u.trade_license === dealerItem.trade_license)
+            );
+            if (userIndex !== -1) {
+              users[userIndex].status = verify ? 'approved' : 'rejected';
+              users[userIndex].is_verified_seller = verify;
+              localStorage.setItem('binmar_custom_users', JSON.stringify(users));
+            }
+          }
+        } catch (e) {
+          console.warn('Could not update user status in localStorage', e);
+        }
       }
     }
   } catch {}

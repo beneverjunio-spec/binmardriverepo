@@ -43,15 +43,47 @@ export default function UserLoginPage({
             setAuthLoading(false);
             return;
           }
+
+          // Check if dealer verification was approved by admin
           if (matched.user_type === 'company' && matched.status === 'pending') {
-            setLoginError('Your dealer account is currently pending administrative verification. Please wait for admin approval.');
-            setAuthLoading(false);
-            return;
+            try {
+              const rawDealers = localStorage.getItem('binmar_custom_dealers');
+              if (rawDealers) {
+                const dealers = JSON.parse(rawDealers);
+                const dMatch = dealers.find(d =>
+                  (d.email && d.email.toLowerCase() === email) ||
+                  (d.company_name && matched.company_name && d.company_name.toLowerCase() === matched.company_name.toLowerCase())
+                );
+                if (dMatch && (dMatch.status === 'verified' || dMatch.status === 'approved')) {
+                  matched.status = 'approved';
+                  matched.is_verified_seller = true;
+                  // update stored user
+                  users.forEach(u => {
+                    if (u.email.toLowerCase() === email) {
+                      u.status = 'approved';
+                      u.is_verified_seller = true;
+                    }
+                  });
+                  localStorage.setItem('binmar_custom_users', JSON.stringify(users));
+                }
+              }
+            } catch {}
+
+            if (matched.status === 'pending') {
+              setLoginError('Your dealer account is currently pending administrative verification. Please wait for admin approval.');
+              setAuthLoading(false);
+              return;
+            }
           }
+
           setCurrentUser(matched);
           setLoginPass('');
-          notify(`Welcome back, ${matched.name}!`);
-          setCurrentPage('marketplace');
+          notify(`Welcome back to Seller Studio, ${matched.name}!`);
+          if (matched.user_type === 'company' || matched.is_verified_seller) {
+            setCurrentPage('seller');
+          } else {
+            setCurrentPage('marketplace');
+          }
           setAuthLoading(false);
           return;
         }

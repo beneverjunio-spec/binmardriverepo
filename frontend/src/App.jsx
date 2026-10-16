@@ -20,6 +20,7 @@ import AdminPortalPage from './pages/AdminPortalPage';
 import AboutPage from './pages/AboutPage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import ContactPage from './pages/ContactPage';
+import SellerPortalPage from './pages/SellerPortalPage';
 
 export default function App() {
   // Navigation & Page State
@@ -151,8 +152,8 @@ export default function App() {
       {/* Toast Notification */}
       <Toast show={toast.show} message={toast.message} />
 
-      {/* Top Navigation on all pages except full Admin Portal shell */}
-      {currentPage !== 'admin' && (
+      {/* Top Navigation on all pages except full Admin Portal and Seller Studio shells */}
+      {currentPage !== 'admin' && currentPage !== 'seller' && (
         <Navbar
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
@@ -235,7 +236,7 @@ export default function App() {
             currentUser={currentUser}
             onSuccess={() => {
               loadListings();
-              setCurrentPage('marketplace');
+              setCurrentPage('seller');
             }}
             onCancel={() => setCurrentPage('marketplace')}
             notify={notify}
@@ -260,6 +261,17 @@ export default function App() {
             notify={notify}
           />
         )}
+
+        {currentPage === 'seller' && (
+          <SellerPortalPage
+            currentUser={currentUser || { name: 'Verified Dealer', user_type: 'company', is_verified_seller: true }}
+            setCurrentUser={setCurrentUser}
+            setCurrentPage={setCurrentPage}
+            notify={notify}
+            onRefreshListings={loadListings}
+            onOpenCreateListing={() => setCurrentPage('create-listing')}
+          />
+        )}
       </main>
 
       {/* Vehicle Details Modal */}
@@ -270,8 +282,8 @@ export default function App() {
         />
       )}
 
-      {/* Public Footer on non-admin pages */}
-      {currentPage !== 'admin' && (
+      {/* Public Footer on non-admin and non-seller pages */}
+      {currentPage !== 'admin' && currentPage !== 'seller' && (
         <Footer
           setCurrentPage={setCurrentPage}
           setSelectedType={setSelectedType}

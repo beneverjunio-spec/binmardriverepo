@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Building2, User } from 'lucide-react';
+import { Car, Building2, User, Store } from 'lucide-react';
 
 export default function Navbar({
   currentPage,
@@ -53,27 +53,50 @@ export default function Navbar({
         >
           Contact
         </a>
+        {currentUser && (
+          <a
+            className={currentPage === 'seller' ? 'active' : ''}
+            onClick={() => setCurrentPage('seller')}
+            style={{ color: '#E4C374' }}
+          >
+            Seller Studio
+          </a>
+        )}
       </div>
 
       <div className="nav-actions">
         {currentUser ? (
-          <div className="user-chip">
-            {currentUser.user_type === 'company' ? (
-              <Building2 size={13} style={{ display: 'inline', marginRight: 4 }} />
-            ) : (
-              <User size={13} style={{ display: 'inline', marginRight: 4 }} />
-            )}
-            {currentUser.name}
-          </div>
+          <>
+            <div
+              className="user-chip cursor-pointer"
+              onClick={() => setCurrentPage('seller')}
+              title="Open Seller Studio"
+              style={{ cursor: 'pointer' }}
+            >
+              {currentUser.user_type === 'company' ? (
+                <Building2 size={13} style={{ display: 'inline', marginRight: 4 }} />
+              ) : (
+                <User size={13} style={{ display: 'inline', marginRight: 4 }} />
+              )}
+              {currentUser.name}
+            </div>
+
+            <button
+              className="btn-outline-gold"
+              onClick={() => setCurrentPage(currentPage === 'seller' ? 'marketplace' : 'seller')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <Store size={14} />
+              {currentPage === 'seller' ? 'Marketplace' : 'Seller Studio'}
+            </button>
+
+            <button className="btn-outline-gold" onClick={onLogout}>
+              Sign out
+            </button>
+          </>
         ) : (
           <button className="btn-outline-gold" onClick={() => setCurrentPage('user-login')}>
             Sign in
-          </button>
-        )}
-
-        {currentUser && (
-          <button className="btn-outline-gold" onClick={onLogout}>
-            Sign out
           </button>
         )}
 
