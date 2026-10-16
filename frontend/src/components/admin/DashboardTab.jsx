@@ -39,36 +39,42 @@ export default function DashboardTab({
             View Full Queue
           </button>
         </div>
-        <table>
-          <tbody>
-            {moderationQueue.slice(0, 3).map(item => (
-              <tr key={item.id}>
-                <td>
-                  <div className="cell-main">{item.title}</div>
-                  <div className="cell-sub">{item.city}, {item.country}</div>
-                </td>
-                <td>{item.seller_name || item.seller}</td>
-                <td>{item.price_label || `${item.currency} ${Number(item.price).toLocaleString()}`}</td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="act-btn approve"
-                      onClick={() => onResolveModeration(item.id, true)}
-                    >
-                      Approve
-                    </button>
-                    <button
-                      className="act-btn reject"
-                      onClick={() => onResolveModeration(item.id, false)}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {moderationQueue.length > 0 ? (
+          <table>
+            <tbody>
+              {moderationQueue.slice(0, 3).map(item => (
+                <tr key={item.id}>
+                  <td>
+                    <div className="cell-main">{item.title}</div>
+                    <div className="cell-sub">{item.city}, {item.country}</div>
+                  </td>
+                  <td>{item.seller_name || item.seller}</td>
+                  <td>{item.price_label || `${item.currency} ${Number(item.price).toLocaleString()}`}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="act-btn approve"
+                        onClick={() => onResolveModeration(item.id, true)}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        className="act-btn reject"
+                        onClick={() => onResolveModeration(item.id, false)}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--ink-2)', fontSize: '0.9rem' }}>
+            All clear! No pending vehicle submissions waiting for review.
+          </div>
+        )}
       </div>
 
       <div className="panel">
@@ -81,36 +87,43 @@ export default function DashboardTab({
             View Dealer Queue
           </button>
         </div>
-        <table>
-          <tbody>
-            {dealerQueue.slice(0, 3).map(dealer => (
-              <tr key={dealer.id}>
-                <td>
-                  <div className="cell-main">{dealer.name || dealer.company_name}</div>
-                  <div className="cell-sub">{dealer.trade_license || 'License Attached'}</div>
-                </td>
-                <td>{dealer.country}</td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="act-btn approve"
-                      onClick={() => onResolveDealer(dealer.id, true)}
-                    >
-                      Verify
-                    </button>
-                    <button
-                      className="act-btn reject"
-                      onClick={() => onResolveDealer(dealer.id, false)}
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {dealerQueue.length > 0 ? (
+          <table>
+            <tbody>
+              {dealerQueue.slice(0, 3).map(dealer => (
+                <tr key={dealer.id}>
+                  <td>
+                    <div className="cell-main">{dealer.name || dealer.company_name}</div>
+                    <div className="cell-sub">{dealer.trade_license || 'License Attached'}</div>
+                  </td>
+                  <td>{dealer.country}</td>
+                  <td>
+                    <div className="row-actions">
+                      <button
+                        className="act-btn approve"
+                        onClick={() => onResolveDealer(dealer.id, true)}
+                      >
+                        Verify
+                      </button>
+                      <button
+                        className="act-btn reject"
+                        onClick={() => onResolveDealer(dealer.id, false)}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--ink-2)', fontSize: '0.9rem' }}>
+            All clear! No commercial dealer verification requests waiting.
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

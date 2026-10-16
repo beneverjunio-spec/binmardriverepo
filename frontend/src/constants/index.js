@@ -233,75 +233,14 @@ export const DEFAULT_LISTINGS = [
 
 export const DEFAULT_ADMIN_DATA = {
   stats: {
-    liveListings: 18,
-    pendingModeration: 3,
-    verifiedDealers: 42,
-    pendingDealers: 2
+    liveListings: 0,
+    pendingModeration: 0,
+    verifiedDealers: 0,
+    pendingDealers: 0
   },
-  moderationQueue: [
-    {
-      id: 101,
-      title: '2024 Land Rover Defender 110 V8',
-      make: 'Land Rover',
-      model: 'Defender 110 V8',
-      year: 2024,
-      category: 'SUV',
-      condition_type: 'used',
-      price: 430000,
-      currency: 'AED',
-      price_label: 'AED 430,000',
-      city: 'Dubai',
-      country: 'United Arab Emirates',
-      seller_name: 'Khalid Al Nuaimi'
-    },
-    {
-      id: 102,
-      title: '2023 BMW M4 Competition Coupe',
-      make: 'BMW',
-      model: 'M4 Competition',
-      year: 2023,
-      category: 'Luxury',
-      condition_type: 'used',
-      price: 365000,
-      currency: 'AED',
-      price_label: 'AED 365,000',
-      city: 'Abu Dhabi',
-      country: 'United Arab Emirates',
-      seller_name: 'Elite Performance Cars'
-    },
-    {
-      id: 103,
-      title: '2024 Chevrolet Corvette Z06 3LZ',
-      make: 'Chevrolet',
-      model: 'Corvette Z06',
-      year: 2024,
-      category: 'Luxury',
-      condition_type: 'new',
-      price: 580000,
-      currency: 'SAR',
-      price_label: 'SAR 580,000',
-      city: 'Jeddah',
-      country: 'Saudi Arabia',
-      seller_name: 'Gulf Supercars Trading'
-    }
-  ],
-  dealerQueue: [
-    {
-      id: 201,
-      name: 'Oasis Luxury Automotive LLC',
-      company_name: 'Oasis Luxury Automotive LLC',
-      trade_license: 'CN-8849201',
-      country: 'United Arab Emirates'
-    },
-    {
-      id: 202,
-      name: 'Riyadh Premier Motors',
-      company_name: 'Riyadh Premier Motors',
-      trade_license: 'CR-10103948',
-      country: 'Saudi Arabia'
-    }
-  ],
-  adminListings: DEFAULT_LISTINGS,
+  moderationQueue: [],
+  dealerQueue: [],
+  adminListings: [],
   admins: [
     {
       id: 1,
@@ -334,18 +273,6 @@ export const DEFAULT_ADMIN_DATA = {
       created_at: '2026-03-01'
     }
   ],
-  notifications: [
-    {
-      id: 1,
-      title: 'New Listing Pending Review',
-      message: '2024 Land Rover Defender 110 V8 was submitted by Khalid Al Nuaimi.',
-      is_read: false
-    },
-    {
-      id: 2,
-      title: 'Dealer Verification Request',
-      message: 'Oasis Luxury Automotive LLC uploaded trade license for verification.',
-      is_read: false
-    }
-  ]
+  notifications: []
 };
+
