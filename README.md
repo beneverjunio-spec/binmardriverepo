@@ -105,3 +105,7 @@ Open [http://localhost:8889](http://localhost:8889) in your browser.
 - `npm run build`: Compiles the frontend for production distribution.
 - `npm run typecheck`: Runs TypeScript checks across backend functions and database schemas.
 - `npm run db:generate`: Generates new Drizzle schema migrations.
+
+---
+
+*Last build trigger: 2026-10-16*
