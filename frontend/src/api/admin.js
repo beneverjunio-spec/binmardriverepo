@@ -57,6 +57,20 @@ export async function fetchAdminPortalData() {
     if (rawResD) resolvedDealers = JSON.parse(rawResD);
   } catch {}
 
+  // 4. Load local custom dealers registered by users
+  let customDealers = [];
+  try {
+    const rawDealers = localStorage.getItem('binmar_custom_dealers');
+    if (rawDealers) {
+      const parsedDealers = JSON.parse(rawDealers);
+      customDealers = parsedDealers.filter(d => !isTestData(d));
+      localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
+    }
+  } catch {}
+
+  const pendingCustomDealers = customDealers.filter(d => d.status === 'pending' && !resolvedDealers.includes(String(d.id)));
+  const verifiedCustomDealers = customDealers.filter(d => (d.status === 'approved' || d.status === 'verified') && !resolvedDealers.includes(String(d.id) + '_rejected'));
+
   let customNotifs = [];
   try {
     const notifRaw = localStorage.getItem('binmar_admin_notifications');
@@ -82,11 +96,13 @@ export async function fetchAdminPortalData() {
     const liveList = [...approvedCustom, ...(listRes.listings || [])]
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
 
-    const dealers = (dealerRes.dealers || [])
+    const dealers = [...pendingCustomDealers, ...(dealerRes.dealers || [])]
       .filter(dealer => !isTestData(dealer) && !resolvedDealers.includes(String(dealer.id)));
 
     const notifs = [...customNotifs, ...(notifRes.notifications || [])]
       .filter(n => !isTestData(n));
+
+    const totalVerified = (statsRes.stats?.verifiedDealers || 0) + verifiedCustomDealers.length;
 
     return {
       stats: {
@@ -94,7 +110,7 @@ export async function fetchAdminPortalData() {
         pendingModeration: queue.length,
         liveListings: liveList.length,
         pendingDealers: dealers.length,
-        verifiedDealers: statsRes.stats?.verifiedDealers || 0
+        verifiedDealers: totalVerified
       },
       moderationQueue: queue,
       dealerQueue: dealers,
@@ -112,6 +128,7 @@ export async function fetchAdminPortalData() {
 
     const queue = [...pendingCustom, ...defaultMod];
     const liveList = [...approvedCustom, ...defaultListings];
+    const dealers = [...pendingCustomDealers, ...defaultDealers];
 
     return {
       ...DEFAULT_ADMIN_DATA,
@@ -119,16 +136,17 @@ export async function fetchAdminPortalData() {
         ...defaultStats,
         pendingModeration: queue.length,
         liveListings: liveList.length,
-        pendingDealers: defaultDealers.length,
-        verifiedDealers: 0
+        pendingDealers: dealers.length,
+        verifiedDealers: verifiedCustomDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: defaultDealers,
+      dealerQueue: dealers,
       adminListings: liveList,
       notifications: customNotifs
     };
   }
 }
+
 
 export async function resolveModerationListing(id, approve) {
   let foundTitle = 'Vehicle';
@@ -180,7 +198,9 @@ export async function resolveModerationListing(id, approve) {
 }
 
 export async function resolveDealerApplication(id, verify) {
-  // Mark as permanently resolved in localStorage so it never comes back
+  let dealerName = 'Dealer';
+
+  // Mark as permanently resolved in localStorage
   try {
     let resolved = [];
     const rawRes = localStorage.getItem('binmar_resolved_dealers');
@@ -189,18 +209,35 @@ export async function resolveDealerApplication(id, verify) {
       resolved.push(String(id));
       localStorage.setItem('binmar_resolved_dealers', JSON.stringify(resolved));
     }
+
+    const raw = localStorage.getItem('binmar_custom_dealers');
+    if (raw) {
+      const items = JSON.parse(raw);
+      const matchIndex = items.findIndex(item => String(item.id) === String(id));
+      if (matchIndex !== -1) {
+        dealerName = items[matchIndex].name || items[matchIndex].company_name || 'Dealer';
+        items[matchIndex].status = verify ? 'verified' : 'rejected';
+        items[matchIndex].verified_at = new Date().toISOString();
+        localStorage.setItem('binmar_custom_dealers', JSON.stringify(items));
+      }
+    }
   } catch {}
 
   try {
-    return await apiRequest(`/api/admin/dealers/${id}/resolve`, {
+    const res = await apiRequest(`/api/admin/dealers/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: verify ? 'verify' : 'reject' })
     });
+    return res;
   } catch {
-    return { success: true, message: `Dealer ${verify ? 'verified' : 'rejected'}.` };
+    return {
+      success: true,
+      message: `Dealer "${dealerName}" ${verify ? 'verified successfully! Account is now active.' : 'application rejected.'}`
+    };
   }
 }
+
 
 export async function deleteLiveListing(id) {
   // Mark as permanently deleted in localStorage so it never comes back

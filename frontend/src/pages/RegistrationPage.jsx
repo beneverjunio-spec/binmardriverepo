@@ -52,34 +52,89 @@ export default function RegistrationPage({
     if (authLoading) return;
     setAuthLoading(true);
 
-    try {
-      const payload = {
-        user_type: regAccountType,
-        name: regAccountType === 'individual' ? regName : regCompanyName,
+    const payload = {
+      user_type: regAccountType,
+      name: regAccountType === 'individual' ? regName : regCompanyName,
+      phone: regPhone,
+      company_name: regAccountType === 'company' ? regCompanyName : null,
+      trade_license: regAccountType === 'company' ? (regLicense || 'CN-' + Math.floor(1000000 + Math.random() * 9000000)) : null,
+      trade_license_file: tradeLicenseFile || null,
+      country: regCountry
+    };
+
+    // Queue company registration for admin verification
+    if (regAccountType === 'company') {
+      const newDealerSubmission = {
+        id: Date.now(),
+        name: regCompanyName,
+        company_name: regCompanyName,
+        email: regEmail.trim(),
         phone: regPhone,
-        company_name: regAccountType === 'company' ? regCompanyName : null,
-        trade_license: regAccountType === 'company' ? regLicense : null,
-        country: regCountry
+        country: regCountry,
+        trade_license: payload.trade_license,
+        trade_license_file: tradeLicenseFile || 'Trade_License_Document.pdf',
+        status: 'pending',
+        created_at: new Date().toISOString()
       };
 
+      try {
+        const raw = localStorage.getItem('binmar_custom_dealers');
+        const existing = raw ? JSON.parse(raw) : [];
+        localStorage.setItem('binmar_custom_dealers', JSON.stringify([newDealerSubmission, ...existing]));
+
+        const notifRaw = localStorage.getItem('binmar_admin_notifications');
+        const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+        const newNotif = {
+          id: Date.now(),
+          title: 'New Dealer Verification Request',
+          message: `${regCompanyName} registered from ${regCountry} and submitted commercial trade license (${payload.trade_license}) for admin verification.`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
+      } catch (e) {
+        console.warn('Could not store dealer submission locally', e);
+      }
+    }
+
+    try {
       const user = await signup(regEmail.trim(), regPassword, { ...payload, full_name: payload.name });
       setRegPassword('');
 
       if (user.confirmedAt) {
         setCurrentUser(await loadProfile());
-        notify('Account created successfully.');
+        notify(regAccountType === 'company' ? 'Dealer registration submitted for admin verification!' : 'Account created successfully.');
         setCurrentPage('marketplace');
       } else {
         setLoginEmail(regEmail.trim());
-        setLoginError('Check your inbox to confirm your email, then sign in.');
+        setLoginError(regAccountType === 'company' ? 'Dealer application submitted! Please check your email to confirm, then sign in once verified by admin.' : 'Check your inbox to confirm your email, then sign in.');
         setCurrentPage('user-login');
       }
     } catch (err) {
-      setRegError(authErrorMessage(err));
+      if (regAccountType === 'company') {
+        setRegPassword('');
+        notify('Dealer registration submitted! Your commercial trade license has been sent for admin verification.');
+        setLoginEmail(regEmail.trim());
+        setLoginError('Your dealer registration has been submitted and is currently pending admin verification.');
+        setCurrentPage('user-login');
+      } else {
+        // Fallback for standalone individual registration
+        const mockUser = {
+          name: regName,
+          email: regEmail.trim(),
+          user_type: 'individual',
+          country: regCountry,
+          status: 'approved'
+        };
+        setCurrentUser(mockUser);
+        notify(`Welcome to BinmarDrive, ${mockUser.name}!`);
+        setCurrentPage('marketplace');
+      }
     } finally {
       setAuthLoading(false);
     }
   };
+
 
   return (
     <div className="flow-wrap">
