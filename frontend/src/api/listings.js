@@ -79,8 +79,9 @@ export async function fetchPublicListings(filters = {}) {
     localCustom = [];
   }
 
-  // Filter combined listings (user listings appear first)
-  let filtered = [...localCustom, ...DEFAULT_LISTINGS.map(sanitizeListing)];
+  // Filter combined listings (only approved listings appear on the public marketplace)
+  const approvedCustom = localCustom.filter(item => item.status === 'approved');
+  let filtered = [...approvedCustom, ...DEFAULT_LISTINGS.map(sanitizeListing)];
   if (filters.make) {
     filtered = filtered.filter(item => item.make.toLowerCase() === filters.make.toLowerCase());
   }
@@ -136,20 +137,32 @@ export async function createListing(payload) {
     longitude: payload.longitude || null,
     maps_url: payload.maps_url || null,
     seller_name: payload.seller_name || 'Car Owner',
-    contact_preference: payload.contact_preference || 'WhatsApp',
+    contact_preference: 'WhatsApp',
     whatsapp_number: payload.whatsapp_number,
     contact_phone: payload.whatsapp_number,
     description: payload.description,
     images,
-    status: 'approved',
+    status: 'pending', // PENDING: Sent to Admin Moderation Queue first!
     created_at: new Date().toISOString()
   };
 
-  // Always store locally so user's newly posted car appears immediately
+  // Save to custom listings in pending status for Admin moderation
   try {
     const raw = localStorage.getItem('binmar_custom_listings');
     const existing = raw ? JSON.parse(raw) : [];
     localStorage.setItem('binmar_custom_listings', JSON.stringify([newListing, ...existing]));
+
+    // Send high-priority notification to Admin Portal
+    const notifRaw = localStorage.getItem('binmar_admin_notifications');
+    const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+    const newNotif = {
+      id: Date.now(),
+      title: 'New Vehicle Pending Review',
+      message: `${newListing.title} was submitted by ${newListing.seller_name} (${newListing.city}, ${newListing.country}) and is waiting in the Moderation Queue for review.`,
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+    localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
   } catch (e) {
     console.warn('Could not save to localStorage', e);
   }
@@ -162,10 +175,11 @@ export async function createListing(payload) {
     });
     return apiRes;
   } catch (err) {
-    console.warn('API submission offline, saved locally', err);
-    return { success: true, message: 'Listing submitted successfully!' };
+    console.warn('API submission offline, queued locally for moderation', err);
+    return { success: true, message: 'Listing submitted for moderation.' };
   }
 }
+
 
 export async function fileToDataUrl(file) {
   return new Promise((resolve) => {

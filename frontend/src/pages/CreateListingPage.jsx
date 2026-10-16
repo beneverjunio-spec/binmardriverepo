@@ -166,9 +166,10 @@ export default function CreateListingPage({
 
       const data = await createListing(payload);
       if (data.success) {
-        notify('Listing submitted! It is now live with your WhatsApp contact and location.');
+        notify('Vehicle submitted! It has been sent to the Admin Moderation Queue and will go live once approved.');
         onSuccess();
       }
+
     } catch (e) {
       setLstError(e.message || 'Unable to submit listing. Please try again.');
     } finally {
