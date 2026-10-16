@@ -20,7 +20,10 @@ export default function UserLoginPage({
     if (e) e.preventDefault();
     setLoginError('');
 
-    if (!loginEmail.trim() || !loginPass) {
+    const email = loginEmail.trim().toLowerCase();
+    const pass = loginPass.trim();
+
+    if (!email || !pass) {
       setLoginError('Enter your email and password.');
       return;
     }
@@ -28,29 +31,59 @@ export default function UserLoginPage({
     if (authLoading) return;
     setAuthLoading(true);
 
+    // 1. Check local registered users first
     try {
-      await login(loginEmail.trim(), loginPass);
+      const rawUsers = localStorage.getItem('binmar_custom_users');
+      if (rawUsers) {
+        const users = JSON.parse(rawUsers);
+        const matched = users.find(u => u.email.toLowerCase() === email);
+        if (matched) {
+          if (matched.password && matched.password !== pass) {
+            setLoginError('Invalid password. Please check and try again.');
+            setAuthLoading(false);
+            return;
+          }
+          if (matched.user_type === 'company' && matched.status === 'pending') {
+            setLoginError('Your dealer account is currently pending administrative verification. Please wait for admin approval.');
+            setAuthLoading(false);
+            return;
+          }
+          setCurrentUser(matched);
+          setLoginPass('');
+          notify(`Welcome back, ${matched.name}!`);
+          setCurrentPage('marketplace');
+          setAuthLoading(false);
+          return;
+        }
+      }
+    } catch {}
+
+    // 2. Try Netlify Identity if cloud identity is connected
+    try {
+      await login(email, pass);
       const profile = await loadProfile();
       setCurrentUser(profile);
       setLoginPass('');
       notify(`Welcome back, ${profile.name}!`);
-      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'create-listing');
+      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'marketplace');
     } catch (err) {
-      // Allow fallback if running in standalone mode
+      // 3. Fallback for standalone mode
       const mockUser = {
-        name: loginEmail.split('@')[0] || 'Car Owner',
-        email: loginEmail,
+        name: email.split('@')[0] || 'Car Owner',
+        email: email,
         user_type: 'individual',
         country: 'United Arab Emirates',
         status: 'approved'
       };
       setCurrentUser(mockUser);
+      setLoginPass('');
       notify(`Welcome, ${mockUser.name}!`);
-      setCurrentPage('create-listing');
+      setCurrentPage('marketplace');
     } finally {
       setAuthLoading(false);
     }
   };
+
 
   const handleQuickUserLogin = () => {
     const mockUser = {

@@ -97,43 +97,70 @@ export default function RegistrationPage({
       }
     }
 
+    const newUser = {
+      id: Date.now(),
+      name: regAccountType === 'individual' ? regName : regCompanyName,
+      email: regEmail.trim(),
+      password: regPassword,
+      user_type: regAccountType,
+      phone: regPhone,
+      company_name: regAccountType === 'company' ? regCompanyName : null,
+      trade_license: regAccountType === 'company' ? payload.trade_license : null,
+      country: regCountry,
+      status: regAccountType === 'company' ? 'pending' : 'approved',
+      created_at: new Date().toISOString()
+    };
+
+    // Store in custom users list for persistent local authentication
+    try {
+      const rawUsers = localStorage.getItem('binmar_custom_users');
+      const existingUsers = rawUsers ? JSON.parse(rawUsers) : [];
+      const filtered = existingUsers.filter(u => u.email.toLowerCase() !== newUser.email.toLowerCase());
+      localStorage.setItem('binmar_custom_users', JSON.stringify([newUser, ...filtered]));
+    } catch (e) {
+      console.warn('Could not store user locally', e);
+    }
+
     try {
       const user = await signup(regEmail.trim(), regPassword, { ...payload, full_name: payload.name });
       setRegPassword('');
 
-      if (user.confirmedAt) {
-        setCurrentUser(await loadProfile());
-        notify(regAccountType === 'company' ? 'Dealer registration submitted for admin verification!' : 'Account created successfully.');
+      if (user?.confirmedAt) {
+        try {
+          setCurrentUser(await loadProfile());
+        } catch {
+          setCurrentUser(newUser);
+        }
+        notify(regAccountType === 'company' ? 'Dealer registration submitted for admin verification!' : `Welcome to BinmarDrive, ${newUser.name}!`);
         setCurrentPage('marketplace');
-      } else {
+      } else if (regAccountType === 'company') {
         setLoginEmail(regEmail.trim());
-        setLoginError(regAccountType === 'company' ? 'Dealer application submitted! Please check your email to confirm, then sign in once verified by admin.' : 'Check your inbox to confirm your email, then sign in.');
+        setLoginError('Dealer application submitted! Your trade license is currently pending admin verification.');
         setCurrentPage('user-login');
+      } else {
+        // Individual user: log in immediately
+        setCurrentUser(newUser);
+        notify(`Account created successfully! Welcome, ${newUser.name}!`);
+        setCurrentPage('marketplace');
       }
     } catch (err) {
+      setRegPassword('');
       if (regAccountType === 'company') {
-        setRegPassword('');
         notify('Dealer registration submitted! Your commercial trade license has been sent for admin verification.');
         setLoginEmail(regEmail.trim());
         setLoginError('Your dealer registration has been submitted and is currently pending admin verification.');
         setCurrentPage('user-login');
       } else {
-        // Fallback for standalone individual registration
-        const mockUser = {
-          name: regName,
-          email: regEmail.trim(),
-          user_type: 'individual',
-          country: regCountry,
-          status: 'approved'
-        };
-        setCurrentUser(mockUser);
-        notify(`Welcome to BinmarDrive, ${mockUser.name}!`);
+        // Individual registration: log in immediately with the created account
+        setCurrentUser(newUser);
+        notify(`Account created successfully! Welcome, ${newUser.name}!`);
         setCurrentPage('marketplace');
       }
     } finally {
       setAuthLoading(false);
     }
   };
+
 
 
   return (
