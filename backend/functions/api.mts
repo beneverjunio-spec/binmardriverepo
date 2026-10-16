@@ -211,7 +211,7 @@ export default async (request: Request) => {
         price_label: `${currency} ${price.toLocaleString('en-US')}${listingType === 'rent' ? ' / day' : ''}`,
         country: body.country || profile.country, city: body.city || '',
         seller_name: profile.name, contact_preference: body.contact_preference || 'WhatsApp',
-        contact_phone: profile.phone, description: body.description || '', images
+        contact_phone: body.whatsapp_number || body.contact_phone || profile.phone, description: body.description || '', images
       }).returning({ id: listings.id });
       return reply({ success: true, listingId: listing.id, message: 'Listing submitted for moderation.' }, 201);
     }

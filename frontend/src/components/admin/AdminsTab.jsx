@@ -255,29 +255,20 @@ export default function AdminsTab({ admins, onAddAdmin, onRemoveAdmin, onToggleA
               />
 
               <label>Login Password</label>
-              <div style={{ position: 'relative', marginBottom: '1.1rem' }}>
+              <div className="password-input-wrap">
                 <input
                   type={showPassword ? 'text' : 'password'}
                   placeholder="Set minimum 6 characters password"
                   required
                   minLength={6}
-                  style={{ marginBottom: 0, paddingRight: '42px' }}
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                 />
                 <button
                   type="button"
+                  className="password-toggle-btn"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--ink-2)'
-                  }}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>

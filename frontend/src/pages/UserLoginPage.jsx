@@ -101,7 +101,7 @@ export default function UserLoginPage({
           />
 
           <label htmlFor="login-password">Password</label>
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div className="password-input-wrap">
             <input
               id="login-password"
               type={showPassword ? 'text' : 'password'}
@@ -110,27 +110,12 @@ export default function UserLoginPage({
               placeholder="••••••••"
               value={loginPass}
               onChange={e => setLoginPass(e.target.value)}
-              style={{ width: '100%', paddingRight: '42px' }}
             />
             <button
               type="button"
+              className="password-toggle-btn"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#6B7280',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '4px',
-                zIndex: 2
-              }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>

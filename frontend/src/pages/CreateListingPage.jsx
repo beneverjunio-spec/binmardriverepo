@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, MapPin, Navigation, CheckCircle2 } from 'lucide-react';
 import {
   GCC_COUNTRIES,
   GCC_CURRENCIES,
@@ -8,9 +8,11 @@ import {
   FUEL_TYPES,
   TRANSMISSION_TYPES,
   CONTACT_METHODS,
+  COUNTRY_DIAL_CODES,
   getCountryCurrency
 } from '../constants';
 import { uploadListingPhotos, createListing } from '../api/listings';
+import { WhatsAppIcon } from '../components/common/WhatsAppIcon';
 
 export default function CreateListingPage({
   currentUser,
@@ -33,6 +35,10 @@ export default function CreateListingPage({
   const [lstCurrency, setLstCurrency] = useState('AED');
   const [lstCountry, setLstCountry] = useState('United Arab Emirates');
   const [lstCity, setLstCity] = useState('');
+  const [isLocating, setIsLocating] = useState(false);
+  const [lstCoordinates, setLstCoordinates] = useState(null);
+  const [lstDialCode, setLstDialCode] = useState('+971');
+  const [lstWhatsapp, setLstWhatsapp] = useState('');
   const [lstDescription, setLstDescription] = useState('');
   const [lstContact, setLstContact] = useState('WhatsApp');
   const [lstError, setLstError] = useState('');
@@ -62,33 +68,105 @@ export default function CreateListingPage({
     setLstUploadedImages(prev => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      notify('Geolocation is not supported by your browser.');
+      return;
+    }
+
+    setIsLocating(true);
+    setLstError('');
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        setLstCoordinates({ lat, lng });
+
+        try {
+          const res = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=1`,
+            { headers: { 'Accept-Language': 'en' } }
+          );
+          if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+            const cityFound = addr.city || addr.town || addr.suburb || addr.neighbourhood || addr.state || 'Dubai';
+            const countryFound = addr.country || lstCountry;
+
+            setLstCity(cityFound);
+            const matchedCountry = GCC_COUNTRIES.find(c => c.toLowerCase() === countryFound.toLowerCase());
+            if (matchedCountry) {
+              setLstCountry(matchedCountry);
+              setLstCurrency(getCountryCurrency(matchedCountry));
+            } else {
+              setLstCountry(countryFound);
+            }
+            notify(`GPS Location Pinned: ${cityFound}, ${countryFound}`);
+          } else {
+            setLstCity(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+            notify('Current GPS coordinates pinned successfully!');
+          }
+        } catch {
+          setLstCity(`GPS: ${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+          notify('Current GPS coordinates pinned successfully!');
+        } finally {
+          setIsLocating(false);
+        }
+      },
+      (err) => {
+        setIsLocating(false);
+        if (err.code === 1) {
+          notify('Location permission was denied. You can enter your location manually.');
+        } else {
+          notify('Could not detect GPS location. Please enter manually.');
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  };
+
   const handlePublishListing = async () => {
     setIsSubmitting(true);
     setLstError('');
     try {
+      const cleanWa = lstWhatsapp.replace(/[^0-9]/g, '');
+      const fullWhatsapp = cleanWa ? `${lstDialCode} ${cleanWa}` : `${lstDialCode} 501234567`;
+      const locationCity = lstCity.trim() || 'Dubai';
+
+      const mapsUrl = lstCoordinates
+        ? `https://www.google.com/maps?q=${lstCoordinates.lat},${lstCoordinates.lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${locationCity}, ${lstCountry}`)}`;
+
       const payload = {
         make: lstMake,
         model: lstModel,
         year: lstYear,
         category: lstCategory,
         fuel: lstFuel,
-        mileage: lstMileage,
+        mileage: lstMileage ? `${lstMileage} km` : '0 km',
         transmission: lstTransmission,
         condition_type: lstCondition,
         listing_type: lstType,
         price: lstPrice,
         currency: lstCurrency,
         country: lstCountry,
-        city: lstCity || 'Abu Dhabi',
-        seller_name: currentUser ? currentUser.name : 'Individual',
-        contact_preference: lstContact,
+        city: locationCity,
+        location: `${locationCity}, ${lstCountry}`,
+        latitude: lstCoordinates ? lstCoordinates.lat : null,
+        longitude: lstCoordinates ? lstCoordinates.lng : null,
+        maps_url: mapsUrl,
+        seller_name: currentUser ? currentUser.name : (lstType === 'rent' ? 'Car Rental Host' : 'Car Owner'),
+        contact_preference: 'WhatsApp',
+        whatsapp_number: fullWhatsapp,
+        contact_phone: fullWhatsapp,
         description: lstDescription || 'Well-maintained vehicle, GCC specs.',
         images: lstUploadedImages
       };
 
       const data = await createListing(payload);
       if (data.success) {
-        notify('Listing submitted! It is now pending admin moderation review.');
+        notify('Listing submitted! It is now live with your WhatsApp contact and location.');
         onSuccess();
       }
     } catch (e) {
@@ -343,11 +421,11 @@ export default function CreateListingPage({
             </div>
           )}
 
-          {/* Step 3: Price & Location */}
+          {/* Step 3: Price, Location & WhatsApp Contact */}
           {lstStep === 3 && (
             <div>
-              <h1 className="step-title">Set price and location</h1>
-              <p className="step-desc">Buyers will see this on your listing card across the Middle East marketplace.</p>
+              <h1 className="step-title">Price, Location & WhatsApp</h1>
+              <p className="step-desc">Buyers and renters will see this on your car listing and reach out directly.</p>
 
               <div className="row-2">
                 <div>
@@ -369,46 +447,110 @@ export default function CreateListingPage({
                 </div>
               </div>
 
-              <div className="row-2">
-                <div>
-                  <label>Country</label>
-                  <select
-                    value={lstCountry}
-                    onChange={e => {
-                      const selected = e.target.value;
-                      setLstCountry(selected);
-                      setLstCurrency(getCountryCurrency(selected));
-                    }}
+              {/* Location Section */}
+              <div style={{ marginBottom: '1.2rem', padding: '1.1rem', background: '#fff', borderRadius: '12px', border: '1.5px solid var(--input-border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px', marginBottom: '10px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--deep)', margin: 0, fontWeight: 700 }}>
+                    <MapPin size={17} color="var(--gold)" />
+                    Car Location
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleDetectLocation}
+                    disabled={isLocating}
+                    className="btn-gps-detect"
+                    title="Track my current GPS location so clients can navigate directly"
                   >
-                    {GCC_COUNTRIES.map(country => (
-                      <option key={country}>{country}</option>
-                    ))}
-                  </select>
+                    <Navigation size={14} className={isLocating ? 'spin-icon' : ''} />
+                    <span>{isLocating ? 'Tracking Location…' : '📍 Use My Current Location (GPS)'}</span>
+                  </button>
                 </div>
-                <div>
-                  <label>City</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Abu Dhabi"
-                    value={lstCity}
-                    onChange={e => setLstCity(e.target.value)}
-                  />
+
+                {lstCoordinates && (
+                  <div className="gps-active-badge">
+                    <CheckCircle2 size={16} color="#16A34A" />
+                    <span style={{ fontSize: '0.8rem', color: '#14532D', fontWeight: 600 }}>
+                      Current GPS Pinned: {lstCoordinates.lat.toFixed(5)}°, {lstCoordinates.lng.toFixed(5)}°
+                    </span>
+                    <a
+                      href={`https://www.google.com/maps?q=${lstCoordinates.lat},${lstCoordinates.lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="gps-maps-link"
+                    >
+                      View on Google Maps ↗
+                    </a>
+                  </div>
+                )}
+
+                <div className="row-2" style={{ marginBottom: 0 }}>
+                  <div>
+                    <label style={{ fontSize: '0.72rem' }}>Country</label>
+                    <select
+                      value={lstCountry}
+                      onChange={e => {
+                        const selected = e.target.value;
+                        setLstCountry(selected);
+                        setLstCurrency(getCountryCurrency(selected));
+                      }}
+                      style={{ marginBottom: '0.5rem' }}
+                    >
+                      {GCC_COUNTRIES.map(country => (
+                        <option key={country}>{country}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.72rem' }}>City / Area / Showroom (Custom)</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Dubai, Business Bay or Showroom"
+                      value={lstCity}
+                      onChange={e => setLstCity(e.target.value)}
+                      style={{ marginBottom: '0.5rem' }}
+                    />
+                  </div>
                 </div>
+                <small style={{ color: 'var(--ink-2)', fontSize: '0.75rem', display: 'block', marginTop: '2px' }}>
+                  GPS button se automatic pin karein ya apna exact area/showroom type karein taake buyers seedha Google Maps par car tak aa sakein.
+                </small>
               </div>
 
-              <label>Description</label>
+              {/* WhatsApp Contact Section */}
+              <div style={{ marginBottom: '1.2rem', padding: '1rem', background: '#F0FDF4', borderRadius: '10px', border: '1.5px solid #86EFAC' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#14532D', marginBottom: '6px' }}>
+                  <WhatsAppIcon size={18} color="#25D366" />
+                  WhatsApp Contact Number
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '10px', marginBottom: '6px' }}>
+                  <select
+                    value={lstDialCode}
+                    onChange={e => setLstDialCode(e.target.value)}
+                    style={{ marginBottom: 0 }}
+                  >
+                    {COUNTRY_DIAL_CODES.map(c => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    placeholder="e.g. 50 123 4567"
+                    value={lstWhatsapp}
+                    onChange={e => setLstWhatsapp(e.target.value)}
+                    style={{ marginBottom: 0 }}
+                  />
+                </div>
+                <small style={{ color: '#166534', fontSize: '0.76rem', display: 'block' }}>
+                  A direct WhatsApp button will be placed on your car listing so clients can message you immediately.
+                </small>
+              </div>
+
+              <label>Description & Features</label>
               <textarea
                 placeholder="Full agency service history, single owner, GCC specs, original paint..."
                 value={lstDescription}
                 onChange={e => setLstDescription(e.target.value)}
               />
-
-              <label>Preferred contact method</label>
-              <select value={lstContact} onChange={e => setLstContact(e.target.value)}>
-                {CONTACT_METHODS.map(method => (
-                  <option key={method}>{method}</option>
-                ))}
-              </select>
 
               {lstError && <p className="err">{lstError}</p>}
 
@@ -416,7 +558,15 @@ export default function CreateListingPage({
                 className="btn-primary"
                 onClick={() => {
                   if (!lstPrice) {
-                    setLstError('Please specify the price');
+                    setLstError('Please specify the vehicle price');
+                    return;
+                  }
+                  if (!lstCity.trim()) {
+                    setLstError('Please specify the car city or area location');
+                    return;
+                  }
+                  if (!lstWhatsapp.trim()) {
+                    setLstError('Please enter your WhatsApp contact number');
                     return;
                   }
                   setLstError('');
@@ -435,7 +585,7 @@ export default function CreateListingPage({
           {lstStep === 4 && (
             <div>
               <h1 className="step-title">Review your listing</h1>
-              <p className="step-desc">Make sure vehicle specifications are accurate before submitting to moderation.</p>
+              <p className="step-desc">Make sure vehicle specifications are accurate before submitting.</p>
 
               <div className="review-list">
                 <div className="review-row">
@@ -460,11 +610,20 @@ export default function CreateListingPage({
                 </div>
                 <div className="review-row">
                   <span>Location</span>
-                  <span>{lstCity || 'Abu Dhabi'}, {lstCountry}</span>
+                  <span>
+                    {lstCity || 'Dubai'}, {lstCountry}
+                    {lstCoordinates && (
+                      <span style={{ display: 'block', fontSize: '0.74rem', color: '#16A34A', fontWeight: 700 }}>
+                        🎯 Exact GPS Pin Saved
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <div className="review-row">
-                  <span>Contact</span>
-                  <span>{lstContact}</span>
+                  <span>WhatsApp Contact</span>
+                  <span style={{ color: '#16A34A', fontWeight: 700 }}>
+                    {lstDialCode} {lstWhatsapp}
+                  </span>
                 </div>
               </div>
 
@@ -475,7 +634,7 @@ export default function CreateListingPage({
                 disabled={isSubmitting}
                 onClick={handlePublishListing}
               >
-                {isSubmitting ? 'Submitting…' : 'Publish Listing — Free'}
+                {isSubmitting ? 'Publishing…' : 'Publish Listing — Free'}
               </button>
               <button className="btn-secondary" onClick={() => setLstStep(3)}>
                 Back to edit

@@ -46,7 +46,13 @@ export const COUNTRY_DIAL_CODES = [
   { code: '+971', label: '+971 (UAE)' },
   { code: '+966', label: '+966 (KSA)' },
   { code: '+974', label: '+974 (Qatar)' },
-  { code: '+965', label: '+965 (Kuwait)' }
+  { code: '+965', label: '+965 (Kuwait)' },
+  { code: '+973', label: '+973 (Bahrain)' },
+  { code: '+968', label: '+968 (Oman)' },
+  { code: '+92', label: '+92 (Pakistan)' },
+  { code: '+91', label: '+91 (India)' },
+  { code: '+44', label: '+44 (UK)' },
+  { code: '+1', label: '+1 (USA/Canada)' }
 ];
 
 export const CARD_GRADIENTS = [
@@ -77,6 +83,8 @@ export const DEFAULT_LISTINGS = [
     city: 'Dubai',
     seller_name: 'Al Futtaim Motors Certified',
     contact_preference: 'WhatsApp',
+    whatsapp_number: '+971501234567',
+    contact_phone: '+971501234567',
     description: 'Immaculate 2024 Land Cruiser 3.5L Twin-Turbo V6 GR Sport. Full agency service record, ceramic tinted, zero accident history.',
     images: [
       'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80',
@@ -103,6 +111,8 @@ export const DEFAULT_LISTINGS = [
     city: 'Abu Dhabi',
     seller_name: 'Al Tayer Prestige Motors',
     contact_preference: 'WhatsApp',
+    whatsapp_number: '+971529876543',
+    contact_phone: '+971529876543',
     description: 'GCC Specs G63 AMG with Night Package II, carbon fiber trim, dynamic bolster seats, 22-inch forged cross-spoke wheels.',
     images: [
       'https://images.unsplash.com/photo-1520031441872-265e4ff70366?auto=format&fit=crop&w=1000&q=80',
@@ -128,7 +138,9 @@ export const DEFAULT_LISTINGS = [
     country: 'United Arab Emirates',
     city: 'Dubai',
     seller_name: 'Binmar Royal Exotics',
-    contact_preference: 'Phone call',
+    contact_preference: 'WhatsApp',
+    whatsapp_number: '+971553334455',
+    contact_phone: '+971553334455',
     description: 'Weissach Package, magnesium lightweight wheels, PCCB carbon-ceramic brakes. Brand new delivery mileage.',
     images: [
       'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&w=1000&q=80',
@@ -155,6 +167,8 @@ export const DEFAULT_LISTINGS = [
     city: 'Dubai',
     seller_name: 'Desert Star Luxury Rentals',
     contact_preference: 'WhatsApp',
+    whatsapp_number: '+971561122334',
+    contact_phone: '+971561122334',
     description: '428 hp handcrafted NISMO engine, Bilstein sport-tuned suspension, Alcantara upholstery. Daily, weekly or monthly rental available.',
     images: [
       'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80'
@@ -180,6 +194,8 @@ export const DEFAULT_LISTINGS = [
     city: 'Riyadh',
     seller_name: 'Abdul Latif Jameel Motors',
     contact_preference: 'WhatsApp',
+    whatsapp_number: '+966501234567',
+    contact_phone: '+966501234567',
     description: '4-seater executive VIP layout with rear ottoman recliner, Mark Levinson 25-speaker sound system, head-up display.',
     images: [
       'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'
@@ -205,6 +221,8 @@ export const DEFAULT_LISTINGS = [
     city: 'Sharjah',
     seller_name: 'Al Tayer Motors',
     contact_preference: 'WhatsApp',
+    whatsapp_number: '+971507788990',
+    contact_phone: '+971507788990',
     description: 'Supercharged 700hp 5.2L V8, FOX Live Valve shocks, 37-inch all-terrain tires. Ultimate off-road performance.',
     images: [
       'https://images.unsplash.com/photo-1559416523-140ddc3d238c?auto=format&fit=crop&w=1000&q=80'

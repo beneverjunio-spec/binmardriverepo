@@ -164,7 +164,7 @@ export default function AdminLoginPage({
           />
 
           <label htmlFor="admin-password">Password</label>
-          <div style={{ position: 'relative', width: '100%' }}>
+          <div className="password-input-wrap">
             <input
               id="admin-password"
               type={showPassword ? 'text' : 'password'}
@@ -173,27 +173,12 @@ export default function AdminLoginPage({
               placeholder="••••••••"
               value={adminPass}
               onChange={e => setAdminPass(e.target.value)}
-              style={{ width: '100%', paddingRight: '42px' }}
             />
             <button
               type="button"
+              className="password-toggle-btn"
               onClick={() => setShowPassword(!showPassword)}
               aria-label={showPassword ? 'Hide password' : 'Show password'}
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: '#6B7280',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '4px',
-                zIndex: 2
-              }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
@@ -204,24 +189,6 @@ export default function AdminLoginPage({
           <button className="btn-primary" type="submit" disabled={authLoading}>
             {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
           </button>
-
-          <div
-            style={{
-              marginTop: '1.2rem',
-              padding: '0.8rem 1rem',
-              background: '#F5EFE0',
-              borderRadius: '8px',
-              border: '1px solid var(--gold-dim)',
-              fontSize: '0.8rem',
-              color: 'var(--ink-2)'
-            }}
-          >
-            <div style={{ fontWeight: 700, color: 'var(--deep)', marginBottom: '3px' }}>
-              🔑 Default Staff Credentials:
-            </div>
-            <div><strong>Email:</strong> admin@binmardrive.com</div>
-            <div><strong>Password:</strong> admin1234</div>
-          </div>
 
           <button
             className="btn-secondary"

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { X, MessageSquare } from 'lucide-react';
+import { X, MapPin, Phone } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
+import { WhatsAppIcon, getWhatsAppUrl, openGoogleMaps } from '../common/WhatsAppIcon';
 
 export default function ListingDetailModal({ listing, onClose }) {
   const [modalImageIndex, setModalImageIndex] = useState(0);
@@ -10,8 +11,11 @@ export default function ListingDetailModal({ listing, onClose }) {
   const rawList = typeof listing.images === 'string'
     ? JSON.parse(listing.images || '[]')
     : (listing.images || []);
-  const modalImages = (rawList || []).filter(url => typeof url === 'string' && !url.startsWith('blob:'));
+  const modalImages = (rawList || []).filter(url => typeof url === 'string' && url.trim().length > 0);
   const hasRealImages = modalImages && modalImages.length > 0;
+  const locationText = listing.location || [listing.city, listing.country].filter(Boolean).join(', ') || `${listing.city || 'Dubai'}, ${listing.country || 'United Arab Emirates'}`;
+
+  const contactNumber = listing.whatsapp_number || listing.contact_phone || '+971 50 123 4567';
 
   return (
     <div
@@ -69,7 +73,15 @@ export default function ListingDetailModal({ listing, onClose }) {
 
         <div className="modal-body">
           <div className="modal-title">{listing.title}</div>
-          <div className="modal-loc">{listing.city}, {listing.country}</div>
+          <div
+            className="modal-loc modal-loc-clickable"
+            onClick={(e) => openGoogleMaps(locationText, e)}
+            title={`Click to open "${locationText}" in Google Maps`}
+          >
+            <MapPin size={16} style={{ display: 'inline', verticalAlign: '-3px', marginRight: 5, color: 'var(--gold)', flexShrink: 0 }} />
+            <span>{locationText}</span>
+            <span className="btn-loc-maps">Open in Google Maps ↗</span>
+          </div>
           <div className="modal-price">
             {listing.price_label || `${listing.currency} ${Number(listing.price).toLocaleString()}`}
           </div>
@@ -109,22 +121,29 @@ export default function ListingDetailModal({ listing, onClose }) {
             <div>
               <div className="modal-seller-name">{listing.seller_name || listing.seller}</div>
               <div className="modal-seller-sub">
-                Contact via {listing.contact_preference || 'WhatsApp'}
+                WhatsApp: <strong>{contactNumber}</strong>
               </div>
             </div>
-            <button
-              className="btn-gold"
-              onClick={() =>
-                alert(
-                  `Connecting with seller (${listing.seller_name || listing.seller}) via ${
-                    listing.contact_preference || 'WhatsApp'
-                  }`
-                )
-              }
-            >
-              <MessageSquare size={16} />
-              Contact seller
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+              <a
+                href={getWhatsAppUrl(listing)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-whatsapp-modal"
+                title="Direct WhatsApp chat"
+              >
+                <WhatsAppIcon size={18} color="#ffffff" />
+                <span>Chat on WhatsApp</span>
+              </a>
+              <a
+                href={`tel:${contactNumber.replace(/[^0-9+]/g, '')}`}
+                className="btn-call-modal"
+                title="Call seller"
+              >
+                <Phone size={15} />
+                <span>Call</span>
+              </a>
+            </div>
           </div>
         </div>
       </div>
