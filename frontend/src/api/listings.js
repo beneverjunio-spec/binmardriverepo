@@ -44,35 +44,44 @@ function sanitizeListing(item) {
   };
 }
 
-export async function fetchPublicListings(filters = {}) {
-  try {
-    const queryParams = new URLSearchParams();
-    if (filters.make) queryParams.append('make', filters.make);
-    if (filters.country) queryParams.append('country', filters.country);
-    if (filters.type) queryParams.append('type', filters.type);
-    if (filters.category) queryParams.append('category', filters.category);
-    if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
-    if (filters.sortBy) queryParams.append('sort', filters.sortBy);
+const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
 
-    const res = await fetch(`/api/listings?${queryParams.toString()}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.success && Array.isArray(data.listings) && data.listings.length > 0) {
-        return data.listings.map(sanitizeListing);
-      }
-    }
-  } catch {
-    // Graceful fallback to default listings
+export function isTestData(item) {
+  if (!item) return false;
+  const idStr = String(item.id);
+  if (TEST_ITEM_IDS.includes(idStr)) return true;
+  if (item.title && (
+    item.title === '2024 Toyota Land Cruiser' ||
+    item.title === '2024 Toyota Land Cruiser GR-Sport' ||
+    item.title === '2023 Mercedes-Benz G63 AMG' ||
+    item.title === '2022 Mercedes-Benz G63 AMG' ||
+    item.title === '2025 Porsche 911 GT3 RS' ||
+    item.title === '2024 Nissan Patrol NISMO 5.6L' ||
+    item.title === '2023 Nissan Patrol' ||
+    item.title === '2025 Lexus LX 600' ||
+    item.title === '2024 Lexus LX 600 VIP Edition' ||
+    item.title === '2024 Ford F-150 Raptor R 5.2L V8' ||
+    item.title === '2024 Land Rover Defender 110 V8' ||
+    item.title === '2023 BMW M4 Competition Coupe' ||
+    item.title === '2024 Chevrolet Corvette Z06 3LZ'
+  )) {
+    return true;
   }
+  const sName = (item.seller_name || '').toUpperCase();
+  if (sName === 'MR. ALI' || sName.includes('DESERT STAR') || sName.includes('AL FUTTAIM') || sName.includes('AL TAYER PRESTIGE') || sName.includes('BINMAR ROYAL') || sName.includes('ABDUL LATIF JAMEEL')) {
+    if (['1', '2', '3', '4', '5', '6', '101', '102', '103', '104'].includes(idStr)) return true;
+  }
+  return false;
+}
 
-  // Load custom user/owner listings from local storage
+export async function fetchPublicListings(filters = {}) {
+  // Purge any legacy test data from localStorage
   let localCustom = [];
   try {
     const raw = localStorage.getItem('binmar_custom_listings');
     if (raw) {
       const parsed = JSON.parse(raw);
-      localCustom = parsed.map(sanitizeListing);
-      // Resave clean listings
+      localCustom = parsed.filter(item => !isTestData(item)).map(sanitizeListing);
       localStorage.setItem('binmar_custom_listings', JSON.stringify(localCustom));
     }
   } catch {
@@ -85,9 +94,39 @@ export async function fetchPublicListings(filters = {}) {
     if (rawDel) deletedListingIds = JSON.parse(rawDel);
   } catch {}
 
-  // Filter combined listings (only approved listings appear on the public marketplace, excluding deleted)
+  let serverListings = null;
+  try {
+    const queryParams = new URLSearchParams();
+    if (filters.make) queryParams.append('make', filters.make);
+    if (filters.country) queryParams.append('country', filters.country);
+    if (filters.type) queryParams.append('type', filters.type);
+    if (filters.category) queryParams.append('category', filters.category);
+    if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
+    if (filters.sortBy) queryParams.append('sort', filters.sortBy);
+
+    const res = await fetch(`/api/listings?${queryParams.toString()}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.listings)) {
+        serverListings = data.listings.filter(l => !isTestData(l)).map(sanitizeListing);
+      }
+    }
+  } catch {
+    // API offline or fallback
+  }
+
   const approvedCustom = localCustom.filter(item => item.status === 'approved' && !deletedListingIds.includes(String(item.id)));
-  let filtered = [...approvedCustom, ...DEFAULT_LISTINGS.filter(d => !deletedListingIds.includes(String(d.id))).map(sanitizeListing)];
+  
+  let baseListings = serverListings !== null ? [...serverListings] : [];
+
+  const existingIds = new Set(baseListings.map(b => String(b.id)));
+  for (const c of approvedCustom) {
+    if (!existingIds.has(String(c.id))) {
+      baseListings.push(c);
+    }
+  }
+
+  let filtered = [...baseListings];
 
   if (filters.make) {
     filtered = filtered.filter(item => item.make.toLowerCase() === filters.make.toLowerCase());

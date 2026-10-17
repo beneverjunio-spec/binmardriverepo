@@ -1,8 +1,18 @@
 import { apiRequest } from './client';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 
-const TEST_ITEM_IDS = ['101', '102', '103', '201', '202'];
+const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
 const TEST_TITLES = [
+  '2024 Toyota Land Cruiser',
+  '2024 Toyota Land Cruiser GR-Sport',
+  '2023 Mercedes-Benz G63 AMG',
+  '2022 Mercedes-Benz G63 AMG',
+  '2025 Porsche 911 GT3 RS',
+  '2024 Nissan Patrol NISMO 5.6L',
+  '2023 Nissan Patrol',
+  '2025 Lexus LX 600',
+  '2024 Lexus LX 600 VIP Edition',
+  '2024 Ford F-150 Raptor R 5.2L V8',
   '2024 Land Rover Defender 110 V8',
   '2023 BMW M4 Competition Coupe',
   '2024 Chevrolet Corvette Z06 3LZ',
@@ -17,6 +27,10 @@ function isTestData(item) {
   if (item.title && TEST_TITLES.includes(item.title)) return true;
   if (item.name && TEST_TITLES.includes(item.name)) return true;
   if (item.company_name && TEST_TITLES.includes(item.company_name)) return true;
+  const sName = (item.seller_name || '').toUpperCase();
+  if (sName === 'MR. ALI' || sName.includes('DESERT STAR') || sName.includes('AL FUTTAIM') || sName.includes('AL TAYER PRESTIGE') || sName.includes('BINMAR ROYAL') || sName.includes('ABDUL LATIF JAMEEL')) {
+    if (['1', '2', '3', '4', '5', '6', '101', '102', '103', '104'].includes(idStr)) return true;
+  }
   return false;
 }
 

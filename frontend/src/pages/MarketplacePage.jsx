@@ -93,8 +93,19 @@ export default function MarketplacePage({
               />
             ))
           ) : (
-            <div className="empty">
-              No vehicles found matching your current filters. Try resetting search criteria.
+            <div className="empty" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', gridColumn: '1 / -1' }}>
+              <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>🚗</div>
+              <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: '1.4rem', color: 'var(--ink)', marginBottom: '0.5rem' }}>
+                No active listings yet
+              </h3>
+              <p style={{ color: 'var(--ink-soft)', maxWidth: '420px', margin: '0 auto 1.5rem', fontSize: '0.92rem', lineHeight: '1.5' }}>
+                {selectedMake || selectedCountry || selectedType || selectedCategory || maxPrice
+                  ? 'No vehicles found matching your current filters. Try resetting search criteria.'
+                  : 'All test data has been cleared. Post your vehicle now to become the first live verified listing on BinmarDrive!'}
+              </p>
+              <button className="btn-gold" onClick={onPostListingClick}>
+                Post a listing — free
+              </button>
             </div>
           )}
         </div>

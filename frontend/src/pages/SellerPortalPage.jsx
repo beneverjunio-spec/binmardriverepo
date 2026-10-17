@@ -39,10 +39,9 @@ import {
   VEHICLE_MAKES,
   VEHICLE_CATEGORIES,
   FUEL_TYPES,
-  TRANSMISSION_TYPES,
-  DEFAULT_LISTINGS
+  TRANSMISSION_TYPES
 } from '../constants';
-import { uploadListingPhotos } from '../api/listings';
+import { uploadListingPhotos, isTestData } from '../api/listings';
 
 export default function SellerPortalPage({
   currentUser,
@@ -109,7 +108,11 @@ export default function SellerPortalPage({
     let allCustom = [];
     try {
       const raw = localStorage.getItem('binmar_custom_listings');
-      if (raw) allCustom = JSON.parse(raw);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        allCustom = parsed.filter(item => !isTestData(item));
+        localStorage.setItem('binmar_custom_listings', JSON.stringify(allCustom));
+      }
     } catch {
       allCustom = [];
     }
@@ -124,9 +127,10 @@ export default function SellerPortalPage({
     const currentUserCompany = (currentUser?.company_name || '').toLowerCase();
     const currentUserEmail = (currentUser?.email || '').toLowerCase();
 
-    // Find custom listings added by this user or default sample listings for rich display
-    let matchedListings = allCustom.filter(item => {
+    // Find custom listings added by this user
+    const matchedListings = allCustom.filter(item => {
       if (deletedIds.includes(String(item.id))) return false;
+      if (isTestData(item)) return false;
       const sName = (item.seller_name || '').toLowerCase();
       const sEmail = (item.seller_email || '').toLowerCase();
       return (
@@ -135,135 +139,6 @@ export default function SellerPortalPage({
         (currentUserEmail && sEmail === currentUserEmail)
       );
     });
-
-    // If seller has no custom listings yet, provide default dealer showcase listings matching reference UI
-    if (matchedListings.length === 0) {
-      // Use defaults as initial showcase for this seller
-      const showcaseDefaults = [
-        {
-          id: 101,
-          make: 'Toyota',
-          model: 'Land Cruiser',
-          year: 2024,
-          title: '2024 Toyota Land Cruiser',
-          price: 185000,
-          currency: 'AED',
-          category: 'SUV',
-          fuel: 'Petrol',
-          transmission: 'Automatic',
-          mileage: '0 km',
-          condition_type: 'new',
-          listing_type: 'sale',
-          city: 'Abu Dhabi',
-          country: 'United Arab Emirates',
-          location: 'Abu Dhabi, United Arab Emirates',
-          views: 1284,
-          inquiries: 38,
-          created_at: '2026-09-12',
-          status: 'approved',
-          whatsapp_number: '+971 50 123 4567',
-          description: 'Brand new 2024 Toyota Land Cruiser VXR. Zero kilometers, full option with warranty.',
-          images: [
-            'https://images.unsplash.com/photo-1519445421369-7262e52f1f3a?w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&auto=format&fit=crop'
-          ]
-        },
-        {
-          id: 102,
-          make: 'Lexus',
-          model: 'LX 600',
-          year: 2025,
-          title: '2025 Lexus LX 600',
-          price: 480000,
-          currency: 'AED',
-          category: 'SUV',
-          fuel: 'Petrol',
-          transmission: 'Automatic',
-          mileage: '0 km',
-          condition_type: 'new',
-          listing_type: 'sale',
-          city: 'Dubai',
-          country: 'United Arab Emirates',
-          location: 'Dubai, United Arab Emirates',
-          views: 642,
-          inquiries: 14,
-          created_at: '2026-09-22',
-          status: 'approved',
-          whatsapp_number: '+971 50 987 6543',
-          description: 'VIP Edition with dual rear entertainment screens, Mark Levinson audio and adaptive air suspension.',
-          images: [
-            'https://images.unsplash.com/photo-1606664515554-3c9c1e3fd951?w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?w=800&auto=format&fit=crop'
-          ]
-        },
-        {
-          id: 103,
-          make: 'Nissan',
-          model: 'Patrol',
-          year: 2023,
-          title: '2023 Nissan Patrol',
-          price: 1200,
-          currency: 'AED',
-          category: 'SUV',
-          fuel: 'Petrol',
-          transmission: 'Automatic',
-          mileage: '18,500 km',
-          condition_type: 'used',
-          listing_type: 'rent',
-          city: 'Sharjah',
-          country: 'United Arab Emirates',
-          location: 'Sharjah, United Arab Emirates',
-          views: 318,
-          inquiries: 6,
-          created_at: '2026-10-02',
-          status: 'approved',
-          whatsapp_number: '+971 55 456 7890',
-          description: 'Well-maintained Nissan Patrol Platinum. Available for short & long term rental with comprehensive insurance.',
-          images: [
-            'https://images.unsplash.com/photo-1606016301057-454953e1b40b?w=800&auto=format&fit=crop'
-          ]
-        },
-        {
-          id: 104,
-          make: 'Mercedes-Benz',
-          model: 'G63 AMG',
-          year: 2022,
-          title: '2022 Mercedes-Benz G63 AMG',
-          price: 920000,
-          currency: 'AED',
-          category: 'SUV',
-          fuel: 'Petrol',
-          transmission: 'Automatic',
-          mileage: '24,800 km',
-          condition_type: 'used',
-          listing_type: 'sale',
-          city: 'Dubai',
-          country: 'United Arab Emirates',
-          location: 'Dubai, United Arab Emirates',
-          views: 96,
-          inquiries: 2,
-          created_at: '2026-10-08',
-          status: 'approved',
-          whatsapp_number: '+971 52 333 4455',
-          description: 'Magno Night Black edition, carbon fiber interior, performance exhaust, full agency service records.',
-          images: [
-            'https://images.unsplash.com/photo-1614029403910-78cdca3284d4?w=800&auto=format&fit=crop',
-            'https://images.unsplash.com/photo-1520031441872-265e4ff70366?w=800&auto=format&fit=crop'
-          ]
-        }
-      ];
-
-      // Save to localStorage as user's listings
-      const updatedShowcase = showcaseDefaults.map(item => ({
-        ...item,
-        seller_name: currentUser?.name || currentUser?.company_name || 'Verified Dealer',
-        seller_email: currentUser?.email || 'dealer@binmardrive.com'
-      }));
-      try {
-        localStorage.setItem('binmar_custom_listings', JSON.stringify([...updatedShowcase, ...allCustom]));
-      } catch {}
-      matchedListings = updatedShowcase;
-    }
 
     setSellerListings(matchedListings);
   };
@@ -572,7 +447,7 @@ export default function SellerPortalPage({
                 {activeTab === 'listings' && <span className="seller-active-indicator" />}
                 <Car size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">My Listings</span>
-                <span className="seller-nav-badge">{publishedCount + pendingCount || 4}</span>
+                <span className="seller-nav-badge">{publishedCount + pendingCount}</span>
               </button>
             </li>
             <li>
@@ -592,7 +467,7 @@ export default function SellerPortalPage({
                 {activeTab === 'orders' && <span className="seller-active-indicator" />}
                 <Tag size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">Orders</span>
-                <span className="seller-nav-badge">2</span>
+                <span className="seller-nav-badge">0</span>
               </button>
             </li>
             <li>
@@ -1241,7 +1116,12 @@ export default function SellerPortalPage({
                   </div>
 
                   <div className="seller-dash-table-wrap">
-                    {sellerListings.slice(0, 5).map(l => {
+                    {sellerListings.length === 0 ? (
+                      <div className="p-8 text-center text-sm text-ink-soft">
+                        No studio listings yet. Click "New Listing" to add your first vehicle.
+                      </div>
+                    ) : (
+                      sellerListings.slice(0, 5).map(l => {
                       const img = (Array.isArray(l.images) && l.images[0]) ||
                         'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
                       const isRent = (l.listing_type || l.type) === 'rent';
@@ -1281,7 +1161,7 @@ export default function SellerPortalPage({
                           </div>
                         </div>
                       );
-                    })}
+                    }))}
                   </div>
                 </div>
 
