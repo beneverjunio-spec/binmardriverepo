@@ -42,32 +42,52 @@ export default function DashboardTab({
         {moderationQueue.length > 0 ? (
           <table>
             <tbody>
-              {moderationQueue.slice(0, 3).map(item => (
-                <tr key={item.id}>
-                  <td>
-                    <div className="cell-main">{item.title}</div>
-                    <div className="cell-sub">{item.city}, {item.country}</div>
-                  </td>
-                  <td>{item.seller_name || item.seller}</td>
-                  <td>{item.price_label || `${item.currency} ${Number(item.price).toLocaleString()}`}</td>
-                  <td>
-                    <div className="row-actions">
-                      <button
-                        className="act-btn approve"
-                        onClick={() => onResolveModeration(item.id, true)}
-                      >
-                        Approve
-                      </button>
-                      <button
-                        className="act-btn reject"
-                        onClick={() => onResolveModeration(item.id, false)}
-                      >
-                        Reject
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {moderationQueue.slice(0, 3).map(item => {
+                const images = Array.isArray(item.images) && item.images.length > 0
+                  ? item.images
+                  : ['https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&auto=format&fit=crop'];
+                return (
+                  <tr key={item.id}>
+                    <td>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <img
+                          src={images[0]}
+                          alt={item.title}
+                          style={{ width: '42px', height: '34px', borderRadius: '4px', objectFit: 'cover', border: '1px solid rgba(212, 175, 55, 0.3)' }}
+                        />
+                        <div>
+                          <div
+                            className="cell-main"
+                            style={{ cursor: 'pointer', color: 'var(--gold)' }}
+                            onClick={() => setAdminTab('moderation')}
+                          >
+                            {item.title}
+                          </div>
+                          <div className="cell-sub">{item.city}, {item.country}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td>{item.seller_name || item.seller}</td>
+                    <td>{item.price_label || `${item.currency} ${Number(item.price).toLocaleString()}`}</td>
+                    <td>
+                      <div className="row-actions">
+                        <button
+                          className="act-btn approve"
+                          onClick={() => onResolveModeration(item.id, true)}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          className="act-btn reject"
+                          onClick={() => onResolveModeration(item.id, false)}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         ) : (

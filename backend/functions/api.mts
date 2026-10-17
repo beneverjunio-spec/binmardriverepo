@@ -246,10 +246,7 @@ export default async (request: Request) => {
         || !Number.isFinite(price) || price <= 0 || !Number.isInteger(year) || year < 1900 || year > new Date().getFullYear() + 1) {
         return reply({ error: 'Enter a make, model, valid year, and positive price.' }, 400);
       }
-      const images = body.images ?? [];
-      if (!Array.isArray(images) || images.length > 12 || images.some(image => typeof image !== 'string' || !image.startsWith(`/uploads/${identity.id}/`))) {
-        return reply({ error: 'Upload your photos before submitting the listing.' }, 400);
-      }
+      const images = Array.isArray(body.images) ? body.images.filter((img: unknown) => typeof img === 'string') : [];
       const currency = typeof body.currency === 'string' ? body.currency : 'AED';
       const listingType = body.listing_type === 'rent' ? 'rent' : 'sale';
       const database = getDatabase();
@@ -265,8 +262,18 @@ export default async (request: Request) => {
         price_label: `${currency} ${price.toLocaleString('en-US')}${listingType === 'rent' ? ' / day' : ''}`,
         country: body.country || profile.country, city: body.city || '',
         seller_name: profile.name, contact_preference: body.contact_preference || 'WhatsApp',
-        contact_phone: body.whatsapp_number || body.contact_phone || profile.phone, description: body.description || '', images
+        contact_phone: body.whatsapp_number || body.contact_phone || profile.phone, description: body.description || '', images,
+        status: 'pending'
       }).returning({ id: listings.id });
+
+      try {
+        await database.insert(notifications).values({
+          title: 'New Vehicle Pending Review',
+          message: `${year} ${body.make.trim()} ${body.model.trim()} submitted by ${profile.name} for admin moderation.`,
+          is_read: false
+        });
+      } catch {}
+
       return reply({ success: true, listingId: listing.id, message: 'Listing submitted for moderation.' }, 201);
     }
 

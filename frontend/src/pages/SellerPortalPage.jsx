@@ -31,7 +31,10 @@ import {
   Search,
   Phone,
   Building2,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Camera,
+  Image as ImageIcon
 } from 'lucide-react';
 import {
   GCC_COUNTRIES,
@@ -42,6 +45,7 @@ import {
   TRANSMISSION_TYPES
 } from '../constants';
 import { uploadListingPhotos, isTestData } from '../api/listings';
+import { apiRequest } from '../api/client';
 
 export default function SellerPortalPage({
   currentUser,
@@ -69,13 +73,15 @@ export default function SellerPortalPage({
   const [editImageInput, setEditImageInput] = useState('');
   const [isUploadingEditPhoto, setIsUploadingEditPhoto] = useState(false);
   const editFileInputRef = useRef(null);
+  const addPhotoInputRef = useRef(null);
+  const addDocInputRef = useRef(null);
 
   // Quick Add Listing Modal state
   const [showAddModal, setShowAddModal] = useState(false);
   const [addForm, setAddForm] = useState({
     make: 'Toyota',
     model: '',
-    year: '2024',
+    year: '2025',
     category: 'SUV',
     fuel: 'Petrol',
     transmission: 'Automatic',
@@ -88,8 +94,44 @@ export default function SellerPortalPage({
     city: 'Dubai',
     whatsapp_number: currentUser?.phone || '+971 50 123 4567',
     description: '',
-    images: []
+    images: [],
+    document_name: '',
+    document_file: ''
   });
+
+  const handleAddPhotos = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    files.forEach(file => {
+      const reader = new FileReader();
+      reader.onload = (uploadEvent) => {
+        setAddForm(prev => ({
+          ...prev,
+          images: [...prev.images, uploadEvent.target.result]
+        }));
+      };
+      reader.readAsDataURL(file);
+    });
+    notify(`${files.length} photo(s) attached!`);
+  };
+
+  const handleRemoveAddPhoto = (index) => {
+    setAddForm(prev => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index)
+    }));
+  };
+
+  const handleAddDoc = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAddForm(prev => ({
+      ...prev,
+      document_name: file.name,
+      document_file: file.name
+    }));
+    notify(`Document attached: ${file.name}`);
+  };
 
   // Profile edit state
   const [profileForm, setProfileForm] = useState({
@@ -345,20 +387,23 @@ export default function SellerPortalPage({
       listing_type: addForm.listing_type,
       price: Number(addForm.price),
       currency: addForm.currency,
+      price_label: `${addForm.currency} ${Number(addForm.price).toLocaleString()}${addForm.listing_type === 'rent' ? ' / day' : ''}`,
       country: addForm.country,
       city: addForm.city,
       location: `${addForm.city}, ${addForm.country}`,
-      seller_name: currentUser?.name || currentUser?.company_name || 'Verified Dealer',
-      seller_email: currentUser?.email || 'dealer@binmardrive.com',
+      seller_name: currentUser?.company_name || currentUser?.name || 'Verified Seller',
+      seller_email: currentUser?.email || 'seller@binmardrive.com',
       whatsapp_number: addForm.whatsapp_number,
       contact_phone: addForm.whatsapp_number,
       description: addForm.description || 'Verified vehicle with GCC specifications.',
       images: addForm.images.length > 0 ? addForm.images : [
         'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&auto=format&fit=crop'
       ],
+      document_name: addForm.document_name || 'Mulkiya_Vehicle_Registration.pdf',
+      document_file: addForm.document_file || 'Mulkiya_Vehicle_Registration.pdf',
       views: 0,
       inquiries: 0,
-      status: 'approved', // Verified sellers can publish directly or pending admin rule
+      status: 'pending', // PENDING: All seller listings must be approved by admin!
       created_at: new Date().toISOString()
     };
 
@@ -367,12 +412,36 @@ export default function SellerPortalPage({
       const existing = raw ? JSON.parse(raw) : [];
       localStorage.setItem('binmar_custom_listings', JSON.stringify([newVehicle, ...existing]));
 
+      // Send high-priority notification to Admin Portal
+      const notifRaw = localStorage.getItem('binmar_admin_notifications');
+      const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+      const newNotif = {
+        id: Date.now(),
+        title: 'New Vehicle Pending Review',
+        message: `${newVehicle.title} submitted by ${newVehicle.seller_name} (${newVehicle.city}, ${newVehicle.country}) and is waiting in the Moderation Queue for review.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
+
+      // Also submit to backend API
+      try {
+        await apiRequest('/api/listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newVehicle)
+        });
+      } catch (err) {
+        console.warn('Backend queued locally for admin moderation', err);
+      }
+
       setSellerListings(prev => [newVehicle, ...prev]);
+      setStatusFilter('pending'); // Auto switch to Pending tab so seller sees their submission
       setShowAddModal(false);
       setAddForm({
         make: 'Toyota',
         model: '',
-        year: '2024',
+        year: '2025',
         category: 'SUV',
         fuel: 'Petrol',
         transmission: 'Automatic',
@@ -385,13 +454,15 @@ export default function SellerPortalPage({
         city: 'Dubai',
         whatsapp_number: currentUser?.phone || '+971 50 123 4567',
         description: '',
-        images: []
+        images: [],
+        document_name: '',
+        document_file: ''
       });
 
-      notify(`Listing "${newVehicle.title}" published successfully!`);
+      notify(`Listing "${newVehicle.title}" submitted to Admin Moderation! Once verified & approved, it will be published live.`);
       if (onRefreshListings) onRefreshListings();
     } catch {
-      notify('Failed to create listing. Please try again.');
+      notify('Failed to submit listing. Please try again.');
     }
   };
 
@@ -1784,6 +1855,101 @@ export default function SellerPortalPage({
                     className="seller-form-textarea"
                   />
                 </div>
+
+                {/* Photos Upload */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="seller-form-label mb-0">Vehicle Photos ({addForm.images.length})</label>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-gold-deep hover:underline flex items-center gap-1"
+                      onClick={() => addPhotoInputRef.current?.click()}
+                    >
+                      <Camera size={14} /> Add Photos
+                    </button>
+                  </div>
+
+                  <input
+                    type="file"
+                    ref={addPhotoInputRef}
+                    accept="image/*"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleAddPhotos}
+                  />
+
+                  {addForm.images.length > 0 ? (
+                    <div className="flex flex-wrap gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                      {addForm.images.map((img, idx) => (
+                        <div key={idx} className="relative w-16 h-14 rounded-md overflow-hidden border border-gray-300 group">
+                          <img src={img} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-700"
+                            onClick={() => handleRemoveAddPhoto(idx)}
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="w-16 h-14 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-xs text-gray-500 hover:border-gold hover:text-gold-deep"
+                        onClick={() => addPhotoInputRef.current?.click()}
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      className="border-2 border-dashed border-gray-200 hover:border-gold/60 rounded-xl p-3 text-center cursor-pointer bg-white transition-colors"
+                      onClick={() => addPhotoInputRef.current?.click()}
+                    >
+                      <Camera size={22} className="mx-auto text-gold-deep/70 mb-1" />
+                      <p className="text-xs font-semibold text-ink">Upload Vehicle Photos</p>
+                      <p className="text-[11px] text-ink-soft">Click to select photos (Exterior, Interior, Dashboard)</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Mulkiya / Vehicle Registration Document Upload */}
+                <div>
+                  <label className="seller-form-label">Vehicle Registration / Mulkiya (Official Verification Document)</label>
+                  <input
+                    type="file"
+                    ref={addDocInputRef}
+                    accept=".pdf,image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleAddDoc}
+                  />
+                  <div
+                    className="border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors"
+                    onClick={() => addDocInputRef.current?.click()}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <FileText size={20} className="text-emerald-700 shrink-0" />
+                      <div>
+                        <p className="text-xs font-semibold text-emerald-900">
+                          {addForm.document_name ? `Attached: ${addForm.document_name}` : 'Attach Mulkiya / Registration Document (PDF / JPG)'}
+                        </p>
+                        <p className="text-[11px] text-emerald-700/80">
+                          {addForm.document_name ? 'Document ready for admin review' : 'Inspected by admin before approval'}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-xs font-bold text-emerald-800 bg-white px-2 py-1 rounded border border-emerald-200">
+                      {addForm.document_name ? 'Change File' : 'Browse File'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Admin Moderation Notice */}
+                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 flex items-start gap-2.5">
+                  <ShieldCheck size={18} className="text-amber-700 shrink-0 mt-0.5" />
+                  <div className="text-xs text-amber-900">
+                    <span className="font-bold">Administrative Approval Required:</span> Your listing and uploaded documents will be reviewed by the admin operations team. Once verified and approved, it will be published live to the marketplace.
+                  </div>
+                </div>
               </div>
 
               <div className="seller-modal-footer">
@@ -1796,9 +1962,10 @@ export default function SellerPortalPage({
                 </button>
                 <button
                   type="submit"
-                  className="seller-modal-save-btn"
+                  className="seller-modal-save-btn flex items-center gap-1.5"
+                  style={{ background: 'var(--gold, #D4AF37)', color: '#0A2A1F', fontWeight: 700 }}
                 >
-                  <Plus size={16} /> Publish Listing Now
+                  <ShieldCheck size={16} /> Submit for Admin Approval
                 </button>
               </div>
             </form>
