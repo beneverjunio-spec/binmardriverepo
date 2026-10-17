@@ -5,7 +5,8 @@ export default function LiveListingsTab({
   adminListings,
   adminSearch,
   setAdminSearch,
-  onRemoveListing
+  onRemoveListing,
+  onRemoveAllListings
 }) {
   const filteredListings = adminListings.filter(
     l =>
@@ -18,15 +19,27 @@ export default function LiveListingsTab({
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h2>All Live Marketplace Listings</h2>
+          <h2>All Live Marketplace Listings ({adminListings.length})</h2>
           <p>Manage and audit approved vehicle postings currently live.</p>
         </div>
-        <input
-          className="search"
-          placeholder="Search listings or sellers..."
-          value={adminSearch}
-          onChange={e => setAdminSearch(e.target.value)}
-        />
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+          {adminListings.length > 0 && onRemoveAllListings && (
+            <button
+              className="act-btn reject"
+              style={{ whiteSpace: 'nowrap', padding: '0.45rem 0.9rem', fontSize: '0.82rem' }}
+              onClick={onRemoveAllListings}
+            >
+              <Trash2 size={13} style={{ display: 'inline', marginRight: 4 }} />
+              Clear All Live Listings (Zero Out)
+            </button>
+          )}
+          <input
+            className="search"
+            placeholder="Search listings or sellers..."
+            value={adminSearch}
+            onChange={e => setAdminSearch(e.target.value)}
+          />
+        </div>
       </div>
       <table>
         <thead>

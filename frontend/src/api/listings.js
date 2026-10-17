@@ -67,6 +67,16 @@ export function isTestData(item) {
   )) {
     return true;
   }
+  const title = (item.title || '').toLowerCase();
+  if (
+    title.includes('toyota bmd') ||
+    title.includes('toyota 2002') ||
+    title.includes('toyota 2000') ||
+    title.includes('bmw 2000') ||
+    title.includes('nissan 2000')
+  ) {
+    return true;
+  }
   const sName = (item.seller_name || '').toUpperCase();
   if (sName === 'MR. ALI' || sName.includes('DESERT STAR') || sName.includes('AL FUTTAIM') || sName.includes('AL TAYER PRESTIGE') || sName.includes('BINMAR ROYAL') || sName.includes('ABDUL LATIF JAMEEL')) {
     if (['1', '2', '3', '4', '5', '6', '101', '102', '103', '104'].includes(idStr)) return true;

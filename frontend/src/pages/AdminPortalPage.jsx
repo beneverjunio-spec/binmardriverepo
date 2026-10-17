@@ -128,6 +128,25 @@ export default function AdminPortalPage({
     }
   };
 
+  const handleRemoveAllListings = async () => {
+    if (!window.confirm('Are you sure you want to delete ALL live listings and reset the marketplace to zero?')) return;
+    try {
+      for (const l of adminListings) {
+        await deleteLiveListing(l.id);
+      }
+      localStorage.removeItem('binmar_custom_listings');
+      setAdminListings([]);
+      setAdminStats(prev => ({
+        ...prev,
+        liveListings: 0
+      }));
+      notify('All live listings deleted. Marketplace is now 0.');
+      if (onRefreshListings) onRefreshListings();
+    } catch (e) {
+      notify(e.message || 'Unable to clear listings. Please try again.');
+    }
+  };
+
   const handleAddAdmin = (newAdmin) => {
     setAdmins(prev => {
       const updated = [newAdmin, ...prev];
@@ -219,6 +238,7 @@ export default function AdminPortalPage({
             adminSearch={adminSearch}
             setAdminSearch={setAdminSearch}
             onRemoveListing={handleRemoveListing}
+            onRemoveAllListings={handleRemoveAllListings}
           />
         )}
 
