@@ -183,7 +183,7 @@ export default function App() {
       return;
     }
     if (currentUser.user_type === 'company' && currentUser.status === 'pending') {
-      alert(
+      notify(
         'Your company trade license is currently in the admin verification queue. Once verified by our team, you will receive full access to publish listings!'
       );
       return;
