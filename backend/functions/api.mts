@@ -1,4 +1,4 @@
-import { scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { admin, getUser, type User } from '@netlify/identity';
 import { and, count, desc, eq, ilike, lte, or } from 'drizzle-orm';
 import type { Config } from '@netlify/functions';
@@ -104,6 +104,60 @@ export default async (request: Request) => {
       return reply({ success: true });
     }
 
+    if ((path === '/api/dealers/register' || path === '/api/register') && method === 'POST') {
+      const body = await request.json();
+      const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+      if (!email) return reply({ error: 'Valid email is required.' }, 400);
+
+      const userType = body.user_type === 'individual' ? 'individual' : 'company';
+      const name = typeof body.name === 'string' && body.name.trim() ? body.name.trim() : (body.company_name || 'Member');
+      const companyName = body.company_name || (userType === 'company' ? name : `${name} (Private Seller)`);
+      const tradeLicense = body.trade_license || (userType === 'company' ? 'CN-Pending' : 'Individual ID / License Verified');
+      const country = typeof body.country === 'string' ? body.country : 'United Arab Emirates';
+      const phone = typeof body.phone === 'string' ? body.phone : null;
+
+      const database = getDatabase();
+      const existing = await database.select().from(users).where(eq(users.email, email));
+      let userRecord;
+      if (existing.length > 0) {
+        [userRecord] = await database.update(users).set({
+          name,
+          user_type: userType,
+          company_name: companyName,
+          trade_license: tradeLicense,
+          country,
+          phone,
+          status: 'pending'
+        }).where(eq(users.id, existing[0].id)).returning();
+      } else {
+        [userRecord] = await database.insert(users).values({
+          identity_id: randomUUID(),
+          email,
+          name,
+          user_type: userType,
+          phone,
+          company_name: companyName,
+          trade_license: tradeLicense,
+          country,
+          status: 'pending'
+        }).returning();
+      }
+
+      try {
+        await database.insert(notifications).values({
+          title: `New ${userType === 'company' ? 'Commercial Dealer' : 'Seller'} Verification Request`,
+          message: `${name} (${companyName}) submitted registration from ${country} (${email}) for administrative verification.`,
+          is_read: false
+        });
+      } catch {}
+
+      return reply({
+        success: true,
+        message: 'Registration submitted successfully for administrative review.',
+        user: userRecord
+      }, 201);
+    }
+
     const identity = await getUser();
     if (!identity) return reply({ error: 'Your session has expired. Please sign in again.' }, 401);
     const isAdmin = identity.roles?.includes('admin') === true;
@@ -121,8 +175,8 @@ export default async (request: Request) => {
         const [live, pending, verified, dealers] = await Promise.all([
           database.select({ value: count() }).from(listings).where(eq(listings.status, 'approved')),
           database.select({ value: count() }).from(listings).where(eq(listings.status, 'pending')),
-          database.select({ value: count() }).from(users).where(and(eq(users.user_type, 'company'), eq(users.status, 'approved'))),
-          database.select({ value: count() }).from(users).where(and(eq(users.user_type, 'company'), eq(users.status, 'pending')))
+          database.select({ value: count() }).from(users).where(eq(users.status, 'approved')),
+          database.select({ value: count() }).from(users).where(eq(users.status, 'pending'))
         ]);
         return reply({ success: true, stats: {
           liveListings: live[0].value, pendingModeration: pending[0].value,
@@ -136,7 +190,7 @@ export default async (request: Request) => {
       }
 
       if (path === '/api/admin/dealers' && method === 'GET') {
-        const dealers = await database.select().from(users).where(and(eq(users.user_type, 'company'), eq(users.status, 'pending'))).orderBy(desc(users.id));
+        const dealers = await database.select().from(users).where(eq(users.status, 'pending')).orderBy(desc(users.id));
         return reply({ success: true, count: dealers.length, dealers });
       }
 
@@ -158,10 +212,10 @@ export default async (request: Request) => {
         const status = body.action === positiveAction ? 'approved' : 'rejected';
         const id = Number(moderationMatch[2]);
         const updated = isDealer
-          ? await database.update(users).set({ status }).where(and(eq(users.id, id), eq(users.user_type, 'company'))).returning({ id: users.id })
+          ? await database.update(users).set({ status }).where(eq(users.id, id)).returning({ id: users.id })
           : await database.update(listings).set({ status }).where(eq(listings.id, id)).returning({ id: listings.id });
         if (!updated.length) return reply({ error: 'Item not found.' }, 404);
-        return reply({ success: true, message: `${isDealer ? 'Dealer' : 'Listing'} ${status}.` });
+        return reply({ success: true, message: `${isDealer ? 'Dealer / Seller' : 'Listing'} ${status}.` });
       }
 
       const deleteMatch = path.match(/^\/api\/admin\/listings\/([1-9]\d*)$/);
@@ -224,5 +278,13 @@ export default async (request: Request) => {
 };
 
 export const config: Config = {
-  path: ['/api/admin/*', '/api/notifications', '/api/notifications/*', '/api/auth/me', '/api/listings']
+  path: [
+    '/api/admin/*',
+    '/api/dealers/*',
+    '/api/register',
+    '/api/notifications',
+    '/api/notifications/*',
+    '/api/auth/*',
+    '/api/listings'
+  ]
 };

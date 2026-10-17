@@ -120,8 +120,20 @@ export async function fetchAdminPortalData() {
     const liveList = [...approvedCustom, ...(listRes.listings || [])]
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
 
-    const dealers = [...pendingCustomDealers, ...(dealerRes.dealers || [])]
-      .filter(dealer => !isTestData(dealer) && !resolvedDealers.includes(String(dealer.id)));
+    const rawDealersList = [...pendingCustomDealers, ...(dealerRes.dealers || [])];
+    const seenEmails = new Set();
+    const seenIds = new Set();
+    const dealers = [];
+    for (const d of rawDealersList) {
+      if (isTestData(d)) continue;
+      if (resolvedDealers.includes(String(d.id))) continue;
+      const emailKey = d.email ? d.email.toLowerCase().trim() : null;
+      const idKey = String(d.id);
+      if (seenIds.has(idKey) || (emailKey && seenEmails.has(emailKey))) continue;
+      seenIds.add(idKey);
+      if (emailKey) seenEmails.add(emailKey);
+      dealers.push(d);
+    }
 
     const notifs = [...customNotifs, ...(notifRes.notifications || [])]
       .filter(n => !isTestData(n));
@@ -152,7 +164,21 @@ export async function fetchAdminPortalData() {
 
     const queue = [...pendingCustom, ...defaultMod];
     const liveList = [...approvedCustom, ...defaultListings];
-    const dealers = [...pendingCustomDealers, ...defaultDealers];
+
+    const rawDealersList = [...pendingCustomDealers, ...defaultDealers];
+    const seenEmails = new Set();
+    const seenIds = new Set();
+    const dealers = [];
+    for (const d of rawDealersList) {
+      if (isTestData(d)) continue;
+      if (resolvedDealers.includes(String(d.id))) continue;
+      const emailKey = d.email ? d.email.toLowerCase().trim() : null;
+      const idKey = String(d.id);
+      if (seenIds.has(idKey) || (emailKey && seenEmails.has(emailKey))) continue;
+      seenIds.add(idKey);
+      if (emailKey) seenEmails.add(emailKey);
+      dealers.push(d);
+    }
 
     return {
       ...DEFAULT_ADMIN_DATA,

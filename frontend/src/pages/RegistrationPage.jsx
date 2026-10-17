@@ -52,66 +52,75 @@ export default function RegistrationPage({
     if (authLoading) return;
     setAuthLoading(true);
 
+    const isCompany = regAccountType === 'company';
+    const displayName = isCompany ? regCompanyName : regName;
+    const companyName = isCompany ? regCompanyName : `${regName} (Private Seller)`;
+    const tradeLicense = isCompany
+      ? (regLicense || 'CN-' + Math.floor(1000000 + Math.random() * 9000000))
+      : (regLicense || 'ID-' + Math.floor(1000000 + Math.random() * 9000000));
+    const tradeDoc = tradeLicenseFile || (isCompany ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf');
+
     const payload = {
       user_type: regAccountType,
-      name: regAccountType === 'individual' ? regName : regCompanyName,
+      name: displayName,
       phone: regPhone,
-      company_name: regAccountType === 'company' ? regCompanyName : null,
-      trade_license: regAccountType === 'company' ? (regLicense || 'CN-' + Math.floor(1000000 + Math.random() * 9000000)) : null,
-      trade_license_file: tradeLicenseFile || null,
-      country: regCountry
+      company_name: companyName,
+      trade_license: tradeLicense,
+      trade_license_file: tradeDoc,
+      country: regCountry,
+      email: regEmail.trim()
     };
 
-    // Queue company registration for admin verification
-    if (regAccountType === 'company') {
-      const newDealerSubmission = {
+    const newDealerSubmission = {
+      id: Date.now(),
+      name: displayName,
+      company_name: companyName,
+      email: regEmail.trim(),
+      phone: regPhone,
+      country: regCountry,
+      user_type: regAccountType,
+      trade_license: tradeLicense,
+      trade_license_file: tradeDoc,
+      status: 'pending',
+      created_at: new Date().toISOString()
+    };
+
+    // 1. Queue submission for admin verification in local storage
+    try {
+      const raw = localStorage.getItem('binmar_custom_dealers');
+      const existing = raw ? JSON.parse(raw) : [];
+      localStorage.setItem('binmar_custom_dealers', JSON.stringify([newDealerSubmission, ...existing]));
+
+      const notifRaw = localStorage.getItem('binmar_admin_notifications');
+      const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+      const newNotif = {
         id: Date.now(),
-        name: regCompanyName,
-        company_name: regCompanyName,
-        email: regEmail.trim(),
-        phone: regPhone,
-        country: regCountry,
-        trade_license: payload.trade_license,
-        trade_license_file: tradeLicenseFile || 'Trade_License_Document.pdf',
-        status: 'pending',
+        title: `New ${isCompany ? 'Commercial Dealer' : 'Seller'} Verification Request`,
+        message: `${displayName} registered from ${regCountry} (${payload.email}) and submitted for admin verification.`,
+        is_read: false,
         created_at: new Date().toISOString()
       };
-
-      try {
-        const raw = localStorage.getItem('binmar_custom_dealers');
-        const existing = raw ? JSON.parse(raw) : [];
-        localStorage.setItem('binmar_custom_dealers', JSON.stringify([newDealerSubmission, ...existing]));
-
-        const notifRaw = localStorage.getItem('binmar_admin_notifications');
-        const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
-        const newNotif = {
-          id: Date.now(),
-          title: 'New Dealer Verification Request',
-          message: `${regCompanyName} registered from ${regCountry} and submitted commercial trade license (${payload.trade_license}) for admin verification.`,
-          is_read: false,
-          created_at: new Date().toISOString()
-        };
-        localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
-      } catch (e) {
-        console.warn('Could not store dealer submission locally', e);
-      }
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
+    } catch (e) {
+      console.warn('Could not store dealer submission locally', e);
     }
 
     const newUser = {
-      id: Date.now(),
-      name: regAccountType === 'individual' ? regName : regCompanyName,
+      id: newDealerSubmission.id,
+      name: displayName,
       email: regEmail.trim(),
       password: regPassword,
       user_type: regAccountType,
       phone: regPhone,
-      company_name: regAccountType === 'company' ? regCompanyName : null,
-      trade_license: regAccountType === 'company' ? payload.trade_license : null,
+      company_name: companyName,
+      trade_license: tradeLicense,
       country: regCountry,
-      status: regAccountType === 'company' ? 'pending' : 'approved',
+      status: 'pending', // All new registrations are pending admin approval!
+      is_verified_seller: false,
       created_at: new Date().toISOString()
     };
 
-    // Store in custom users list for persistent local authentication
+    // 2. Store in custom users list for persistent local authentication
     try {
       const rawUsers = localStorage.getItem('binmar_custom_users');
       const existingUsers = rawUsers ? JSON.parse(rawUsers) : [];
@@ -121,43 +130,28 @@ export default function RegistrationPage({
       console.warn('Could not store user locally', e);
     }
 
+    // 3. Post to backend API so database is populated across all devices/browsers
     try {
-      const user = await signup(regEmail.trim(), regPassword, { ...payload, full_name: payload.name });
-      setRegPassword('');
-
-      if (regAccountType === 'company') {
-        setLoginEmail(regEmail.trim());
-        setLoginError('Your seller application has been submitted to the Admin Operations Portal! Once verified and approved by the admin, you will receive full access to log in and use Seller Studio.');
-        notify('Seller application sent to Admin Verification queue!');
-        setCurrentPage('user-login');
-      } else if (user?.confirmedAt) {
-        try {
-          setCurrentUser(await loadProfile());
-        } catch {
-          setCurrentUser(newUser);
-        }
-        notify(`Welcome to BinmarDrive, ${newUser.name}!`);
-        setCurrentPage('marketplace');
-      } else {
-        setCurrentUser(newUser);
-        notify(`Account created successfully! Welcome, ${newUser.name}!`);
-        setCurrentPage('marketplace');
-      }
-    } catch (err) {
-      setRegPassword('');
-      if (regAccountType === 'company') {
-        notify('Seller application sent to Admin Verification queue!');
-        setLoginEmail(regEmail.trim());
-        setLoginError('Your seller application has been submitted to the Admin Operations Portal! Once verified and approved by the admin, you will receive full access to log in and use Seller Studio.');
-        setCurrentPage('user-login');
-      } else {
-        setCurrentUser(newUser);
-        notify(`Account created successfully! Welcome, ${newUser.name}!`);
-        setCurrentPage('marketplace');
-      }
-    } finally {
-      setAuthLoading(false);
+      await fetch('/api/dealers/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+    } catch (e) {
+      console.warn('Could not reach backend registration API', e);
     }
+
+    // 4. Try Netlify Identity signup if available
+    try {
+      await signup(regEmail.trim(), regPassword, { ...payload, full_name: displayName });
+    } catch {}
+
+    setRegPassword('');
+    setLoginEmail(regEmail.trim());
+    setLoginError('Your registration has been submitted to the Admin Operations Portal! Once verified and approved by the admin, you will receive full access to sign in.');
+    notify('Registration sent to Admin Verification queue!');
+    setCurrentPage('user-login');
+    setAuthLoading(false);
   };
 
 
@@ -205,7 +199,8 @@ export default function RegistrationPage({
                   onClick={() => setRegAccountType('individual')}
                 >
                   <User size={28} className="type-icon" />
-                  <span>Individual buyer</span>
+                  <span>Individual seller / private owner</span>
+                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>Requires Admin Approval</small>
                 </div>
                 <div
                   className={`type-card ${regAccountType === 'company' ? 'selected' : ''}`}
@@ -357,10 +352,8 @@ export default function RegistrationPage({
                 onClick={handleUserRegister}
               >
                 {authLoading
-                  ? 'Creating account…'
-                  : regAccountType === 'company'
-                  ? 'Submit for Dealer Verification'
-                  : 'Create account & continue'}
+                  ? 'Submitting registration…'
+                  : 'Submit for Admin Verification'}
               </button>
               <button className="btn-secondary" onClick={() => setRegStep(2)}>
                 Back

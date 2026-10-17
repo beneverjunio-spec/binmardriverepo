@@ -1,11 +1,21 @@
 import { getUser } from '@netlify/identity';
 
+const PUBLIC_PATHS = [
+  '/api/listings',
+  '/api/admin/access',
+  '/api/dealers/register',
+  '/api/register'
+];
+
 /**
  * Common API request client with automatic session checking and error extraction.
  */
 export async function apiRequest(path, options = {}) {
-  if (path !== '/api/listings' || options.method) {
-    await getUser();
+  const isPublic = PUBLIC_PATHS.includes(path) || (path === '/api/listings' && !options.method);
+  if (!isPublic) {
+    try {
+      await getUser();
+    } catch {}
   }
 
   const response = await fetch(path, { credentials: 'same-origin', ...options });
