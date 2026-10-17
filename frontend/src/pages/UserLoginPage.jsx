@@ -124,18 +124,6 @@ export default function UserLoginPage({
   };
 
 
-  const handleQuickUserLogin = () => {
-    const mockUser = {
-      name: 'Ahmed Al Mansoori',
-      email: 'ahmed@binmardrive.com',
-      user_type: 'individual',
-      country: 'United Arab Emirates',
-      status: 'approved'
-    };
-    setCurrentUser(mockUser);
-    notify(`Signed in as ${mockUser.name}`);
-    setCurrentPage('marketplace');
-  };
 
   return (
     <div className="flow-wrap">
@@ -199,14 +187,6 @@ export default function UserLoginPage({
             {authLoading ? 'Signing in…' : 'Sign in'}
           </button>
 
-          <button
-            type="button"
-            className="btn-gold"
-            style={{ width: '100%', marginTop: '10px', justifyContent: 'center' }}
-            onClick={handleQuickUserLogin}
-          >
-            ⚡ Quick Demo Sign-in
-          </button>
 
           <button
             className="btn-secondary"
