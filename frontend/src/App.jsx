@@ -307,14 +307,32 @@ export default function App() {
         )}
 
         {currentPage === 'seller' && (
-          <SellerPortalPage
-            currentUser={currentUser || { name: 'Verified Dealer', user_type: 'company', is_verified_seller: true }}
-            setCurrentUser={setCurrentUser}
-            setCurrentPage={setCurrentPage}
-            notify={notify}
-            onRefreshListings={loadListings}
-            onOpenCreateListing={() => setCurrentPage('create-listing')}
-          />
+          currentUser && (currentUser.user_type === 'company' || currentUser.is_verified_seller || currentUser.status === 'approved') && currentUser.status !== 'pending' && currentUser.status !== 'rejected' ? (
+            <SellerPortalPage
+              currentUser={currentUser}
+              setCurrentUser={setCurrentUser}
+              setCurrentPage={setCurrentPage}
+              notify={notify}
+              onRefreshListings={loadListings}
+              onOpenCreateListing={() => setCurrentPage('create-listing')}
+            />
+          ) : (
+            <UserLoginPage
+              loginEmail={loginEmail}
+              setLoginEmail={setLoginEmail}
+              loginError={
+                currentUser?.status === 'pending'
+                  ? 'Your seller account is currently pending administrative verification in the Admin Operations Portal. Please wait for the administrator to approve your account.'
+                  : currentUser?.status === 'rejected'
+                  ? 'Your seller application was rejected by the administration.'
+                  : 'Seller Studio is reserved for verified sellers. Please sign in with an approved seller account or register to get verified.'
+              }
+              setLoginError={setLoginError}
+              setCurrentUser={setCurrentUser}
+              setCurrentPage={setCurrentPage}
+              notify={notify}
+            />
+          )
         )}
       </main>
 

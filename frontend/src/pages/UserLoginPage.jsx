@@ -45,23 +45,27 @@ export default function UserLoginPage({
           }
 
           // Check if dealer verification was approved by admin
-          if (matched.user_type === 'company' && matched.status === 'pending') {
+          if (matched.user_type === 'company' || matched.user_type === 'seller') {
             try {
               const rawDealers = localStorage.getItem('binmar_custom_dealers');
               if (rawDealers) {
                 const dealers = JSON.parse(rawDealers);
                 const dMatch = dealers.find(d =>
                   (d.email && d.email.toLowerCase() === email) ||
-                  (d.company_name && matched.company_name && d.company_name.toLowerCase() === matched.company_name.toLowerCase())
+                  (d.company_name && matched.company_name && d.company_name.toLowerCase() === matched.company_name.toLowerCase()) ||
+                  (d.name && matched.name && d.name.toLowerCase() === matched.name.toLowerCase())
                 );
-                if (dMatch && (dMatch.status === 'verified' || dMatch.status === 'approved')) {
-                  matched.status = 'approved';
-                  matched.is_verified_seller = true;
-                  // update stored user
+                if (dMatch) {
+                  if (dMatch.status === 'verified' || dMatch.status === 'approved') {
+                    matched.status = 'approved';
+                    matched.is_verified_seller = true;
+                  } else if (dMatch.status === 'rejected') {
+                    matched.status = 'rejected';
+                  }
                   users.forEach(u => {
                     if (u.email.toLowerCase() === email) {
-                      u.status = 'approved';
-                      u.is_verified_seller = true;
+                      u.status = matched.status;
+                      u.is_verified_seller = matched.is_verified_seller;
                     }
                   });
                   localStorage.setItem('binmar_custom_users', JSON.stringify(users));
@@ -69,8 +73,14 @@ export default function UserLoginPage({
               }
             } catch {}
 
+            if (matched.status === 'rejected') {
+              setLoginError('Your seller registration was rejected by the administrator.');
+              setAuthLoading(false);
+              return;
+            }
+
             if (matched.status === 'pending') {
-              setLoginError('Your dealer account is currently pending administrative verification. Please wait for admin approval.');
+              setLoginError('Your seller account is currently pending administrative verification. The admin must verify and approve your registration before you can log in.');
               setAuthLoading(false);
               return;
             }
@@ -78,7 +88,7 @@ export default function UserLoginPage({
 
           setCurrentUser(matched);
           setLoginPass('');
-          notify(`Welcome back to Seller Studio, ${matched.name}!`);
+          notify(`Welcome back, ${matched.name}!`);
           if (matched.user_type === 'company' || matched.is_verified_seller) {
             setCurrentPage('seller');
           } else {
@@ -94,23 +104,17 @@ export default function UserLoginPage({
     try {
       await login(email, pass);
       const profile = await loadProfile();
+      if (profile.user_type === 'company' && profile.status === 'pending') {
+        setLoginError('Your company account is currently pending administrative verification in the Admin Portal.');
+        setAuthLoading(false);
+        return;
+      }
       setCurrentUser(profile);
       setLoginPass('');
       notify(`Welcome back, ${profile.name}!`);
-      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'marketplace');
+      setCurrentPage(profile.user_type === 'admin' ? 'admin' : (profile.user_type === 'company' ? 'seller' : 'marketplace'));
     } catch (err) {
-      // 3. Fallback for standalone mode
-      const mockUser = {
-        name: email.split('@')[0] || 'Car Owner',
-        email: email,
-        user_type: 'individual',
-        country: 'United Arab Emirates',
-        status: 'approved'
-      };
-      setCurrentUser(mockUser);
-      setLoginPass('');
-      notify(`Welcome, ${mockUser.name}!`);
-      setCurrentPage('marketplace');
+      setLoginError(authErrorMessage(err) || 'Invalid email or password. Please verify your credentials or register an account.');
     } finally {
       setAuthLoading(false);
     }

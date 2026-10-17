@@ -125,20 +125,20 @@ export default function RegistrationPage({
       const user = await signup(regEmail.trim(), regPassword, { ...payload, full_name: payload.name });
       setRegPassword('');
 
-      if (user?.confirmedAt) {
+      if (regAccountType === 'company') {
+        setLoginEmail(regEmail.trim());
+        setLoginError('Your seller application has been submitted to the Admin Operations Portal! Once verified and approved by the admin, you will receive full access to log in and use Seller Studio.');
+        notify('Seller application sent to Admin Verification queue!');
+        setCurrentPage('user-login');
+      } else if (user?.confirmedAt) {
         try {
           setCurrentUser(await loadProfile());
         } catch {
           setCurrentUser(newUser);
         }
-        notify(regAccountType === 'company' ? 'Dealer registration submitted for admin verification!' : `Welcome to BinmarDrive, ${newUser.name}!`);
+        notify(`Welcome to BinmarDrive, ${newUser.name}!`);
         setCurrentPage('marketplace');
-      } else if (regAccountType === 'company') {
-        setLoginEmail(regEmail.trim());
-        setLoginError('Dealer application submitted! Your trade license is currently pending admin verification.');
-        setCurrentPage('user-login');
       } else {
-        // Individual user: log in immediately
         setCurrentUser(newUser);
         notify(`Account created successfully! Welcome, ${newUser.name}!`);
         setCurrentPage('marketplace');
@@ -146,12 +146,11 @@ export default function RegistrationPage({
     } catch (err) {
       setRegPassword('');
       if (regAccountType === 'company') {
-        notify('Dealer registration submitted! Your commercial trade license has been sent for admin verification.');
+        notify('Seller application sent to Admin Verification queue!');
         setLoginEmail(regEmail.trim());
-        setLoginError('Your dealer registration has been submitted and is currently pending admin verification.');
+        setLoginError('Your seller application has been submitted to the Admin Operations Portal! Once verified and approved by the admin, you will receive full access to log in and use Seller Studio.');
         setCurrentPage('user-login');
       } else {
-        // Individual registration: log in immediately with the created account
         setCurrentUser(newUser);
         notify(`Account created successfully! Welcome, ${newUser.name}!`);
         setCurrentPage('marketplace');
@@ -206,14 +205,15 @@ export default function RegistrationPage({
                   onClick={() => setRegAccountType('individual')}
                 >
                   <User size={28} className="type-icon" />
-                  <span>Individual owner</span>
+                  <span>Individual buyer</span>
                 </div>
                 <div
                   className={`type-card ${regAccountType === 'company' ? 'selected' : ''}`}
                   onClick={() => setRegAccountType('company')}
                 >
                   <Building2 size={28} className="type-icon" />
-                  <span>Company / dealer</span>
+                  <span>Commercial seller / dealer</span>
+                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>Requires Admin Approval</small>
                 </div>
               </div>
 

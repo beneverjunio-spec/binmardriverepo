@@ -5,15 +5,16 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h2>Commercial Dealer Verification</h2>
-          <p>Company registrations requiring business trade license review.</p>
+          <h2>Commercial Dealer & Seller Verification</h2>
+          <p>Company and seller registrations requiring administrative trade license review.</p>
         </div>
         <span className="pending-count">{dealerQueue.length} pending</span>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Company</th>
+            <th>Company / Seller</th>
+            <th>Contact Email</th>
             <th>Country</th>
             <th>License Number</th>
             <th>Document</th>
@@ -26,7 +27,9 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
               <tr key={dealer.id}>
                 <td>
                   <div className="cell-main">{dealer.name || dealer.company_name}</div>
+                  {dealer.phone && <div className="cell-sub">{dealer.phone}</div>}
                 </td>
+                <td>{dealer.email || 'N/A'}</td>
                 <td>{dealer.country}</td>
                 <td>{dealer.trade_license || 'Pending Upload'}</td>
                 <td>
@@ -34,12 +37,11 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                     style={{ color: 'var(--gold)', fontWeight: 700, cursor: 'pointer', fontSize: '0.82rem' }}
                     onClick={() =>
                       alert(
-                        'Displaying uploaded trade license PDF scan for ' +
-                          (dealer.name || dealer.company_name)
+                        `Displaying trade license verification document for ${dealer.name || dealer.company_name}:\nDocument: ${dealer.trade_license_file || 'Trade_License_Document.pdf'}\nLicense: ${dealer.trade_license || 'CN-Verified'}`
                       )
                     }
                   >
-                    View Trade License
+                    View Document
                   </span>
                 </td>
                 <td>
@@ -48,7 +50,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                       className="act-btn approve"
                       onClick={() => onResolveDealer(dealer.id, true)}
                     >
-                      Verify Dealer
+                      Approve & Verify
                     </button>
                     <button
                       className="act-btn reject"
@@ -62,7 +64,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
             ))
           ) : (
             <tr className="empty-row">
-              <td colSpan="5">No pending dealer registrations.</td>
+              <td colSpan="6">No pending dealer or seller registrations waiting for review.</td>
             </tr>
           )}
         </tbody>
