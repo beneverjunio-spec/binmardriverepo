@@ -1722,8 +1722,12 @@ export default function SellerPortalPage({
       {/* ========================================================= */}
       {showAddModal && (
         <div className="seller-modal-backdrop" onClick={() => setShowAddModal(false)}>
-          <div className="seller-modal-card" onClick={e => e.stopPropagation()}>
-            <div className="seller-modal-header">
+          <div
+            className="seller-modal-card"
+            style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="seller-modal-header" style={{ flexShrink: 0 }}>
               <div>
                 <p className="text-xs uppercase tracking-wider text-gold-deep font-semibold">Seller Studio</p>
                 <h2 className="font-serif-display text-xl font-bold text-ink">Publish New Listing</h2>
@@ -1733,8 +1737,14 @@ export default function SellerPortalPage({
               </button>
             </div>
 
-            <form onSubmit={handleQuickAddSubmit}>
-              <div className="seller-modal-body space-y-4">
+            <form
+              onSubmit={handleQuickAddSubmit}
+              style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}
+            >
+              <div
+                className="seller-modal-body space-y-4"
+                style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}
+              >
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                   <div>
                     <label className="seller-form-label">Make</label>
@@ -1858,11 +1868,12 @@ export default function SellerPortalPage({
 
                 {/* Photos Upload */}
                 <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="seller-form-label mb-0">Vehicle Photos ({addForm.images.length})</label>
+                  <div className="flex items-center justify-between mb-1.5" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <label className="seller-form-label mb-0" style={{ margin: 0 }}>Vehicle Photos ({addForm.images.length})</label>
                     <button
                       type="button"
                       className="text-xs font-semibold text-gold-deep hover:underline flex items-center gap-1"
+                      style={{ background: 'none', border: 'none', color: '#c6a15b', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem', fontWeight: 600 }}
                       onClick={() => addPhotoInputRef.current?.click()}
                     >
                       <Camera size={14} /> Add Photos
@@ -1879,13 +1890,14 @@ export default function SellerPortalPage({
                   />
 
                   {addForm.images.length > 0 ? (
-                    <div className="flex flex-wrap gap-2 p-2.5 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="seller-photo-preview-grid">
                       {addForm.images.map((img, idx) => (
-                        <div key={idx} className="relative w-16 h-14 rounded-md overflow-hidden border border-gray-300 group">
-                          <img src={img} alt={`Upload ${idx}`} className="w-full h-full object-cover" />
+                        <div key={idx} className="seller-photo-thumb">
+                          <img src={img} alt={`Upload ${idx}`} />
                           <button
                             type="button"
-                            className="absolute top-0.5 right-0.5 bg-red-600 text-white rounded-full p-0.5 shadow hover:bg-red-700"
+                            className="seller-photo-delete-btn"
+                            title="Remove photo"
                             onClick={() => handleRemoveAddPhoto(idx)}
                           >
                             <X size={12} />
@@ -1894,20 +1906,30 @@ export default function SellerPortalPage({
                       ))}
                       <button
                         type="button"
-                        className="w-16 h-14 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center text-xs text-gray-500 hover:border-gold hover:text-gold-deep"
+                        className="seller-photo-add-btn"
+                        title="Add more photos"
                         onClick={() => addPhotoInputRef.current?.click()}
                       >
-                        <Plus size={16} />
+                        <Plus size={18} />
+                        <span>Add More</span>
                       </button>
                     </div>
                   ) : (
                     <div
-                      className="border-2 border-dashed border-gray-200 hover:border-gold/60 rounded-xl p-3 text-center cursor-pointer bg-white transition-colors"
+                      style={{
+                        border: '2px dashed #cbd5e1',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        textAlign: 'center',
+                        cursor: 'pointer',
+                        background: '#ffffff',
+                        transition: 'border-color 0.2s'
+                      }}
                       onClick={() => addPhotoInputRef.current?.click()}
                     >
-                      <Camera size={22} className="mx-auto text-gold-deep/70 mb-1" />
-                      <p className="text-xs font-semibold text-ink">Upload Vehicle Photos</p>
-                      <p className="text-[11px] text-ink-soft">Click to select photos (Exterior, Interior, Dashboard)</p>
+                      <Camera size={26} style={{ margin: '0 auto 6px', color: '#c6a15b', display: 'block' }} />
+                      <p style={{ margin: 0, fontSize: '0.88rem', fontWeight: 600, color: '#1e293b' }}>Click to Upload Vehicle Photos</p>
+                      <p style={{ margin: '3px 0 0 0', fontSize: '0.75rem', color: '#64748b' }}>Select one or multiple photos (Exterior, Interior, Dashboard)</p>
                     </div>
                   )}
                 </div>
@@ -1923,36 +1945,61 @@ export default function SellerPortalPage({
                     onChange={handleAddDoc}
                   />
                   <div
-                    className="border border-dashed border-emerald-300 hover:border-emerald-500 bg-emerald-50/40 rounded-xl p-2.5 flex items-center justify-between cursor-pointer transition-colors"
+                    style={{
+                      border: '1px dashed #6ee7b7',
+                      background: 'rgba(236, 253, 245, 0.6)',
+                      borderRadius: '10px',
+                      padding: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer'
+                    }}
                     onClick={() => addDocInputRef.current?.click()}
                   >
-                    <div className="flex items-center gap-2.5">
-                      <FileText size={20} className="text-emerald-700 shrink-0" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <FileText size={22} style={{ color: '#047857', flexShrink: 0 }} />
                       <div>
-                        <p className="text-xs font-semibold text-emerald-900">
+                        <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: 600, color: '#064e3b' }}>
                           {addForm.document_name ? `Attached: ${addForm.document_name}` : 'Attach Mulkiya / Registration Document (PDF / JPG)'}
                         </p>
-                        <p className="text-[11px] text-emerald-700/80">
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#047857' }}>
                           {addForm.document_name ? 'Document ready for admin review' : 'Inspected by admin before approval'}
                         </p>
                       </div>
                     </div>
-                    <span className="text-xs font-bold text-emerald-800 bg-white px-2 py-1 rounded border border-emerald-200">
+                    <span style={{
+                      fontSize: '0.78rem',
+                      fontWeight: 700,
+                      color: '#065f46',
+                      background: '#fff',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid #a7f3d0'
+                    }}>
                       {addForm.document_name ? 'Change File' : 'Browse File'}
                     </span>
                   </div>
                 </div>
 
                 {/* Admin Moderation Notice */}
-                <div className="bg-amber-50 border border-amber-200/80 rounded-xl p-3 flex items-start gap-2.5">
-                  <ShieldCheck size={18} className="text-amber-700 shrink-0 mt-0.5" />
-                  <div className="text-xs text-amber-900">
-                    <span className="font-bold">Administrative Approval Required:</span> Your listing and uploaded documents will be reviewed by the admin operations team. Once verified and approved, it will be published live to the marketplace.
+                <div style={{
+                  background: '#fefce8',
+                  border: '1px solid #fef08a',
+                  borderRadius: '10px',
+                  padding: '12px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px'
+                }}>
+                  <ShieldCheck size={18} style={{ color: '#a16207', flexShrink: 0, marginTop: '2px' }} />
+                  <div style={{ fontSize: '0.8rem', color: '#713f12', lineHeight: '1.4' }}>
+                    <span style={{ fontWeight: 700 }}>Administrative Approval Required:</span> Your listing and uploaded documents will be reviewed by the admin operations team. Once verified and approved, it will be published live to the marketplace.
                   </div>
                 </div>
               </div>
 
-              <div className="seller-modal-footer">
+              <div className="seller-modal-footer" style={{ flexShrink: 0 }}>
                 <button
                   type="button"
                   className="seller-modal-cancel-btn"
