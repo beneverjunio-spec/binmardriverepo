@@ -1,107 +1,325 @@
 import React, { useState } from 'react';
-import { FileText, ShieldCheck, X, Building2, UserCheck, Mail, Phone, FileCheck } from 'lucide-react';
+import {
+  FileText,
+  ShieldCheck,
+  X,
+  Building2,
+  UserCheck,
+  Mail,
+  Phone,
+  Search,
+  Eye,
+  Check,
+  Ban,
+  RefreshCw,
+  User
+} from 'lucide-react';
 
-export default function DealersTab({ dealerQueue, onResolveDealer }) {
+export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
   const [selectedDealerDoc, setSelectedDealerDoc] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending' | 'verified' | 'rejected'
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const pendingCount = dealerQueue.filter(d => !d.status || d.status === 'pending').length;
+  const verifiedCount = dealerQueue.filter(d => d.status === 'verified' || d.status === 'approved').length;
+  const rejectedCount = dealerQueue.filter(d => d.status === 'rejected').length;
+
+  const filteredDealers = dealerQueue.filter(dealer => {
+    // 1. Status Filter
+    if (filterStatus === 'pending') {
+      if (dealer.status && dealer.status !== 'pending') return false;
+    } else if (filterStatus === 'verified') {
+      if (dealer.status !== 'verified' && dealer.status !== 'approved') return false;
+    } else if (filterStatus === 'rejected') {
+      if (dealer.status !== 'rejected') return false;
+    }
+
+    // 2. Search Query
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    return (
+      (dealer.name && dealer.name.toLowerCase().includes(q)) ||
+      (dealer.company_name && dealer.company_name.toLowerCase().includes(q)) ||
+      (dealer.email && dealer.email.toLowerCase().includes(q)) ||
+      (dealer.phone && dealer.phone.toLowerCase().includes(q)) ||
+      (dealer.country && dealer.country.toLowerCase().includes(q)) ||
+      (dealer.trade_license && dealer.trade_license.toLowerCase().includes(q))
+    );
+  });
 
   return (
     <div className="panel">
       <div className="panel-head">
         <div>
-          <h2>Commercial Dealer & Seller Verification</h2>
-          <p>Company and seller registrations requiring administrative trade license review.</p>
+          <h2>Registered Dealers & Sellers Directory</h2>
+          <p>Complete directory of commercial dealerships and private sellers. Audit trade licenses, verify documents, and manage account authorization.</p>
         </div>
-        <span className="pending-count">{dealerQueue.length} pending</span>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <input
+            className="search"
+            placeholder="Search by company, name, email, license..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ minWidth: '260px' }}
+          />
+        </div>
       </div>
+
+      {/* Filter Tabs / Pills */}
+      <div style={{
+        display: 'flex',
+        gap: '8px',
+        padding: '0 1.5rem 1rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        flexWrap: 'wrap'
+      }}>
+        <button
+          type="button"
+          onClick={() => setFilterStatus('all')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: filterStatus === 'all' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(255, 255, 255, 0.15)',
+            background: filterStatus === 'all' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+            color: filterStatus === 'all' ? 'var(--gold, #d4af37)' : '#94a3b8'
+          }}
+        >
+          All Registered ({dealerQueue.length})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterStatus('pending')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: filterStatus === 'pending' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(212, 175, 55, 0.25)',
+            background: filterStatus === 'pending' ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.06)',
+            color: 'var(--gold, #d4af37)'
+          }}
+        >
+          Pending Review ({pendingCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterStatus('verified')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: filterStatus === 'verified' ? '1px solid #4ade80' : '1px solid rgba(74, 222, 128, 0.25)',
+            background: filterStatus === 'verified' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.06)',
+            color: '#4ade80'
+          }}
+        >
+          Verified Active ({verifiedCount})
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setFilterStatus('rejected')}
+          style={{
+            padding: '6px 14px',
+            borderRadius: '20px',
+            fontSize: '0.8rem',
+            fontWeight: 700,
+            cursor: 'pointer',
+            border: filterStatus === 'rejected' ? '1px solid #f87171' : '1px solid rgba(239, 68, 68, 0.25)',
+            background: filterStatus === 'rejected' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.06)',
+            color: '#f87171'
+          }}
+        >
+          Rejected ({rejectedCount})
+        </button>
+      </div>
+
       <table>
         <thead>
           <tr>
             <th>Company / Seller</th>
-            <th>Type</th>
+            <th>Account Type</th>
             <th>Contact Email</th>
             <th>Country</th>
             <th>License / ID</th>
-            <th>Document</th>
+            <th>Status</th>
+            <th>Details & Document</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {dealerQueue.length > 0 ? (
-            dealerQueue.map(dealer => (
-              <tr key={dealer.id}>
-                <td>
-                  <div className="cell-main">{dealer.name || dealer.company_name}</div>
-                  {dealer.phone && <div className="cell-sub">{dealer.phone}</div>}
-                </td>
-                <td>
-                  <span style={{
-                    display: 'inline-block',
-                    padding: '3px 8px',
-                    borderRadius: '4px',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.04em',
-                    background: dealer.user_type === 'company' ? 'rgba(212, 175, 55, 0.15)' : 'rgba(100, 150, 255, 0.15)',
-                    color: dealer.user_type === 'company' ? 'var(--gold)' : '#7cb3ff',
-                    border: dealer.user_type === 'company' ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid rgba(100, 150, 255, 0.3)'
-                  }}>
-                    {dealer.user_type === 'company' ? 'Commercial Dealer' : 'Private Seller'}
-                  </span>
-                </td>
-                <td>{dealer.email || 'N/A'}</td>
-                <td>{dealer.country}</td>
-                <td>{dealer.trade_license || 'Pending Verification'}</td>
-                <td>
-                  <button
-                    type="button"
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      padding: '5px 10px',
-                      background: 'rgba(212, 175, 55, 0.12)',
-                      border: '1px solid rgba(212, 175, 55, 0.4)',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      color: 'var(--gold, #d4af37)',
-                      fontSize: '0.8rem',
-                      fontWeight: 700
-                    }}
-                    onClick={() => setSelectedDealerDoc(dealer)}
-                    title="Inspect verification document"
-                  >
-                    <FileText size={14} />
-                    <span>View Document</span>
-                  </button>
-                </td>
-                <td>
-                  <div className="row-actions">
-                    <button
-                      className="act-btn approve"
-                      onClick={() => onResolveDealer(dealer.id, true)}
+          {filteredDealers.length > 0 ? (
+            filteredDealers.map(dealer => {
+              const isPending = !dealer.status || dealer.status === 'pending';
+              const isVerified = dealer.status === 'verified' || dealer.status === 'approved';
+              const isRejected = dealer.status === 'rejected';
+
+              return (
+                <tr key={dealer.id}>
+                  <td>
+                    <div
+                      className="cell-main"
+                      style={{ cursor: 'pointer', color: '#f8fafc', fontWeight: 700 }}
+                      onClick={() => setSelectedDealerDoc(dealer)}
                     >
-                      Approve & Verify
-                    </button>
+                      {dealer.name || dealer.company_name}
+                    </div>
+                    {dealer.phone && (
+                      <div className="cell-sub" style={{ color: '#25D366', fontWeight: 600 }}>
+                        {dealer.phone}
+                      </div>
+                    )}
+                  </td>
+                  <td>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '3px 8px',
+                      borderRadius: '4px',
+                      fontSize: '0.72rem',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      background: dealer.user_type === 'company' ? 'rgba(212, 175, 55, 0.15)' : 'rgba(100, 150, 255, 0.15)',
+                      color: dealer.user_type === 'company' ? 'var(--gold)' : '#7cb3ff',
+                      border: dealer.user_type === 'company' ? '1px solid rgba(212, 175, 55, 0.3)' : '1px solid rgba(100, 150, 255, 0.3)'
+                    }}>
+                      {dealer.user_type === 'company' ? 'Commercial Dealer' : 'Private Seller'}
+                    </span>
+                  </td>
+                  <td>{dealer.email || 'N/A'}</td>
+                  <td>{dealer.country}</td>
+                  <td>{dealer.trade_license || 'Pending Verification'}</td>
+                  <td>
+                    {isPending && (
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: 'rgba(234, 179, 8, 0.15)',
+                        color: '#facc15',
+                        border: '1px solid rgba(234, 179, 8, 0.3)'
+                      }}>
+                        Pending Review
+                      </span>
+                    )}
+                    {isVerified && (
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: 'rgba(34, 197, 94, 0.15)',
+                        color: '#4ade80',
+                        border: '1px solid rgba(34, 197, 94, 0.3)'
+                      }}>
+                        Verified Active
+                      </span>
+                    )}
+                    {isRejected && (
+                      <span style={{
+                        display: 'inline-block',
+                        padding: '3px 8px',
+                        borderRadius: '4px',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        background: 'rgba(239, 68, 68, 0.15)',
+                        color: '#f87171',
+                        border: '1px solid rgba(239, 68, 68, 0.3)'
+                      }}>
+                        Rejected
+                      </span>
+                    )}
+                  </td>
+                  <td>
                     <button
-                      className="act-btn reject"
-                      onClick={() => onResolveDealer(dealer.id, false)}
+                      type="button"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 12px',
+                        background: 'rgba(212, 175, 55, 0.12)',
+                        border: '1px solid rgba(212, 175, 55, 0.4)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: 'var(--gold, #d4af37)',
+                        fontSize: '0.8rem',
+                        fontWeight: 700
+                      }}
+                      onClick={() => setSelectedDealerDoc(dealer)}
+                      title="Inspect full seller credentials and documents"
                     >
-                      Reject
+                      <Eye size={14} />
+                      <span>View Details</span>
                     </button>
-                  </div>
-                </td>
-              </tr>
-            ))
+                  </td>
+                  <td>
+                    <div className="row-actions">
+                      {isPending && (
+                        <>
+                          <button
+                            className="act-btn approve"
+                            onClick={() => onResolveDealer(dealer.id, true)}
+                            title="Verify and grant full access to Seller Studio"
+                          >
+                            Approve & Verify
+                          </button>
+                          <button
+                            className="act-btn reject"
+                            onClick={() => onResolveDealer(dealer.id, false)}
+                            title="Reject this registration"
+                          >
+                            Reject
+                          </button>
+                        </>
+                      )}
+                      {isVerified && (
+                        <button
+                          className="act-btn reject"
+                          onClick={() => onResolveDealer(dealer.id, false)}
+                          title="Revoke verified status"
+                        >
+                          Revoke / Reject
+                        </button>
+                      )}
+                      {isRejected && (
+                        <button
+                          className="act-btn approve"
+                          onClick={() => onResolveDealer(dealer.id, true)}
+                          title="Re-verify and approve seller"
+                        >
+                          Re-Approve
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })
           ) : (
             <tr className="empty-row">
-              <td colSpan="7">No pending dealer or seller registrations waiting for review.</td>
+              <td colSpan="8">
+                {filterStatus === 'all'
+                  ? 'No registered dealers or sellers found.'
+                  : `No dealers or sellers found under "${filterStatus}" status.`}
+              </td>
             </tr>
           )}
         </tbody>
       </table>
 
-      {/* DOCUMENT VERIFICATION MODAL POPUP */}
+      {/* DOCUMENT VERIFICATION MODAL POPUP (Inspect anytime!) */}
       {selectedDealerDoc && (
         <div
           style={{
@@ -120,7 +338,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
           <div
             style={{
               width: '100%',
-              maxWidth: '42rem',
+              maxWidth: '44rem',
               maxHeight: '90vh',
               background: '#0d131a',
               border: '1px solid rgba(212, 175, 55, 0.45)',
@@ -154,7 +372,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                   justifyContent: 'center',
                   color: 'var(--gold, #d4af37)'
                 }}>
-                  <Building2 size={20} />
+                  {selectedDealerDoc.user_type === 'company' ? <Building2 size={20} /> : <User size={20} />}
                 </div>
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -163,7 +381,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                     </h3>
                   </div>
                   <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-                    Department of Economic Development & Registration Authority Review
+                    Official Administrative Verification & Review Archive
                   </p>
                 </div>
               </div>
@@ -201,9 +419,9 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                 }}>
                   <div>
                     <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gold, #d4af37)', fontWeight: 700 }}>
-                      OFFICIAL COMMERCIAL VERIFICATION
+                      OFFICIAL REGISTRATION VERIFICATION
                     </p>
-                    <h4 style={{ margin: '2px 0 0 0', fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
+                    <h4 style={{ margin: '2px 0 0 0', fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
                       {selectedDealerDoc.name || selectedDealerDoc.company_name}
                     </h4>
                   </div>
@@ -211,15 +429,22 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                     display: 'flex',
                     alignItems: 'center',
                     gap: '6px',
-                    background: 'rgba(212, 175, 55, 0.1)',
+                    background: (selectedDealerDoc.status === 'verified' || selectedDealerDoc.status === 'approved')
+                      ? 'rgba(34, 197, 94, 0.15)'
+                      : (selectedDealerDoc.status === 'rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(212, 175, 55, 0.15)'),
                     padding: '6px 10px',
                     borderRadius: '6px',
                     border: '1px solid rgba(212, 175, 55, 0.3)',
-                    color: 'var(--gold, #d4af37)',
+                    color: (selectedDealerDoc.status === 'verified' || selectedDealerDoc.status === 'approved')
+                      ? '#4ade80'
+                      : (selectedDealerDoc.status === 'rejected' ? '#f87171' : 'var(--gold, #d4af37)'),
                     fontSize: '0.78rem',
                     fontWeight: 700
                   }}>
-                    <ShieldCheck size={16} /> Certified Filing
+                    <ShieldCheck size={16} />
+                    {selectedDealerDoc.status === 'verified' || selectedDealerDoc.status === 'approved'
+                      ? 'Verified Active'
+                      : (selectedDealerDoc.status === 'rejected' ? 'Rejected' : 'Pending Review')}
                   </div>
                 </div>
 
@@ -232,7 +457,9 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                 }}>
                   <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
                     <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Entity / Trade Name</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{selectedDealerDoc.name || selectedDealerDoc.company_name}</p>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>
+                      {selectedDealerDoc.name || selectedDealerDoc.company_name}
+                    </p>
                   </div>
 
                   <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
@@ -343,7 +570,7 @@ export default function DealersTab({ dealerQueue, onResolveDealer }) {
                     setSelectedDealerDoc(null);
                   }}
                 >
-                  Reject Verification
+                  Reject Application
                 </button>
                 <button
                   type="button"

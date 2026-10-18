@@ -48,11 +48,19 @@ export default function AdminPortalPage({
         const local = localStorage.getItem('binmar_custom_admins');
         if (local) storedAdmins = JSON.parse(local);
       } catch {}
-      if (storedAdmins.length > 0) {
-        setAdmins(storedAdmins);
-      } else if (data.admins && data.admins.length > 0) {
-        setAdmins(data.admins);
+
+      // Combine default seeded admins with any created custom staff admins
+      const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
+      const combinedAdmins = [...storedAdmins];
+      for (const da of defaultAdmins) {
+        if (!combinedAdmins.some(a => a.email.toLowerCase() === da.email.toLowerCase())) {
+          combinedAdmins.push(da);
+        }
       }
+      setAdmins(combinedAdmins);
+      try {
+        localStorage.setItem('binmar_custom_admins', JSON.stringify(combinedAdmins));
+      } catch {}
       setNotifications(data.notifications);
     } catch (e) {
       let storedAdmins = [];
@@ -60,9 +68,14 @@ export default function AdminPortalPage({
         const local = localStorage.getItem('binmar_custom_admins');
         if (local) storedAdmins = JSON.parse(local);
       } catch {}
-      if (storedAdmins.length > 0) {
-        setAdmins(storedAdmins);
+      const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
+      const combinedAdmins = [...storedAdmins];
+      for (const da of defaultAdmins) {
+        if (!combinedAdmins.some(a => a.email.toLowerCase() === da.email.toLowerCase())) {
+          combinedAdmins.push(da);
+        }
       }
+      setAdmins(combinedAdmins);
       setAdminDataError(e.message || 'Unable to load admin data. Please try again.');
     }
   };
@@ -115,12 +128,19 @@ export default function AdminPortalPage({
     try {
       const data = await resolveDealerApplication(id, verify);
       notify(data.message);
-      setDealerQueue(prev => prev.filter(dealer => dealer.id !== id));
-      setAdminStats(prev => ({
-        ...prev,
-        pendingDealers: Math.max(0, prev.pendingDealers - 1),
-        verifiedDealers: verify ? prev.verifiedDealers + 1 : prev.verifiedDealers
-      }));
+      const newStatus = verify ? 'verified' : 'rejected';
+      setDealerQueue(prev =>
+        prev.map(dealer => (dealer.id === id ? { ...dealer, status: newStatus } : dealer))
+      );
+      setAdminStats(prev => {
+        const updated = dealerQueue.map(dealer => (dealer.id === id ? { ...dealer, status: newStatus } : dealer));
+        return {
+          ...prev,
+          pendingDealers: updated.filter(d => !d.status || d.status === 'pending').length,
+          verifiedDealers: updated.filter(d => d.status === 'verified' || d.status === 'approved').length,
+          rejectedDealers: updated.filter(d => d.status === 'rejected').length
+        };
+      });
     } catch (err) {
       notify(err.message || 'Unable to update dealer. Please try again.');
     }
@@ -163,7 +183,7 @@ export default function AdminPortalPage({
 
   const handleAddAdmin = (newAdmin) => {
     setAdmins(prev => {
-      const updated = [newAdmin, ...prev];
+      const updated = [newAdmin, ...prev.filter(a => a.email?.toLowerCase() !== newAdmin.email?.toLowerCase())];
       try {
         localStorage.setItem('binmar_custom_admins', JSON.stringify(updated));
       } catch {}
@@ -204,7 +224,7 @@ export default function AdminPortalPage({
         adminTab={adminTab}
         setAdminTab={setAdminTab}
         moderationCount={moderationQueue.length}
-        dealerCount={dealerQueue.length}
+        dealerCount={dealerQueue.filter(d => !d.status || d.status === 'pending').length}
         adminCount={admins.length}
         onExit={onExit}
       />

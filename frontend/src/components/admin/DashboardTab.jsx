@@ -8,27 +8,43 @@ export default function DashboardTab({
   onResolveModeration,
   onResolveDealer
 }) {
+  const pendingDealers = dealerQueue.filter(d => !d.status || d.status === 'pending');
+  const verifiedCount = adminStats.verifiedDealers ?? dealerQueue.filter(d => d.status === 'verified' || d.status === 'approved').length;
+  const rejectedCount = adminStats.rejectedDealers ?? dealerQueue.filter(d => d.status === 'rejected').length;
+
   return (
     <div>
-      <div className="stat-grid">
+      {/* 5 Statistics Cards (Live, Moderation, Pending Dealers, Verified Dealers, Rejected Dealers) */}
+      <div className="stat-grid" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
         <div className="stat-card">
           <div className="stat-label">Live Listings</div>
-          <div className="stat-value">{adminStats.liveListings}</div>
+          <div className="stat-value">{adminStats.liveListings || 0}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Pending Moderation</div>
           <div className="stat-value">{moderationQueue.length}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Verified Dealers</div>
-          <div className="stat-value">{adminStats.verifiedDealers}</div>
+          <div className="stat-label">Pending Dealers</div>
+          <div className="stat-value" style={{ color: 'var(--gold, #d4af37)' }}>
+            {adminStats.pendingDealers ?? pendingDealers.length}
+          </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Pending Dealers</div>
-          <div className="stat-value">{dealerQueue.length}</div>
+          <div className="stat-label">Verified Dealers</div>
+          <div className="stat-value" style={{ color: '#4ade80' }}>
+            {verifiedCount}
+          </div>
+        </div>
+        <div className="stat-card" style={{ borderLeft: '3px solid rgba(239, 68, 68, 0.4)' }}>
+          <div className="stat-label" style={{ color: '#f87171' }}>Rejected Registrations</div>
+          <div className="stat-value" style={{ color: '#f87171' }}>
+            {rejectedCount}
+          </div>
         </div>
       </div>
 
+      {/* Moderation Queue Preview */}
       <div className="panel">
         <div className="panel-head">
           <div>
@@ -36,7 +52,7 @@ export default function DashboardTab({
             <p>Newest vehicle submissions waiting for administrative review</p>
           </div>
           <button className="btn-gold" onClick={() => setAdminTab('moderation')}>
-            View Full Queue
+            View Full Queue ({moderationQueue.length})
           </button>
         </div>
         {moderationQueue.length > 0 ? (
@@ -97,24 +113,38 @@ export default function DashboardTab({
         )}
       </div>
 
+      {/* Dealer Verification Preview */}
       <div className="panel">
         <div className="panel-head">
           <div>
             <h2>Dealer Verification Preview</h2>
-            <p>Companies waiting on commercial trade license approval</p>
+            <p>Companies and private sellers waiting on commercial trade license approval</p>
           </div>
           <button className="btn-gold" onClick={() => setAdminTab('dealers')}>
-            View Dealer Queue
+            View All Dealers ({dealerQueue.length})
           </button>
         </div>
-        {dealerQueue.length > 0 ? (
+        {pendingDealers.length > 0 ? (
           <table>
             <tbody>
-              {dealerQueue.slice(0, 3).map(dealer => (
+              {pendingDealers.slice(0, 3).map(dealer => (
                 <tr key={dealer.id}>
                   <td>
                     <div className="cell-main">{dealer.name || dealer.company_name}</div>
                     <div className="cell-sub">{dealer.trade_license || 'License Attached'}</div>
+                  </td>
+                  <td>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '2px 6px',
+                      borderRadius: '3px',
+                      fontSize: '0.7rem',
+                      fontWeight: 700,
+                      background: dealer.user_type === 'company' ? 'rgba(212, 175, 55, 0.15)' : 'rgba(100, 150, 255, 0.15)',
+                      color: dealer.user_type === 'company' ? 'var(--gold)' : '#7cb3ff'
+                    }}>
+                      {dealer.user_type === 'company' ? 'Dealer' : 'Private'}
+                    </span>
                   </td>
                   <td>{dealer.country}</td>
                   <td>
@@ -139,11 +169,10 @@ export default function DashboardTab({
           </table>
         ) : (
           <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--ink-2)', fontSize: '0.9rem' }}>
-            All clear! No commercial dealer verification requests waiting.
+            All clear! No pending verification requests waiting.
           </div>
         )}
       </div>
     </div>
   );
 }
-

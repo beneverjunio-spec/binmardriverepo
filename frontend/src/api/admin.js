@@ -131,8 +131,9 @@ export async function fetchAdminPortalData() {
     localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
   } catch {}
 
-  const pendingCustomDealers = customDealers.filter(d => d.status === 'pending' && !resolvedDealers.includes(String(d.id)));
-  const verifiedCustomDealers = customDealers.filter(d => (d.status === 'approved' || d.status === 'verified') && !resolvedDealers.includes(String(d.id) + '_rejected'));
+  const pendingCustomDealers = customDealers.filter(d => !d.status || d.status === 'pending');
+  const verifiedCustomDealers = customDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+  const rejectedCustomDealers = customDealers.filter(d => d.status === 'rejected');
 
   let customNotifs = [];
   try {
@@ -159,77 +160,42 @@ export async function fetchAdminPortalData() {
     const liveList = [...approvedCustom, ...(listRes.listings || [])]
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
 
-    const rawDealersList = [...pendingCustomDealers, ...(dealerRes.dealers || [])];
-    const seenEmails = new Set();
-    const seenIds = new Set();
-    const dealers = [];
-    for (const d of rawDealersList) {
-      if (isTestData(d)) continue;
-      if (resolvedDealers.includes(String(d.id))) continue;
-      const emailKey = d.email ? d.email.toLowerCase().trim() : null;
-      const idKey = String(d.id);
-      if (seenIds.has(idKey) || (emailKey && seenEmails.has(emailKey))) continue;
-      seenIds.add(idKey);
-      if (emailKey) seenEmails.add(emailKey);
-      dealers.push(d);
-    }
-
     const notifs = [...customNotifs, ...(notifRes.notifications || [])]
       .filter(n => !isTestData(n));
 
-    const totalVerified = (statsRes.stats?.verifiedDealers || 0) + verifiedCustomDealers.length;
-
     return {
       stats: {
-        ...statsRes.stats,
         pendingModeration: queue.length,
         liveListings: liveList.length,
-        pendingDealers: dealers.length,
-        verifiedDealers: totalVerified
+        pendingDealers: pendingCustomDealers.length,
+        verifiedDealers: verifiedCustomDealers.length,
+        rejectedDealers: rejectedCustomDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: dealers,
+      dealerQueue: customDealers,
       adminListings: liveList,
       notifications: notifs
     };
   } catch {
-    const defaultStats = DEFAULT_ADMIN_DATA.stats || {};
     const defaultMod = (DEFAULT_ADMIN_DATA.moderationQueue || [])
       .filter(item => !isTestData(item) && !resolvedModeration.includes(String(item.id)));
-    const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || [])
-      .filter(dealer => !isTestData(dealer) && !resolvedDealers.includes(String(dealer.id)));
     const defaultListings = (DEFAULT_ADMIN_DATA.adminListings || [])
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
 
     const queue = [...pendingCustom, ...defaultMod];
     const liveList = [...approvedCustom, ...defaultListings];
 
-    const rawDealersList = [...pendingCustomDealers, ...defaultDealers];
-    const seenEmails = new Set();
-    const seenIds = new Set();
-    const dealers = [];
-    for (const d of rawDealersList) {
-      if (isTestData(d)) continue;
-      if (resolvedDealers.includes(String(d.id))) continue;
-      const emailKey = d.email ? d.email.toLowerCase().trim() : null;
-      const idKey = String(d.id);
-      if (seenIds.has(idKey) || (emailKey && seenEmails.has(emailKey))) continue;
-      seenIds.add(idKey);
-      if (emailKey) seenEmails.add(emailKey);
-      dealers.push(d);
-    }
-
     return {
       ...DEFAULT_ADMIN_DATA,
       stats: {
-        ...defaultStats,
         pendingModeration: queue.length,
         liveListings: liveList.length,
-        pendingDealers: dealers.length,
-        verifiedDealers: verifiedCustomDealers.length
+        pendingDealers: pendingCustomDealers.length,
+        verifiedDealers: verifiedCustomDealers.length,
+        rejectedDealers: rejectedCustomDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: dealers,
+      dealerQueue: customDealers,
       adminListings: liveList,
       notifications: customNotifs
     };
