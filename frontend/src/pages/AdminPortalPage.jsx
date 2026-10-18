@@ -67,8 +67,22 @@ export default function AdminPortalPage({
     }
   };
 
+  // Reload admin data on mount and whenever switching tabs
   useEffect(() => {
     loadAdminData();
+  }, [adminTab]);
+
+  // Synchronize immediately when another tab registers or window regains focus
+  useEffect(() => {
+    const handleSync = () => {
+      loadAdminData();
+    };
+    window.addEventListener('focus', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('focus', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
   }, []);
 
   const handleResolveModeration = async (id, approve) => {

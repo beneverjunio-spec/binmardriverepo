@@ -22,6 +22,9 @@ const TEST_TITLES = [
 
 function isTestData(item) {
   if (!item) return false;
+  // Real registered users or user listings always have timestamp IDs (> 1000000000000)
+  if (Number(item.id) > 1000000000000) return false;
+
   const idStr = String(item.id);
   if (TEST_ITEM_IDS.includes(idStr)) return true;
   if (item.title && TEST_TITLES.includes(item.title)) return true;
@@ -81,15 +84,51 @@ export async function fetchAdminPortalData() {
     if (rawResD) resolvedDealers = JSON.parse(rawResD);
   } catch {}
 
-  // 4. Load local custom dealers registered by users
+  // 4. Load local custom dealers registered by users and cross-reference with registered users
   let customDealers = [];
   try {
     const rawDealers = localStorage.getItem('binmar_custom_dealers');
     if (rawDealers) {
       const parsedDealers = JSON.parse(rawDealers);
       customDealers = parsedDealers.filter(d => !isTestData(d));
-      localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
     }
+  } catch {}
+
+  // Cross-reference with binmar_custom_users to guarantee every pending registration is visible for verification
+  try {
+    const rawUsers = localStorage.getItem('binmar_custom_users');
+    if (rawUsers) {
+      const parsedUsers = JSON.parse(rawUsers);
+      parsedUsers.forEach(u => {
+        if (u.user_type === 'admin') return;
+        const isPending = u.status === 'pending' || (!u.status && !u.is_verified_seller);
+        if (isPending && !resolvedDealers.includes(String(u.id))) {
+          const alreadyInDealers = customDealers.some(d =>
+            (d.email && u.email && d.email.toLowerCase() === u.email.toLowerCase()) ||
+            String(d.id) === String(u.id)
+          );
+          if (!alreadyInDealers) {
+            customDealers.unshift({
+              id: u.id || Date.now(),
+              name: u.name || u.company_name || 'Registered Seller',
+              company_name: u.company_name || (u.user_type === 'company' ? (u.name || 'Company') : `${u.name || 'Seller'} (Private Seller)`),
+              email: u.email,
+              phone: u.phone || 'N/A',
+              country: u.country || 'United Arab Emirates',
+              user_type: u.user_type || 'individual',
+              trade_license: u.trade_license || (u.user_type === 'company' ? 'CN-Pending' : 'ID-Verified'),
+              trade_license_file: u.trade_license_file || (u.user_type === 'company' ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf'),
+              status: 'pending',
+              created_at: u.created_at || new Date().toISOString()
+            });
+          }
+        }
+      });
+    }
+  } catch {}
+
+  try {
+    localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
   } catch {}
 
   const pendingCustomDealers = customDealers.filter(d => d.status === 'pending' && !resolvedDealers.includes(String(d.id)));
@@ -270,27 +309,27 @@ export async function resolveDealerApplication(id, verify) {
         items[matchIndex].status = verify ? 'verified' : 'rejected';
         items[matchIndex].verified_at = new Date().toISOString();
         localStorage.setItem('binmar_custom_dealers', JSON.stringify(items));
+      }
+    }
 
-        // Synchronize with registered user credentials in binmar_custom_users
-        try {
-          const rawUsers = localStorage.getItem('binmar_custom_users');
-          if (rawUsers) {
-            const users = JSON.parse(rawUsers);
-            const userIndex = users.findIndex(u =>
-              (dealerItem.email && u.email && u.email.toLowerCase() === dealerItem.email.toLowerCase()) ||
-              (dealerItem.company_name && u.company_name && u.company_name.toLowerCase() === dealerItem.company_name.toLowerCase()) ||
-              (dealerItem.trade_license && u.trade_license && u.trade_license === dealerItem.trade_license)
-            );
-            if (userIndex !== -1) {
-              users[userIndex].status = verify ? 'approved' : 'rejected';
-              users[userIndex].is_verified_seller = verify;
-              localStorage.setItem('binmar_custom_users', JSON.stringify(users));
-            }
-          }
-        } catch (e) {
-          console.warn('Could not update user status in localStorage', e);
+    // Synchronize with registered user credentials in binmar_custom_users
+    try {
+      const rawUsers = localStorage.getItem('binmar_custom_users');
+      if (rawUsers) {
+        const users = JSON.parse(rawUsers);
+        const userIndex = users.findIndex(u =>
+          String(u.id) === String(id) ||
+          (u.email && raw && raw.toLowerCase().includes(u.email.toLowerCase()))
+        );
+        if (userIndex !== -1) {
+          dealerName = users[userIndex].name || users[userIndex].company_name || dealerName;
+          users[userIndex].status = verify ? 'approved' : 'rejected';
+          users[userIndex].is_verified_seller = verify;
+          localStorage.setItem('binmar_custom_users', JSON.stringify(users));
         }
       }
+    } catch (e) {
+      console.warn('Could not update user status in localStorage', e);
     }
   } catch {}
 

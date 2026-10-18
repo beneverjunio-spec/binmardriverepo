@@ -89,7 +89,18 @@ export default function RegistrationPage({
     try {
       const raw = localStorage.getItem('binmar_custom_dealers');
       const existing = raw ? JSON.parse(raw) : [];
-      localStorage.setItem('binmar_custom_dealers', JSON.stringify([newDealerSubmission, ...existing]));
+      const filteredExisting = existing.filter(d => !d.email || d.email.toLowerCase() !== newDealerSubmission.email.toLowerCase());
+      localStorage.setItem('binmar_custom_dealers', JSON.stringify([newDealerSubmission, ...filteredExisting]));
+
+      // Clear any prior resolution for this ID/email so the new application is fresh in queue
+      try {
+        const rawRes = localStorage.getItem('binmar_resolved_dealers');
+        if (rawRes) {
+          const resolved = JSON.parse(rawRes);
+          const updatedResolved = resolved.filter(id => String(id) !== String(newDealerSubmission.id));
+          localStorage.setItem('binmar_resolved_dealers', JSON.stringify(updatedResolved));
+        }
+      } catch {}
 
       const notifRaw = localStorage.getItem('binmar_admin_notifications');
       const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
@@ -101,6 +112,11 @@ export default function RegistrationPage({
         created_at: new Date().toISOString()
       };
       localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
+
+      // Dispatch storage event so any active admin tab syncs in real time
+      try {
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
     } catch (e) {
       console.warn('Could not store dealer submission locally', e);
     }
