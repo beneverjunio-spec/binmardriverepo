@@ -170,7 +170,7 @@ export default function AdminsTab({ admins, onAddAdmin, onRemoveAdmin, onToggleA
                     >
                       {admin.status === 'Active' ? 'Suspend' : 'Activate'}
                     </button>
-                    {admin.role !== 'Super Admin' && (
+                    {(admin.email !== 'admin@binmardrive.com' && String(admin.id) !== '1') && (
                       <button
                         className="act-btn reject"
                         style={{ padding: '5px 10px' }}

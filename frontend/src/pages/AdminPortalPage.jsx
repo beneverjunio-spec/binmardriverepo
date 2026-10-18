@@ -43,6 +43,12 @@ export default function AdminPortalPage({
       setModerationQueue(data.moderationQueue);
       setDealerQueue(data.dealerQueue);
       setAdminListings(data.adminListings);
+      let deletedAdmins = [];
+      try {
+        const rawDel = localStorage.getItem('binmar_deleted_admins');
+        if (rawDel) deletedAdmins = JSON.parse(rawDel);
+      } catch {}
+
       let storedAdmins = [];
       try {
         const local = localStorage.getItem('binmar_custom_admins');
@@ -57,12 +63,25 @@ export default function AdminPortalPage({
           combinedAdmins.push(da);
         }
       }
-      setAdmins(combinedAdmins);
+
+      // Filter out permanently deleted admins
+      const activeAdmins = combinedAdmins.filter(a =>
+        !deletedAdmins.includes(String(a.id)) &&
+        (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
+      );
+
+      setAdmins(activeAdmins);
       try {
-        localStorage.setItem('binmar_custom_admins', JSON.stringify(combinedAdmins));
+        localStorage.setItem('binmar_custom_admins', JSON.stringify(activeAdmins));
       } catch {}
       setNotifications(data.notifications);
     } catch (e) {
+      let deletedAdmins = [];
+      try {
+        const rawDel = localStorage.getItem('binmar_deleted_admins');
+        if (rawDel) deletedAdmins = JSON.parse(rawDel);
+      } catch {}
+
       let storedAdmins = [];
       try {
         const local = localStorage.getItem('binmar_custom_admins');
@@ -75,7 +94,11 @@ export default function AdminPortalPage({
           combinedAdmins.push(da);
         }
       }
-      setAdmins(combinedAdmins);
+      const activeAdmins = combinedAdmins.filter(a =>
+        !deletedAdmins.includes(String(a.id)) &&
+        (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
+      );
+      setAdmins(activeAdmins);
       setAdminDataError(e.message || 'Unable to load admin data. Please try again.');
     }
   };
@@ -182,6 +205,16 @@ export default function AdminPortalPage({
   };
 
   const handleAddAdmin = (newAdmin) => {
+    // If this admin was previously deleted, remove from deleted list
+    try {
+      const rawDel = localStorage.getItem('binmar_deleted_admins');
+      if (rawDel) {
+        const deleted = JSON.parse(rawDel);
+        const filtered = deleted.filter(x => x !== String(newAdmin.id) && x !== newAdmin.email?.toLowerCase());
+        localStorage.setItem('binmar_deleted_admins', JSON.stringify(filtered));
+      }
+    } catch {}
+
     setAdmins(prev => {
       const updated = [newAdmin, ...prev.filter(a => a.email?.toLowerCase() !== newAdmin.email?.toLowerCase())];
       try {
@@ -193,16 +226,31 @@ export default function AdminPortalPage({
   };
 
   const handleRemoveAdmin = (id) => {
-    const target = admins.find(a => a.id === id);
+    const target = admins.find(a => String(a.id) === String(id));
     if (!window.confirm(`Are you sure you want to remove admin access for ${target?.name || 'this user'}?`)) return;
+
+    // Permanently record deletion in binmar_deleted_admins
+    try {
+      let deleted = [];
+      const rawDel = localStorage.getItem('binmar_deleted_admins');
+      if (rawDel) deleted = JSON.parse(rawDel);
+      if (!deleted.includes(String(id))) {
+        deleted.push(String(id));
+      }
+      if (target?.email && !deleted.includes(target.email.toLowerCase())) {
+        deleted.push(target.email.toLowerCase());
+      }
+      localStorage.setItem('binmar_deleted_admins', JSON.stringify(deleted));
+    } catch {}
+
     setAdmins(prev => {
-      const updated = prev.filter(a => a.id !== id);
+      const updated = prev.filter(a => String(a.id) !== String(id));
       try {
         localStorage.setItem('binmar_custom_admins', JSON.stringify(updated));
       } catch {}
       return updated;
     });
-    notify('Administrator removed from the portal.');
+    notify(`Administrator "${target?.name || ''}" removed successfully.`);
   };
 
   const handleToggleAdminStatus = (id) => {
