@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "npm --prefix frontend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
+    "start:backend": "node backend/server.js",
     "build": "node scripts/build.js",
     "typecheck": "npm --prefix backend run typecheck",
     "db:generate": "npm --prefix backend run db:generate"
