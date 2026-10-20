@@ -19,8 +19,8 @@ A full-stack, serverless automotive marketplace and rental platform built for th
 | Component | Technology | Description |
 | :--- | :--- | :--- |
 | **Frontend** | React 18, Vite, Lucide Icons | Modular Single Page Application (SPA) with clean component hierarchy |
-| **Backend / API** | Netlify Functions (TypeScript) | Serverless REST API endpoints for listings, moderation, and notifications |
-| **Database** | PostgreSQL + Drizzle ORM | Type-safe schema definition and query builder |
+| **Backend / API** | Node.js Express & Serverless REST API | REST API endpoints for listings, moderation, dealers, and notifications |
+| **Database** | Microsoft SQL Server (MSSQL) & Drizzle ORM | High-performance relational database with users, listings, notifications |
 | **Authentication** | Netlify Identity | Role-based authorization (`individual`, `company`, `admin`) |
 | **Storage** | Netlify Blobs | Cloud blob storage for vehicle imagery |
 
