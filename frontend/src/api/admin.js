@@ -2,34 +2,14 @@ import { apiRequest } from './client';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 
 const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
-const TEST_TITLES = [
-  '2024 Toyota Land Cruiser',
-  '2024 Toyota Land Cruiser GR-Sport',
-  '2023 Mercedes-Benz G63 AMG',
-  '2022 Mercedes-Benz G63 AMG',
-  '2025 Porsche 911 GT3 RS',
-  '2024 Nissan Patrol NISMO 5.6L',
-  '2023 Nissan Patrol',
-  '2025 Lexus LX 600',
-  '2024 Lexus LX 600 VIP Edition',
-  '2024 Ford F-150 Raptor R 5.2L V8',
-  '2024 Land Rover Defender 110 V8',
-  '2023 BMW M4 Competition Coupe',
-  '2024 Chevrolet Corvette Z06 3LZ',
-  'Oasis Luxury Automotive LLC',
-  'Riyadh Premier Motors'
-];
 
 function isTestData(item) {
   if (!item) return false;
-  // Real registered users or user listings always have timestamp IDs (> 1000000000000)
+  const idStr = String(item.id || item._id || '');
+  // Real registered users or user listings always have timestamp, dealer_, or usr_ IDs
+  if (idStr.startsWith('usr_') || idStr.startsWith('dealer_') || idStr.length >= 12) return false;
   if (Number(item.id) > 1000000000000) return false;
-
-  const idStr = String(item.id);
   if (TEST_ITEM_IDS.includes(idStr)) return true;
-  if (item.title && TEST_TITLES.includes(item.title)) return true;
-  if (item.name && TEST_TITLES.includes(item.name)) return true;
-  if (item.company_name && TEST_TITLES.includes(item.company_name)) return true;
   const title = (item.title || '').toLowerCase();
   if (
     title.includes('toyota bmd') ||
@@ -39,10 +19,6 @@ function isTestData(item) {
     title.includes('nissan 2000')
   ) {
     return true;
-  }
-  const sName = (item.seller_name || '').toUpperCase();
-  if (sName === 'MR. ALI' || sName.includes('DESERT STAR') || sName.includes('AL FUTTAIM') || sName.includes('AL TAYER PRESTIGE') || sName.includes('BINMAR ROYAL') || sName.includes('ABDUL LATIF JAMEEL')) {
-    if (['1', '2', '3', '4', '5', '6', '101', '102', '103', '104'].includes(idStr)) return true;
   }
   return false;
 }
@@ -94,34 +70,32 @@ export async function fetchAdminPortalData() {
     }
   } catch {}
 
-  // Cross-reference with binmar_custom_users to guarantee every pending registration is visible for verification
+  // Cross-reference with binmar_custom_users to guarantee every registered account is in the directory
   try {
     const rawUsers = localStorage.getItem('binmar_custom_users');
     if (rawUsers) {
       const parsedUsers = JSON.parse(rawUsers);
       parsedUsers.forEach(u => {
         if (u.user_type === 'admin') return;
-        const isPending = u.status === 'pending' || (!u.status && !u.is_verified_seller);
-        if (isPending && !resolvedDealers.includes(String(u.id))) {
-          const alreadyInDealers = customDealers.some(d =>
-            (d.email && u.email && d.email.toLowerCase() === u.email.toLowerCase()) ||
-            String(d.id) === String(u.id)
-          );
-          if (!alreadyInDealers) {
-            customDealers.unshift({
-              id: u.id || Date.now(),
-              name: u.name || u.company_name || 'Registered Seller',
-              company_name: u.company_name || (u.user_type === 'company' ? (u.name || 'Company') : `${u.name || 'Seller'} (Private Seller)`),
-              email: u.email,
-              phone: u.phone || 'N/A',
-              country: u.country || 'United Arab Emirates',
-              user_type: u.user_type || 'individual',
-              trade_license: u.trade_license || (u.user_type === 'company' ? 'CN-Pending' : 'ID-Verified'),
-              trade_license_file: u.trade_license_file || (u.user_type === 'company' ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf'),
-              status: 'pending',
-              created_at: u.created_at || new Date().toISOString()
-            });
-          }
+        const alreadyInDealers = customDealers.some(d =>
+          (d.email && u.email && d.email.toLowerCase() === u.email.toLowerCase()) ||
+          String(d.id) === String(u.id)
+        );
+        if (!alreadyInDealers) {
+          customDealers.push({
+            id: u.id || 'usr_' + Date.now(),
+            name: u.name || u.company_name || 'Registered Seller',
+            company_name: u.company_name || (u.user_type === 'company' ? (u.name || 'Company') : `${u.name || 'Seller'} (Private Seller)`),
+            email: u.email,
+            phone: u.phone || 'N/A',
+            country: u.country || 'United Arab Emirates',
+            user_type: u.user_type || 'individual',
+            trade_license: u.trade_license || (u.user_type === 'company' ? 'CN-Pending' : 'ID-Verified'),
+            trade_license_file: u.trade_license_file || (u.user_type === 'company' ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf'),
+            trade_license_url: u.trade_license_url || null,
+            status: u.status || (u.is_verified_seller ? 'approved' : 'pending'),
+            created_at: u.created_at || new Date().toISOString()
+          });
         }
       });
     }
@@ -130,10 +104,6 @@ export async function fetchAdminPortalData() {
   try {
     localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
   } catch {}
-
-  const pendingCustomDealers = customDealers.filter(d => !d.status || d.status === 'pending');
-  const verifiedCustomDealers = customDealers.filter(d => d.status === 'approved' || d.status === 'verified');
-  const rejectedCustomDealers = customDealers.filter(d => d.status === 'rejected');
 
   let customNotifs = [];
   try {
@@ -180,8 +150,27 @@ export async function fetchAdminPortalData() {
     const serverDealers = (dealerRes.dealers || []).filter(d => !isTestData(d) && d.user_type !== 'admin');
     const combinedDealers = [...customDealers];
     for (const sd of serverDealers) {
-      if (!combinedDealers.some(cd => String(cd.id) === String(sd.id) || (cd.email && sd.email && cd.email.toLowerCase() === sd.email.toLowerCase()))) {
+      const matchIdx = combinedDealers.findIndex(cd =>
+        String(cd.id) === String(sd.id) ||
+        (cd.email && sd.email && cd.email.toLowerCase() === sd.email.toLowerCase())
+      );
+      if (matchIdx !== -1) {
+        combinedDealers[matchIdx] = {
+          ...combinedDealers[matchIdx],
+          ...sd,
+          trade_license_url: combinedDealers[matchIdx].trade_license_url || sd.trade_license_url || null,
+          trade_license_file: combinedDealers[matchIdx].trade_license_file || sd.trade_license_file || null
+        };
+      } else {
         combinedDealers.push(sd);
+      }
+    }
+
+    // Ensure default seeded dealers are present if directory is empty
+    const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || []).filter(d => !isTestData(d));
+    for (const dd of defaultDealers) {
+      if (!combinedDealers.some(cd => String(cd.id) === String(dd.id) || (cd.email && dd.email && cd.email.toLowerCase() === dd.email.toLowerCase()))) {
+        combinedDealers.push(dd);
       }
     }
 
@@ -211,32 +200,45 @@ export async function fetchAdminPortalData() {
       adminListings: liveList,
       notifications: combinedNotifs
     };
-  } catch {
+  } catch (err) {
+    console.warn('Admin portal fetch fallback to local store:', err?.message);
     const defaultMod = (DEFAULT_ADMIN_DATA.moderationQueue || [])
       .filter(item => !isTestData(item) && !resolvedModeration.includes(String(item.id)));
     const defaultListings = (DEFAULT_ADMIN_DATA.adminListings || [])
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
+    const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || [])
+      .filter(item => !isTestData(item));
 
     const queue = [...pendingCustom, ...defaultMod];
     const liveList = [...approvedCustom, ...defaultListings];
+
+    const combinedDealers = [...customDealers];
+    for (const dd of defaultDealers) {
+      if (!combinedDealers.some(cd => String(cd.id) === String(dd.id) || (cd.email && dd.email && cd.email.toLowerCase() === dd.email.toLowerCase()))) {
+        combinedDealers.push(dd);
+      }
+    }
+
+    const pendingDealers = combinedDealers.filter(d => !d.status || d.status === 'pending');
+    const verifiedDealers = combinedDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+    const rejectedDealers = combinedDealers.filter(d => d.status === 'rejected');
 
     return {
       ...DEFAULT_ADMIN_DATA,
       stats: {
         pendingModeration: queue.length,
         liveListings: liveList.length,
-        pendingDealers: pendingCustomDealers.length,
-        verifiedDealers: verifiedCustomDealers.length,
-        rejectedDealers: rejectedCustomDealers.length
+        pendingDealers: pendingDealers.length,
+        verifiedDealers: verifiedDealers.length,
+        rejectedDealers: rejectedDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: customDealers,
+      dealerQueue: combinedDealers,
       adminListings: liveList,
       notifications: customNotifs
     };
   }
 }
-
 
 export async function resolveModerationListing(id, approve, reason = '') {
   let foundTitle = 'Vehicle';
@@ -390,9 +392,8 @@ export async function resolveDealerApplication(id, verify) {
   }
 }
 
-
 export async function deleteLiveListing(id) {
-  // Mark as permanently deleted in localStorage so it never comes back
+  // Mark as permanently deleted in localStorage
   try {
     let deleted = [];
     const rawDel = localStorage.getItem('binmar_deleted_listings');
@@ -401,9 +402,7 @@ export async function deleteLiveListing(id) {
       deleted.push(String(id));
       localStorage.setItem('binmar_deleted_listings', JSON.stringify(deleted));
     }
-  } catch {}
 
-  try {
     const raw = localStorage.getItem('binmar_custom_listings');
     if (raw) {
       const items = JSON.parse(raw);
@@ -417,7 +416,6 @@ export async function deleteLiveListing(id) {
       method: 'DELETE'
     });
   } catch {
-    return { success: true, message: 'Listing removed from marketplace.' };
+    return { success: true };
   }
 }
-
