@@ -52,9 +52,23 @@ export default function AdminPortalPage({
 
       let storedAdmins = [];
       try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) storedAdmins = JSON.parse(local);
-      } catch {}
+        const staffRes = await fetch('/api/admin/staff');
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (staffData.success && Array.isArray(staffData.admins)) {
+            storedAdmins = staffData.admins;
+          }
+        }
+      } catch (staffErr) {
+        console.warn('API staff fetch fallback to local:', staffErr);
+      }
+
+      if (!storedAdmins.length) {
+        try {
+          const local = localStorage.getItem('binmar_custom_admins');
+          if (local) storedAdmins = JSON.parse(local);
+        } catch {}
+      }
 
       // Combine default seeded admins with any created custom staff admins
       const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
@@ -85,9 +99,23 @@ export default function AdminPortalPage({
 
       let storedAdmins = [];
       try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) storedAdmins = JSON.parse(local);
-      } catch {}
+        const staffRes = await fetch('/api/admin/staff');
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (staffData.success && Array.isArray(staffData.admins)) {
+            storedAdmins = staffData.admins;
+          }
+        }
+      } catch (staffErr) {
+        console.warn('API staff fetch fallback to local:', staffErr);
+      }
+
+      if (!storedAdmins.length) {
+        try {
+          const local = localStorage.getItem('binmar_custom_admins');
+          if (local) storedAdmins = JSON.parse(local);
+        } catch {}
+      }
       const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
       const combinedAdmins = [...storedAdmins];
       for (const da of defaultAdmins) {
@@ -171,7 +199,10 @@ export default function AdminPortalPage({
     }
   };
 
-  const handleMarkAllNotificationsRead = () => {
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await fetch('/api/notifications/mark-all-read', { method: 'POST' });
+    } catch {}
     setNotifications(prev => {
       const updated = prev.map(n => ({ ...n, is_read: true }));
       try {
@@ -182,7 +213,10 @@ export default function AdminPortalPage({
     notify('All notifications marked as read.');
   };
 
-  const handleClearAllNotifications = () => {
+  const handleClearAllNotifications = async () => {
+    try {
+      await fetch('/api/notifications', { method: 'DELETE' });
+    } catch {}
     setNotifications([]);
     try {
       localStorage.setItem('binmar_admin_notifications', JSON.stringify([]));
@@ -235,7 +269,18 @@ export default function AdminPortalPage({
     }
   };
 
-  const handleAddAdmin = (newAdmin) => {
+  const handleAddAdmin = async (newAdmin) => {
+    // Save online to server database
+    try {
+      await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAdmin)
+      });
+    } catch (err) {
+      console.warn('Could not post admin to server:', err);
+    }
+
     // If this admin was previously deleted, remove from deleted list
     try {
       const rawDel = localStorage.getItem('binmar_deleted_admins');
@@ -253,12 +298,19 @@ export default function AdminPortalPage({
       } catch {}
       return updated;
     });
-    notify(`Admin account for ${newAdmin.name} created! Password saved.`);
+    notify(`Admin account for ${newAdmin.name} created! Saved online to database.`);
   };
 
-  const handleRemoveAdmin = (id) => {
+  const handleRemoveAdmin = async (id) => {
     const target = admins.find(a => String(a.id) === String(id));
     if (!window.confirm(`Are you sure you want to remove admin access for ${target?.name || 'this user'}?`)) return;
+
+    // Delete online from server database
+    try {
+      await fetch(`/api/admin/staff/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('Could not delete admin from server:', err);
+    }
 
     // Permanently record deletion in binmar_deleted_admins
     try {
@@ -284,10 +336,24 @@ export default function AdminPortalPage({
     notify(`Administrator "${target?.name || ''}" removed successfully.`);
   };
 
-  const handleToggleAdminStatus = (id) => {
+  const handleToggleAdminStatus = async (id) => {
+    const target = admins.find(a => String(a.id) === String(id));
+    const newStatus = target?.status === 'Active' ? 'Suspended' : 'Active';
+
+    // Patch online on server database
+    try {
+      await fetch(`/api/admin/staff/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+    } catch (err) {
+      console.warn('Could not patch admin status:', err);
+    }
+
     setAdmins(prev => {
       const updated = prev.map(a =>
-        a.id === id ? { ...a, status: a.status === 'Active' ? 'Suspended' : 'Active' } : a
+        a.id === id ? { ...a, status: newStatus } : a
       );
       try {
         localStorage.setItem('binmar_custom_admins', JSON.stringify(updated));

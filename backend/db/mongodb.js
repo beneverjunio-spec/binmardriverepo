@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 mongoose.set('bufferCommands', false);
 
@@ -21,6 +23,7 @@ const listingSchema = new mongoose.Schema({
   country: { type: String, default: 'United Arab Emirates', index: true },
   city: { type: String, default: 'Dubai' },
   seller_name: { type: String, default: 'Owner' },
+  seller_email: { type: String, default: 'seller@binmardrive.com' },
   contact_preference: { type: String, default: 'WhatsApp' },
   contact_phone: { type: String, default: '+971501234567' },
   whatsapp_number: { type: String, default: '+971501234567' },
@@ -30,7 +33,9 @@ const listingSchema = new mongoose.Schema({
   document_file: { type: String },
   document_url: { type: String },
   rejection_reason: { type: String, default: null },
-  status: { type: String, default: 'approved', index: true }, // 'approved', 'pending', 'rejected'
+  resubmitted: { type: Boolean, default: false },
+  resubmitted_at: { type: Date },
+  status: { type: String, default: 'pending', index: true }, // 'approved', 'pending', 'rejected'
   created_at: { type: Date, default: Date.now }
 }, { bufferCommands: false });
 
@@ -41,7 +46,7 @@ listingSchema.set('toJSON', { virtuals: true });
 listingSchema.set('toObject', { virtuals: true });
 
 const userSchema = new mongoose.Schema({
-  identity_id: { type: String, unique: true },
+  identity_id: { type: String, unique: true, sparse: true },
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   name: { type: String, required: true },
   user_type: { type: String, enum: ['individual', 'company', 'admin'], default: 'individual' },
@@ -51,7 +56,11 @@ const userSchema = new mongoose.Schema({
   trade_license_file: { type: String },
   trade_license_url: { type: String },
   country: { type: String, default: 'United Arab Emirates' },
-  status: { type: String, default: 'approved' }, // 'approved', 'pending', 'rejected'
+  password: { type: String },
+  role: { type: String, default: 'Seller' },
+  department: { type: String },
+  is_verified_seller: { type: Boolean, default: false },
+  status: { type: String, default: 'pending' }, // 'approved', 'pending', 'rejected'
   created_at: { type: Date, default: Date.now }
 }, { bufferCommands: false });
 
@@ -60,6 +69,23 @@ userSchema.virtual('id').get(function() {
 });
 userSchema.set('toJSON', { virtuals: true });
 userSchema.set('toObject', { virtuals: true });
+
+const adminSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+  password: { type: String, required: true },
+  role: { type: String, default: 'Listing Moderator' },
+  department: { type: String, default: 'Vehicle Moderation' },
+  country: { type: String, default: 'United Arab Emirates' },
+  status: { type: String, default: 'Active' },
+  created_at: { type: Date, default: Date.now }
+}, { bufferCommands: false });
+
+adminSchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
+adminSchema.set('toJSON', { virtuals: true });
+adminSchema.set('toObject', { virtuals: true });
 
 const notificationSchema = new mongoose.Schema({
   title: { type: String, required: true },
@@ -76,186 +102,41 @@ notificationSchema.set('toObject', { virtuals: true });
 
 const Listing = mongoose.models.Listing || mongoose.model('Listing', listingSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
+const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
 
-// Initial Seed Dataset
-const sampleVehicles = [
-  {
-    title: '2024 Toyota Land Cruiser GR-Sport',
-    make: 'Toyota',
-    model: 'Land Cruiser',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '12,500 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 345000,
-    currency: 'AED',
-    price_label: 'AED 345,000',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Binmar Royal Motors',
-    contact_preference: 'WhatsApp',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: 'Immaculate 2024 Land Cruiser GR Sport V6 Twin Turbo. GCC specs with full agency service history, 360 camera, JBL premium audio, ventilated leather seats.',
-    images: ['https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80'],
-    status: 'approved'
-  },
-  {
-    title: '2023 Mercedes-Benz G63 AMG',
-    make: 'Mercedes-Benz',
-    model: 'G63 AMG',
-    year: 2023,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '18,000 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'rent',
-    price: 1800,
-    currency: 'AED',
-    price_label: 'AED 1,800 / day',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Desert Star Luxury Fleet',
-    contact_preference: 'WhatsApp',
-    contact_phone: '+971559876543',
-    whatsapp_number: '+971559876543',
-    description: 'Iconic Mercedes-AMG G63 in Matte Black Night Package. Burmester 3D surround sound, carbon fiber interior, massage seats.',
-    images: ['https://images.unsplash.com/photo-1520031441872-265e4ff70366?auto=format&fit=crop&w=1000&q=80'],
-    status: 'approved'
-  },
-  {
-    title: '2024 Nissan Patrol Titanium V8',
-    make: 'Nissan',
-    model: 'Patrol',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '8,200 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 285000,
-    currency: 'AED',
-    price_label: 'AED 285,000',
-    country: 'United Arab Emirates',
-    city: 'Abu Dhabi',
-    seller_name: 'Al Masaood Automobiles',
-    contact_preference: 'WhatsApp',
-    contact_phone: '+971523344556',
-    whatsapp_number: '+971523344556',
-    description: 'Legendary Desert Master Nissan Patrol 5.6L V8 Titanium edition. Tan diamond leather, rear entertainment, adaptive suspension.',
-    images: ['https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80'],
-    status: 'approved'
-  },
-  {
-    title: '2024 Lexus LX 600 VIP 4-Seater',
-    make: 'Lexus',
-    model: 'LX 600',
-    year: 2024,
-    category: 'Luxury',
-    fuel: 'Petrol',
-    mileage: '5,000 km',
-    transmission: 'Automatic',
-    condition_type: 'new',
-    listing_type: 'sale',
-    price: 590000,
-    currency: 'SAR',
-    price_label: 'SAR 590,000',
-    country: 'Saudi Arabia',
-    city: 'Riyadh',
-    seller_name: 'Abdul Latif Jameel Motors',
-    contact_preference: 'WhatsApp',
-    contact_phone: '+966501122334',
-    whatsapp_number: '+966501122334',
-    description: 'Flagship Lexus LX 600 Ultra Luxury 4-Seater. Executive rear Ottoman seating, Mark Levinson Reference audio, dual rear screens.',
-    images: ['https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'],
-    status: 'approved'
-  },
-  {
-    title: '2024 Porsche 911 GT3 RS',
-    make: 'Porsche',
-    model: '911 GT3 RS',
-    year: 2024,
-    category: 'Luxury',
-    fuel: 'Petrol',
-    mileage: '2,400 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'rent',
-    price: 3500,
-    currency: 'AED',
-    price_label: 'AED 3,500 / day',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Binmar Royal Motors',
-    contact_preference: 'WhatsApp',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: 'Pure motorsport engineering. Weissach Package with carbon aero kit, magnesium wheels, bucket seats, and ceramic composite brakes (PCCB).',
-    images: ['https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&w=1000&q=80'],
-    status: 'approved'
-  }
-];
-
-async function connectMongoDB(uri) {
-  if (mongoose.connection.readyState === 1) return mongoose.connection;
-  if (!uri) throw new Error('MONGODB_URI is not configured in .env');
-
-  console.log('[MongoDB] Connecting to MongoDB Cluster...');
-  await mongoose.connect(uri, {
-    serverSelectionTimeoutMS: 8000,
-    dbName: 'binmardrive'
-  });
-  console.log('[MongoDB] Connected successfully to MongoDB (database: binmardrive)');
-
-  // Auto-seed: DO NOT seed sample/demo vehicles. Marketplace only shows real admin-approved listings.
-  // Sample vehicle seeding removed intentionally so the marketplace starts empty
-  // and only shows what admin has approved.
-
-  // Create default admin user if none exists
-  const adminCount = await User.countDocuments({ user_type: 'admin' });
-  if (adminCount === 0) {
-    await User.create({
-      identity_id: 'admin_root',
-      email: process.env.ADMIN_EMAIL || 'beneverjunio@gmail.com',
-      name: 'Binmar Administrator',
-      user_type: 'admin',
-      status: 'approved',
-      country: 'United Arab Emirates'
-    });
-  }
-
-  return mongoose.connection;
-}
-
-
 // ==========================================
-// In-Memory Fallback Store (active when Atlas IP is pending whitelist)
-// Empty by default — only admin-approved listings go live
+// In-Memory & File Store Persistence
 // ==========================================
+const DATA_DIR = path.join(__dirname, '..', 'data');
+const STORE_FILE = path.join(DATA_DIR, 'store.json');
+
 let inMemoryListings = [];
-
-let inMemoryUsers = [
+let inMemoryUsers = [];
+let inMemoryAdmins = [
   {
-    id: 'usr_admin',
-    _id: 'usr_admin',
-    identity_id: 'admin_root',
-    email: process.env.ADMIN_EMAIL || 'beneverjunio@gmail.com',
-    name: 'Binmar Administrator',
-    company_name: 'Binmar Administrator',
-    user_type: 'admin',
-    status: 'approved',
+    id: 1,
+    name: 'Operations Director',
+    email: 'admin@binmardrive.com',
+    password: 'admin123',
+    role: 'Super Admin',
+    department: 'Operations',
     country: 'United Arab Emirates',
-    trade_license: 'CN-SUPERADMIN-01',
-    created_at: new Date()
+    status: 'Active',
+    created_at: '2026-01-15'
+  },
+  {
+    id: 2,
+    name: 'Benever Junio',
+    email: 'beneverjunio@gmail.com',
+    password: 'admin123',
+    role: 'Super Admin',
+    department: 'Operations',
+    country: 'United Arab Emirates',
+    status: 'Active',
+    created_at: '2026-01-15'
   }
 ];
-
 let inMemoryNotifications = [
   {
     id: 'notif_1',
@@ -267,23 +148,81 @@ let inMemoryNotifications = [
   }
 ];
 
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
+  }
+}
+
+function loadStoreFromFile() {
+  ensureDataDir();
+  if (fs.existsSync(STORE_FILE)) {
+    try {
+      const content = fs.readFileSync(STORE_FILE, 'utf8');
+      const data = JSON.parse(content);
+      if (Array.isArray(data.listings)) inMemoryListings = data.listings;
+      if (Array.isArray(data.users)) inMemoryUsers = data.users;
+      if (Array.isArray(data.notifications)) inMemoryNotifications = data.notifications;
+      if (Array.isArray(data.admins) && data.admins.length > 0) inMemoryAdmins = data.admins;
+    } catch (e) {
+      console.warn('[DB] Could not read store.json:', e.message);
+    }
+  }
+}
+
+function saveStoreToFile() {
+  ensureDataDir();
+  try {
+    const data = {
+      listings: inMemoryListings,
+      users: inMemoryUsers,
+      notifications: inMemoryNotifications,
+      admins: inMemoryAdmins
+    };
+    fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
+  } catch (e) {
+    console.warn('[DB] Could not write store.json:', e.message);
+  }
+}
+
+// Initial load
+loadStoreFromFile();
+
 function isConnected() {
   return mongoose.connection.readyState === 1;
 }
 
+// ==========================================
+// Database Connection
+// ==========================================
+async function connectMongoDB(uri) {
+  if (mongoose.connection.readyState >= 1) return mongoose.connection;
+  
+  await mongoose.connect(uri, {
+    serverSelectionTimeoutMS: 5000,
+    socketTimeoutMS: 45000
+  });
+
+  console.log('[MongoDB] Connected successfully to Atlas cluster.');
+  return mongoose.connection;
+}
+
+// ==========================================
+// Listings Operations
+// ==========================================
 async function findListings(filter = {}, sortOption = { _id: -1 }) {
   if (isConnected()) {
     try {
       const docs = await Listing.find(filter).sort(sortOption).lean();
       return docs.map(d => ({ ...d, id: d._id.toString() }));
     } catch (e) {
-      console.warn('[DB] Fallback to in-memory listings:', e.message);
+      console.warn('[DB] Fallback to store listings:', e.message);
     }
   }
 
   let results = [...inMemoryListings];
   if (filter.status) {
-    results = results.filter(r => (r.status || 'approved').toLowerCase() === filter.status.toLowerCase());
+    results = results.filter(r => (r.status || 'pending').toLowerCase() === filter.status.toLowerCase());
   }
   if (filter.make instanceof RegExp) {
     results = results.filter(r => filter.make.test(r.make || ''));
@@ -318,21 +257,25 @@ async function findListings(filter = {}, sortOption = { _id: -1 }) {
 }
 
 async function createListing(data) {
+  const newDoc = {
+    ...data,
+    id: String(data.id || Date.now()),
+    _id: String(data.id || Date.now()),
+    created_at: new Date()
+  };
+
   if (isConnected()) {
     try {
       const doc = await Listing.create(data);
-      return { ...doc.toObject(), id: doc._id.toString() };
+      newDoc.id = doc._id.toString();
+      newDoc._id = doc._id.toString();
     } catch (e) {
-      console.warn('[DB] Fallback create in-memory:', e.message);
+      console.warn('[DB] Atlas create failed, saved to store:', e.message);
     }
   }
-  const newDoc = {
-    ...data,
-    _id: 'mem_' + Date.now(),
-    id: 'mem_' + Date.now(),
-    created_at: new Date()
-  };
+
   inMemoryListings.unshift(newDoc);
+  saveStoreToFile();
   return newDoc;
 }
 
@@ -340,14 +283,22 @@ async function updateListing(id, updates) {
   if (isConnected()) {
     try {
       const doc = await Listing.findByIdAndUpdate(id, updates, { new: true }).lean();
-      if (doc) return { ...doc, id: doc._id.toString() };
+      if (doc) {
+        const result = { ...doc, id: doc._id.toString() };
+        const idx = inMemoryListings.findIndex(l => String(l.id) === String(id) || String(l._id) === String(id));
+        if (idx !== -1) inMemoryListings[idx] = result;
+        saveStoreToFile();
+        return result;
+      }
     } catch (e) {
-      console.warn('[DB] Fallback update in-memory:', e.message);
+      console.warn('[DB] Atlas update fallback to store:', e.message);
     }
   }
+
   const idx = inMemoryListings.findIndex(l => String(l.id) === String(id) || String(l._id) === String(id));
   if (idx !== -1) {
     inMemoryListings[idx] = { ...inMemoryListings[idx], ...updates };
+    saveStoreToFile();
     return inMemoryListings[idx];
   }
   return null;
@@ -357,65 +308,176 @@ async function deleteListing(id) {
   if (isConnected()) {
     try {
       await Listing.findByIdAndDelete(id);
-      return true;
     } catch (e) {}
   }
   inMemoryListings = inMemoryListings.filter(l => String(l.id) !== String(id) && String(l._id) !== String(id));
+  saveStoreToFile();
   return true;
 }
 
-async function findUsers() {
+// ==========================================
+// Users & Dealers Operations
+// ==========================================
+async function findUsers(filter = {}) {
   if (isConnected()) {
     try {
-      const docs = await User.find().sort({ _id: -1 }).lean();
+      const docs = await User.find(filter).sort({ _id: -1 }).lean();
       return docs.map(d => ({ ...d, id: d._id.toString() }));
     } catch (e) {}
   }
-  return [...inMemoryUsers];
+
+  let results = [...inMemoryUsers];
+  if (filter.status) {
+    results = results.filter(u => (u.status || 'pending').toLowerCase() === filter.status.toLowerCase());
+  }
+  return results;
 }
 
 async function upsertUser(email, data) {
+  const cleanEmail = email.trim().toLowerCase();
+  let userRecord = null;
+
   if (isConnected()) {
     try {
       const user = await User.findOneAndUpdate(
-        { email },
-        data,
+        { email: cleanEmail },
+        { ...data, email: cleanEmail },
         { upsert: true, new: true, setDefaultsOnInsert: true }
       ).lean();
-      return { ...user, id: user._id.toString() };
+      userRecord = { ...user, id: user._id.toString() };
     } catch (e) {}
   }
-  const idx = inMemoryUsers.findIndex(u => (u.email || '').toLowerCase() === email.toLowerCase());
+
+  const idx = inMemoryUsers.findIndex(u => (u.email || '').toLowerCase() === cleanEmail);
   if (idx !== -1) {
-    inMemoryUsers[idx] = { ...inMemoryUsers[idx], ...data };
-    return inMemoryUsers[idx];
+    inMemoryUsers[idx] = { ...inMemoryUsers[idx], ...data, email: cleanEmail };
+    userRecord = inMemoryUsers[idx];
+  } else {
+    const newUser = {
+      ...data,
+      email: cleanEmail,
+      _id: 'usr_' + Date.now(),
+      id: 'usr_' + Date.now(),
+      created_at: new Date()
+    };
+    inMemoryUsers.unshift(newUser);
+    userRecord = newUser;
   }
-  const newUser = {
-    ...data,
-    email,
-    _id: 'usr_' + Date.now(),
-    id: 'usr_' + Date.now(),
-    created_at: new Date()
-  };
-  inMemoryUsers.unshift(newUser);
-  return newUser;
+
+  saveStoreToFile();
+  return userRecord;
 }
 
 async function updateUser(id, updates) {
   if (isConnected()) {
     try {
       const doc = await User.findByIdAndUpdate(id, updates, { new: true }).lean();
-      if (doc) return { ...doc, id: doc._id.toString() };
+      if (doc) {
+        const res = { ...doc, id: doc._id.toString() };
+        const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id));
+        if (idx !== -1) inMemoryUsers[idx] = res;
+        saveStoreToFile();
+        return res;
+      }
     } catch (e) {}
   }
   const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id));
   if (idx !== -1) {
     inMemoryUsers[idx] = { ...inMemoryUsers[idx], ...updates };
+    saveStoreToFile();
     return inMemoryUsers[idx];
   }
   return null;
 }
 
+async function deleteUser(id) {
+  if (isConnected()) {
+    try {
+      await User.findByIdAndDelete(id);
+    } catch (e) {}
+  }
+  inMemoryUsers = inMemoryUsers.filter(u => String(u.id) !== String(id) && String(u._id) !== String(id));
+  saveStoreToFile();
+  return true;
+}
+
+// ==========================================
+// Admin Staff Operations
+// ==========================================
+async function findAdmins() {
+  if (isConnected()) {
+    try {
+      const docs = await Admin.find().sort({ _id: -1 }).lean();
+      if (docs && docs.length > 0) {
+        return docs.map(d => ({ ...d, id: d._id.toString() }));
+      }
+    } catch (e) {}
+  }
+  return [...inMemoryAdmins];
+}
+
+async function createAdmin(data) {
+  const cleanEmail = (data.email || '').trim().toLowerCase();
+  const newAdmin = {
+    ...data,
+    email: cleanEmail,
+    id: Date.now(),
+    _id: String(Date.now()),
+    status: data.status || 'Active',
+    created_at: new Date().toISOString().split('T')[0]
+  };
+
+  if (isConnected()) {
+    try {
+      const doc = await Admin.create(newAdmin);
+      newAdmin.id = doc._id.toString();
+      newAdmin._id = doc._id.toString();
+    } catch (e) {}
+  }
+
+  // Remove existing with same email
+  inMemoryAdmins = inMemoryAdmins.filter(a => (a.email || '').toLowerCase() !== cleanEmail);
+  inMemoryAdmins.unshift(newAdmin);
+  saveStoreToFile();
+  return newAdmin;
+}
+
+async function deleteAdmin(id) {
+  if (isConnected()) {
+    try {
+      await Admin.findByIdAndDelete(id);
+    } catch (e) {}
+  }
+  inMemoryAdmins = inMemoryAdmins.filter(a => String(a.id) !== String(id) && String(a._id) !== String(id));
+  saveStoreToFile();
+  return true;
+}
+
+async function updateAdmin(id, updates) {
+  if (isConnected()) {
+    try {
+      const doc = await Admin.findByIdAndUpdate(id, updates, { new: true }).lean();
+      if (doc) {
+        const res = { ...doc, id: doc._id.toString() };
+        const idx = inMemoryAdmins.findIndex(a => String(a.id) === String(id) || String(a._id) === String(id));
+        if (idx !== -1) inMemoryAdmins[idx] = res;
+        saveStoreToFile();
+        return res;
+      }
+    } catch (e) {}
+  }
+  const idx = inMemoryAdmins.findIndex(a => String(a.id) === String(id) || String(a._id) === String(id));
+  if (idx !== -1) {
+    inMemoryAdmins[idx] = { ...inMemoryAdmins[idx], ...updates };
+    saveStoreToFile();
+    return inMemoryAdmins[idx];
+  }
+  return null;
+}
+
+// ==========================================
+// Notifications Operations
+// ==========================================
 async function findNotifications() {
   if (isConnected()) {
     try {
@@ -427,33 +489,62 @@ async function findNotifications() {
 }
 
 async function createNotification(title, message) {
-  if (isConnected()) {
-    try {
-      await Notification.create({ title, message });
-      return;
-    } catch (e) {}
-  }
-  inMemoryNotifications.unshift({
-    id: 'notif_' + Date.now(),
-    _id: 'notif_' + Date.now(),
+  const newNotif = {
+    id: Date.now(),
+    _id: String(Date.now()),
     title,
     message,
     is_read: false,
     created_at: new Date()
-  });
+  };
+
+  if (isConnected()) {
+    try {
+      await Notification.create({ title, message });
+    } catch (e) {}
+  }
+
+  inMemoryNotifications.unshift(newNotif);
+  saveStoreToFile();
+  return newNotif;
 }
 
 async function markNotificationRead(id) {
   if (isConnected()) {
     try {
       await Notification.findByIdAndUpdate(id, { is_read: true });
-      return;
     } catch (e) {}
   }
   const notif = inMemoryNotifications.find(n => String(n.id) === String(id) || String(n._id) === String(id));
   if (notif) notif.is_read = true;
+  saveStoreToFile();
 }
 
+async function markAllNotificationsRead() {
+  if (isConnected()) {
+    try {
+      await Notification.updateMany({}, { is_read: true });
+    } catch (e) {}
+  }
+  inMemoryNotifications.forEach(n => { n.is_read = true; });
+  saveStoreToFile();
+  return true;
+}
+
+async function clearAllNotifications() {
+  if (isConnected()) {
+    try {
+      await Notification.deleteMany({});
+    } catch (e) {}
+  }
+  inMemoryNotifications = [];
+  saveStoreToFile();
+  return true;
+}
+
+// ==========================================
+// Statistics
+// ==========================================
 async function getStats() {
   if (isConnected()) {
     try {
@@ -477,6 +568,7 @@ module.exports = {
   isConnected,
   Listing,
   User,
+  Admin,
   Notification,
   findListings,
   createListing,
@@ -485,8 +577,15 @@ module.exports = {
   findUsers,
   upsertUser,
   updateUser,
+  deleteUser,
+  findAdmins,
+  createAdmin,
+  deleteAdmin,
+  updateAdmin,
   findNotifications,
   createNotification,
   markNotificationRead,
+  markAllNotificationsRead,
+  clearAllNotifications,
   getStats
 };

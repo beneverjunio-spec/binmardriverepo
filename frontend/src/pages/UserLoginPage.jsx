@@ -31,7 +31,38 @@ export default function UserLoginPage({
     if (authLoading) return;
     setAuthLoading(true);
 
-    // 0. Check administrator credentials (admin@binmardrive.com and custom staff)
+    // 0. Primary: Authenticate with Online Backend Database (MongoDB & Central Server Store)
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password: pass })
+      });
+      const data = await response.json();
+      if (response.ok && data.success && data.user) {
+        const u = data.user;
+        setCurrentUser(u);
+        setLoginPass('');
+        notify(`Welcome back, ${u.name}!`);
+        if (u.user_type === 'admin') {
+          setCurrentPage('admin');
+        } else if (u.user_type === 'company' || u.is_verified_seller) {
+          setCurrentPage('seller');
+        } else {
+          setCurrentPage('marketplace');
+        }
+        setAuthLoading(false);
+        return;
+      } else if (!response.ok && data.error) {
+        setLoginError(data.error);
+        setAuthLoading(false);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('API login offline, falling back to local credentials:', apiErr.message);
+    }
+
+    // 1. Fallback: Check administrator credentials (admin@binmardrive.com and custom staff)
     try {
       let adminsList = [];
       const rawAdmins = localStorage.getItem('binmar_custom_admins');

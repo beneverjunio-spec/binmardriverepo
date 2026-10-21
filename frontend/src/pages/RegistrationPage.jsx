@@ -75,7 +75,9 @@ export default function RegistrationPage({
       trade_license_file: tradeDoc,
       trade_license_url: tradeLicenseUrl || null,
       country: regCountry,
-      email: regEmail.trim()
+      email: regEmail.trim(),
+      password: regPassword,
+      status: 'pending'
     };
 
     const newDealerSubmission = {

@@ -241,17 +241,42 @@ export default function SellerPortalPage({
   });
 
   // Load listings belonging to this seller/dealer
-  const loadSellerData = () => {
+  const loadSellerData = async () => {
     let allCustom = [];
+    const currentUserName = (currentUser?.name || '').toLowerCase();
+    const currentUserCompany = (currentUser?.company_name || '').toLowerCase();
+    const currentUserEmail = (currentUser?.email || '').toLowerCase();
+    const sellerParam = currentUserEmail || currentUserCompany || currentUserName;
+
+    // 1. Fetch online seller listings from database
+    try {
+      if (sellerParam) {
+        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(sellerParam)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.listings) && data.listings.length > 0) {
+            allCustom = data.listings.filter(item => !isTestData(item));
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('API seller listings fetch note:', e.message);
+    }
+
+    // 2. Combine with local custom listings
     try {
       const raw = localStorage.getItem('binmar_custom_listings');
       if (raw) {
         const parsed = JSON.parse(raw);
-        allCustom = parsed.filter(item => !isTestData(item));
-        localStorage.setItem('binmar_custom_listings', JSON.stringify(allCustom));
+        const localItems = parsed.filter(item => !isTestData(item));
+        localItems.forEach(item => {
+          if (!allCustom.some(c => String(c.id) === String(item.id))) {
+            allCustom.push(item);
+          }
+        });
       }
     } catch {
-      allCustom = [];
+      if (!allCustom.length) allCustom = [];
     }
 
     let deletedIds = [];
@@ -260,10 +285,6 @@ export default function SellerPortalPage({
       if (rawDel) deletedIds = JSON.parse(rawDel);
     } catch {}
 
-    const currentUserName = (currentUser?.name || '').toLowerCase();
-    const currentUserCompany = (currentUser?.company_name || '').toLowerCase();
-    const currentUserEmail = (currentUser?.email || '').toLowerCase();
-
     // Find custom listings added by this user
     const matchedListings = allCustom.filter(item => {
       if (deletedIds.includes(String(item.id))) return false;
@@ -271,6 +292,7 @@ export default function SellerPortalPage({
       const sName = (item.seller_name || '').toLowerCase();
       const sEmail = (item.seller_email || '').toLowerCase();
       return (
+        !sellerParam ||
         sName === currentUserName ||
         (currentUserCompany && sName === currentUserCompany) ||
         (currentUserEmail && sEmail === currentUserEmail)

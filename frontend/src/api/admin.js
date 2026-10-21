@@ -154,30 +154,62 @@ export async function fetchAdminPortalData() {
       apiRequest('/api/notifications')
     ]);
 
+    // 1. Combine Moderation Queue
     const activeServerQueue = (modRes.queue || [])
       .filter(item => !resolvedModeration.includes(String(item.id)));
-    // pendingCustom should always be included for review, especially when resubmitted by seller
-    const queue = [...pendingCustom, ...activeServerQueue]
-      .filter(item => !isTestData(item));
+    const combinedQueue = [...pendingCustom];
+    for (const sq of activeServerQueue) {
+      if (!combinedQueue.some(cq => String(cq.id) === String(sq.id))) {
+        combinedQueue.push(sq);
+      }
+    }
+    const queue = combinedQueue.filter(item => !isTestData(item));
 
-    const liveList = [...approvedCustom, ...(listRes.listings || [])]
-      .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
+    // 2. Combine Live Listings
+    const activeServerListings = (listRes.listings || [])
+      .filter(l => (l.status === 'approved' || !l.status) && !deletedListingIds.includes(String(l.id)));
+    const combinedLive = [...approvedCustom];
+    for (const sl of activeServerListings) {
+      if (!combinedLive.some(cl => String(cl.id) === String(sl.id))) {
+        combinedLive.push(sl);
+      }
+    }
+    const liveList = combinedLive.filter(item => !isTestData(item));
 
-    const notifs = [...customNotifs, ...(notifRes.notifications || [])]
-      .filter(n => !isTestData(n));
+    // 3. Combine Dealers from online server database
+    const serverDealers = (dealerRes.dealers || []).filter(d => !isTestData(d) && d.user_type !== 'admin');
+    const combinedDealers = [...customDealers];
+    for (const sd of serverDealers) {
+      if (!combinedDealers.some(cd => String(cd.id) === String(sd.id) || (cd.email && sd.email && cd.email.toLowerCase() === sd.email.toLowerCase()))) {
+        combinedDealers.push(sd);
+      }
+    }
+
+    const pendingDealers = combinedDealers.filter(d => !d.status || d.status === 'pending');
+    const verifiedDealers = combinedDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+    const rejectedDealers = combinedDealers.filter(d => d.status === 'rejected');
+
+    // 4. Combine Notifications
+    const serverNotifs = (notifRes.notifications || []).filter(n => !isTestData(n));
+    const combinedNotifs = [...customNotifs];
+    for (const sn of serverNotifs) {
+      if (!combinedNotifs.some(cn => String(cn.id) === String(sn.id))) {
+        combinedNotifs.push(sn);
+      }
+    }
 
     return {
       stats: {
         pendingModeration: queue.length,
         liveListings: liveList.length,
-        pendingDealers: pendingCustomDealers.length,
-        verifiedDealers: verifiedCustomDealers.length,
-        rejectedDealers: rejectedCustomDealers.length
+        pendingDealers: pendingDealers.length,
+        verifiedDealers: verifiedDealers.length,
+        rejectedDealers: rejectedDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: customDealers,
+      dealerQueue: combinedDealers,
       adminListings: liveList,
-      notifications: notifs
+      notifications: combinedNotifs
     };
   } catch {
     const defaultMod = (DEFAULT_ADMIN_DATA.moderationQueue || [])
