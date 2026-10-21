@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Upload, MapPin, Navigation, CheckCircle2 } from 'lucide-react';
+import { Upload, MapPin, Navigation, CheckCircle2, FileText } from 'lucide-react';
 import {
   GCC_COUNTRIES,
   GCC_CURRENCIES,
@@ -43,6 +43,22 @@ export default function CreateListingPage({
   const [lstContact, setLstContact] = useState('WhatsApp');
   const [lstError, setLstError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lstDocName, setLstDocName] = useState('');
+  const [lstDocUrl, setLstDocUrl] = useState(null);
+  const docInputRef = useRef(null);
+
+  const handleDocSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setLstDocName(file.name);
+        setLstDocUrl(reader.result);
+        notify(`Mulkiya document attached: ${file.name}`);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   const fileInputRef = useRef(null);
 
@@ -161,7 +177,10 @@ export default function CreateListingPage({
         whatsapp_number: fullWhatsapp,
         contact_phone: fullWhatsapp,
         description: lstDescription || 'Well-maintained vehicle, GCC specs.',
-        images: lstUploadedImages
+        images: lstUploadedImages,
+        document_name: lstDocName || `${lstMake}_${lstModel}_Mulkiya.pdf`,
+        document_file: lstDocName || `${lstMake}_${lstModel}_Mulkiya.pdf`,
+        document_url: lstDocUrl || null
       };
 
       const data = await createListing(payload);
@@ -544,6 +563,57 @@ export default function CreateListingPage({
                 <small style={{ color: '#166534', fontSize: '0.76rem', display: 'block' }}>
                   A direct WhatsApp button will be placed on your car listing so clients can message you immediately.
                 </small>
+              </div>
+
+                            {/* Vehicle Registration / Mulkiya Upload */}
+              <div style={{ marginBottom: '1.2rem', padding: '1rem', background: '#fff', borderRadius: '12px', border: '1.5px solid var(--input-border)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--deep)', margin: '0 0 8px 0', fontWeight: 700 }}>
+                  <FileText size={17} color="var(--gold)" />
+                  Vehicle Registration / Mulkiya (Official Document)
+                </label>
+                <input
+                  type="file"
+                  ref={docInputRef}
+                  accept=".pdf,image/*"
+                  style={{ display: 'none' }}
+                  onChange={handleDocSelect}
+                />
+                <div
+                  onClick={() => docInputRef.current?.click()}
+                  style={{
+                    border: '1.5px dashed var(--gold, #d4af37)',
+                    background: 'rgba(212, 175, 55, 0.06)',
+                    borderRadius: '8px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <FileText size={22} style={{ color: 'var(--gold, #d4af37)' }} />
+                    <div>
+                      <p style={{ margin: 0, fontSize: '0.86rem', fontWeight: 700, color: '#1e293b' }}>
+                        {lstDocName ? `Attached: ${lstDocName}` : 'Attach Mulkiya / Registration Document (PDF or Photo)'}
+                      </p>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.74rem', color: '#64748b' }}>
+                        {lstDocName ? 'Document loaded & ready for moderation review' : 'Helps admins verify and approve your car faster'}
+                      </p>
+                    </div>
+                  </div>
+                  <span style={{
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    color: 'var(--gold, #d4af37)',
+                    background: '#fff',
+                    padding: '4px 10px',
+                    borderRadius: '4px',
+                    border: '1px solid var(--gold, #d4af37)'
+                  }}>
+                    {lstDocName ? 'Change File' : 'Browse File'}
+                  </span>
+                </div>
               </div>
 
               <label>Description & Features</label>

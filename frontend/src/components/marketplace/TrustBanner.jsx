@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCountryCurrency, GCC_COUNTRIES } from '../../constants';
+import { fetchAdminPortalData } from '../../api/admin';
 
 export default function TrustBanner({ listings = [], listingsCount, selectedCountry }) {
   const currency = getCountryCurrency(selectedCountry);
@@ -20,29 +21,47 @@ export default function TrustBanner({ listings = [], listingsCount, selectedCoun
     return GCC_COUNTRIES.length;
   }, [listings, selectedCountry]);
 
-  // Dynamically load verified dealers count
-  useEffect(() => {
-    let localVerified = 0;
+  // Dynamically load verified dealers count strictly from Admin Verified Dealers
+  const updateDealersCount = async () => {
+    try {
+      const data = await fetchAdminPortalData();
+      if (data && data.dealerQueue) {
+        const verifiedCount = data.dealerQueue.filter(
+          d => d.status === 'verified' || d.status === 'approved'
+        ).length;
+        setVerifiedDealersCount(verifiedCount);
+        return;
+      }
+      if (data && data.stats && typeof data.stats.verifiedDealers === 'number') {
+        setVerifiedDealersCount(data.stats.verifiedDealers);
+        return;
+      }
+    } catch {}
+
+    // Fallback: direct localStorage inspection matching admin criteria
     try {
       const raw = localStorage.getItem('binmar_custom_dealers');
       if (raw) {
         const dealers = JSON.parse(raw);
-        localVerified = dealers.filter(d => d.status === 'verified' || d.status === 'approved').length;
+        const verified = dealers.filter(d => d.status === 'verified' || d.status === 'approved').length;
+        setVerifiedDealersCount(verified);
+        return;
       }
     } catch {}
 
-    fetch('/api/admin/stats')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.stats) {
-          setVerifiedDealersCount((data.stats.verifiedDealers || 0) + localVerified);
-        } else {
-          setVerifiedDealersCount(localVerified);
-        }
-      })
-      .catch(() => {
-        setVerifiedDealersCount(localVerified);
-      });
+    setVerifiedDealersCount(0);
+  };
+
+  useEffect(() => {
+    updateDealersCount();
+
+    const handleUpdate = () => updateDealersCount();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('binmar_dealers_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('binmar_dealers_updated', handleUpdate);
+    };
   }, []);
 
   return (
@@ -66,4 +85,3 @@ export default function TrustBanner({ listings = [], listingsCount, selectedCoun
     </div>
   );
 }
-

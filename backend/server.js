@@ -1,7 +1,8 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sql, getPool } = require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -28,10 +29,48 @@ function parseImages(imagesCol) {
 }
 
 // ==========================================
+// Database Providers (MongoDB with In-Memory Resilience & MSSQL fallback)
+// ==========================================
+let mongoDB = null;
+let sql = null;
+let getPool = null;
+
+const USE_MONGO = Boolean(
+  process.env.MONGODB_URI &&
+  (process.env.MONGODB_URI.startsWith('mongodb://') || process.env.MONGODB_URI.startsWith('mongodb+srv://'))
+);
+
+if (USE_MONGO) {
+  mongoDB = require('./db/mongodb');
+} else {
+  try {
+    const dbConfig = require('./config/db');
+    sql = dbConfig.sql;
+    getPool = dbConfig.getPool;
+  } catch (e) {
+    console.warn('[DB] MSSQL provider not loaded:', e.message);
+  }
+}
+
+// ==========================================
 // Health & Diagnostic Route
 // ==========================================
 app.get('/api/health', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const connected = mongoDB.isConnected();
+      return res.json({
+        success: true,
+        status: 'online',
+        database: connected ? 'MongoDB Atlas' : 'In-Memory Store (Atlas Whitelist Pending)',
+        details: {
+          connected,
+          databaseName: 'binmardrive',
+          serverTime: new Date().toISOString()
+        }
+      });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query('SELECT DB_NAME() as db, @@VERSION as version, GETDATE() as serverTime');
     res.json({
@@ -50,9 +89,39 @@ app.get('/api/health', async (req, res) => {
 // ==========================================
 app.get('/api/listings', async (req, res) => {
   try {
+    const { make, country, type, category, maxPrice, sort } = req.query;
+
+    if (USE_MONGO) {
+      const filter = { status: 'approved' };
+      if (make) filter.make = new RegExp(`^${make.trim()}$`, 'i');
+      if (country) filter.country = new RegExp(`^${country.trim()}$`, 'i');
+      if (type) filter.listing_type = new RegExp(`^${type.trim()}$`, 'i');
+      if (category) filter.category = new RegExp(`^${category.trim()}$`, 'i');
+      if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
+        filter.price = { $lte: Number(maxPrice) };
+      }
+
+      let sortOption = { _id: -1 };
+      if (sort === 'low') sortOption = { price: 1 };
+      else if (sort === 'high') sortOption = { price: -1 };
+
+      const docs = await mongoDB.findListings(filter, sortOption);
+      const listings = docs.map(doc => ({
+        ...doc,
+        images: Array.isArray(doc.images) ? doc.images : [],
+        location: `${doc.city || 'Dubai'}, ${doc.country || 'United Arab Emirates'}`
+      }));
+
+      return res.json({
+        success: true,
+        count: listings.length,
+        listings
+      });
+    }
+
+    // MSSQL Query
     const pool = await getPool();
     const request = pool.request();
-
     let query = `
       SELECT id, user_id, title, make, model, year, category, fuel, mileage,
              transmission, condition_type, listing_type, price, currency,
@@ -61,8 +130,6 @@ app.get('/api/listings', async (req, res) => {
       FROM listings
       WHERE status = 'approved'
     `;
-
-    const { make, country, type, category, maxPrice, sort } = req.query;
 
     if (make) {
       query += ` AND LOWER(make) = LOWER(@make)`;
@@ -116,9 +183,7 @@ app.get('/api/listings', async (req, res) => {
 // ==========================================
 app.post('/api/listings', async (req, res) => {
   try {
-    const pool = await getPool();
     const b = req.body;
-
     const make = (b.make || '').trim();
     const model = (b.model || '').trim();
     const year = parseInt(b.year, 10);
@@ -144,9 +209,34 @@ app.post('/api/listings', async (req, res) => {
     const whatsapp_number = b.whatsapp_number || b.contact_phone || '+971501234567';
     const contact_phone = whatsapp_number;
     const description = b.description || '';
-    const imagesJson = JSON.stringify(Array.isArray(b.images) ? b.images : []);
-    const status = 'approved'; // Instant display or 'pending' for moderation
+    const images = Array.isArray(b.images) ? b.images : [];
+    const status = b.status || 'pending';
 
+    if (USE_MONGO) {
+      const newListing = await mongoDB.createListing({
+        title, make, model, year, category, fuel, mileage, transmission,
+        condition_type, listing_type, price, currency, price_label, country,
+        city, seller_name, contact_preference, contact_phone, whatsapp_number,
+        description, images, status,
+        document_name: b.document_name || b.document_file || 'Mulkiya_Vehicle_Registration.pdf',
+        document_file: b.document_file || b.document_name || 'Mulkiya_Vehicle_Registration.pdf',
+        document_url: b.document_url || null
+      });
+
+      await mongoDB.createNotification(
+        'New Vehicle Listed',
+        `${title} was added by ${seller_name} (${city}, ${country}).`
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Listing saved successfully!',
+        id: newListing.id
+      });
+    }
+
+    // MSSQL Path
+    const pool = await getPool();
     const request = pool.request();
     request.input('title', sql.NVarChar, title);
     request.input('make', sql.NVarChar, make);
@@ -168,7 +258,7 @@ app.post('/api/listings', async (req, res) => {
     request.input('contact_phone', sql.NVarChar, contact_phone);
     request.input('whatsapp_number', sql.NVarChar, whatsapp_number);
     request.input('description', sql.NVarChar, description);
-    request.input('images', sql.NVarChar, imagesJson);
+    request.input('images', sql.NVarChar, JSON.stringify(images));
     request.input('status', sql.NVarChar, status);
 
     const insertQuery = `
@@ -190,15 +280,12 @@ app.post('/api/listings', async (req, res) => {
     const result = await request.query(insertQuery);
     const newId = result.recordset[0].id;
 
-    // Insert admin notification
     try {
       const notifReq = pool.request();
       notifReq.input('title', sql.NVarChar, 'New Vehicle Listed');
       notifReq.input('message', sql.NVarChar, `${title} was added by ${seller_name} (${city}, ${country}).`);
       await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
-    } catch (e) {
-      console.warn('Failed to insert notification:', e.message);
-    }
+    } catch {}
 
     res.status(201).json({
       success: true,
@@ -212,11 +299,85 @@ app.post('/api/listings', async (req, res) => {
 });
 
 // ==========================================
+// Update Listing (Seller In-Place Edit / Resubmit)
+// Automatically enforces status = 'pending' so it enters Admin Moderation
+// ==========================================
+app.put('/api/listings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const b = req.body;
+    const make = b.make ? b.make.trim() : '';
+    const model = b.model ? b.model.trim() : '';
+    const year = parseInt(b.year, 10);
+    const price = parseFloat(b.price);
+    const title = b.title || (make && model ? `${year || ''} ${make} ${model}`.trim() : 'Vehicle Listing');
+
+    const updateData = {
+      ...(b.title ? { title: b.title } : (make && model ? { title } : {})),
+      ...(make ? { make } : {}),
+      ...(model ? { model } : {}),
+      ...(year ? { year } : {}),
+      ...(b.category ? { category: b.category } : {}),
+      ...(b.fuel ? { fuel: b.fuel } : {}),
+      ...(b.mileage ? { mileage: String(b.mileage).includes('km') ? b.mileage : `${b.mileage} km` } : {}),
+      ...(b.transmission ? { transmission: b.transmission } : {}),
+      ...(b.condition_type ? { condition_type: b.condition_type } : {}),
+      ...(b.listing_type ? { listing_type: b.listing_type } : {}),
+      ...(price ? { price } : {}),
+      ...(b.currency ? { currency: b.currency } : {}),
+      ...(b.price_label ? { price_label: b.price_label } : {}),
+      ...(b.country ? { country: b.country } : {}),
+      ...(b.city ? { city: b.city } : {}),
+      ...(b.whatsapp_number ? { whatsapp_number: b.whatsapp_number } : {}),
+      ...(b.contact_phone ? { contact_phone: b.contact_phone } : {}),
+      ...(b.description !== undefined ? { description: b.description } : {}),
+      ...(Array.isArray(b.images) ? { images: b.images } : {}),
+      ...(b.document_file ? { document_file: b.document_file } : {}),
+      ...(b.document_name ? { document_name: b.document_name } : {}),
+      ...(b.document_url ? { document_url: b.document_url } : {}),
+      // STRICT MODERATION: All edits/resubmissions must be re-approved by admin
+      status: 'pending',
+      rejection_reason: null,
+      resubmitted: true,
+      resubmitted_at: new Date().toISOString()
+    };
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, updateData);
+      await mongoDB.createNotification(
+        'Listing Resubmitted for Moderation',
+        `"${updateData.title || updated?.title || 'Vehicle'}" has been updated by seller and submitted to the Moderation Queue for review.`
+      );
+      return res.json({ success: true, message: 'Listing submitted for moderation approval.', listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('title', sql.NVarChar, updateData.title || title);
+    request.input('price', sql.Decimal(14, 2), price || 0);
+    request.input('status', sql.NVarChar, 'pending');
+    await request.query(`UPDATE listings SET status = @status, title = @title, price = @price WHERE id = @id`);
+
+    try {
+      const notifReq = pool.request();
+      notifReq.input('title', sql.NVarChar, 'Listing Resubmitted for Moderation');
+      notifReq.input('message', sql.NVarChar, `"${updateData.title || title}" has been updated and submitted to the Moderation Queue.`);
+      await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
+    } catch {}
+
+    res.json({ success: true, message: 'Listing submitted for moderation approval.' });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
 // User & Dealer Registration Route
 // ==========================================
 app.post(['/api/dealers/register', '/api/register'], async (req, res) => {
   try {
-    const pool = await getPool();
     const b = req.body;
     const email = (b.email || '').trim().toLowerCase();
     if (!email) {
@@ -231,6 +392,34 @@ app.post(['/api/dealers/register', '/api/register'], async (req, res) => {
     const phone = b.phone || null;
     const identityId = 'usr_' + Date.now();
 
+    if (USE_MONGO) {
+      const user = await mongoDB.upsertUser(email, {
+        identity_id: identityId,
+        name,
+        user_type: userType,
+        phone,
+        company_name: companyName,
+        trade_license: tradeLicense,
+        trade_license_file: b.trade_license_file || null,
+        trade_license_url: b.trade_license_url || null,
+        country,
+        status: 'approved'
+      });
+
+      await mongoDB.createNotification(
+        `New ${userType === 'company' ? 'Dealer' : 'Seller'} Registered`,
+        `${name} registered from ${country} (${email}).`
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful!',
+        user
+      });
+    }
+
+    // MSSQL Path
+    const pool = await getPool();
     const request = pool.request();
     request.input('identity_id', sql.NVarChar, identityId);
     request.input('email', sql.NVarChar, email);
@@ -265,7 +454,6 @@ app.post(['/api/dealers/register', '/api/register'], async (req, res) => {
     const result = await request.query(query);
     const userRecord = result.recordset[0];
 
-    // Create notification
     try {
       const notifReq = pool.request();
       notifReq.input('title', sql.NVarChar, `New ${userType === 'company' ? 'Dealer' : 'Seller'} Registered`);
@@ -313,7 +501,6 @@ app.post('/api/admin/access', (req, res) => {
     return res.json({ success: true, message: 'Admin authenticated successfully.' });
   }
 
-  // Also accept fallback credentials
   if ((email || '').toLowerCase().trim() === 'admin@binmar.com' && password === 'admin123') {
     return res.json({ success: true, message: 'Admin authenticated successfully.' });
   }
@@ -326,6 +513,11 @@ app.post('/api/admin/access', (req, res) => {
 // ==========================================
 app.get('/api/admin/stats', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const stats = await mongoDB.getStats();
+      return res.json({ success: true, stats });
+    }
+
     const pool = await getPool();
     const query = `
       SELECT
@@ -349,8 +541,21 @@ app.get('/api/admin/stats', async (req, res) => {
 // ==========================================
 app.get('/api/admin/listings', async (req, res) => {
   try {
-    const pool = await getPool();
     const { search } = req.query;
+
+    if (USE_MONGO) {
+      const filter = {};
+      if (search) {
+        filter.$or = [
+          { title: new RegExp(search, 'i') },
+          { seller_name: new RegExp(search, 'i') }
+        ];
+      }
+      const listings = await mongoDB.findListings(filter, { _id: -1 });
+      return res.json({ success: true, listings });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     let query = `SELECT * FROM listings WHERE 1=1`;
     if (search) {
@@ -368,6 +573,11 @@ app.get('/api/admin/listings', async (req, res) => {
 
 app.get('/api/admin/moderation', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const queue = await mongoDB.findListings({ status: 'pending' }, { _id: -1 });
+      return res.json({ success: true, count: queue.length, queue });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM listings WHERE status = 'pending' ORDER BY id DESC`);
     const queue = result.recordset.map(r => ({ ...r, images: parseImages(r.images) }));
@@ -379,6 +589,11 @@ app.get('/api/admin/moderation', async (req, res) => {
 
 app.get('/api/admin/dealers', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const dealers = await mongoDB.findUsers();
+      return res.json({ success: true, count: dealers.length, dealers });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM users ORDER BY id DESC`);
     res.json({ success: true, count: result.recordset.length, dealers: result.recordset });
@@ -389,10 +604,24 @@ app.get('/api/admin/dealers', async (req, res) => {
 
 app.post('/api/admin/moderation/:id/resolve', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
-    const { action } = req.body;
+    const { action, reason } = req.body;
     const status = action === 'approve' ? 'approved' : 'rejected';
+
+    if (USE_MONGO) {
+      const updateData = { status };
+      if (reason) updateData.rejection_reason = reason;
+      const listing = await mongoDB.updateListing(id, updateData);
+      if (status === 'rejected') {
+        await mongoDB.createNotification(
+          `Vehicle Submission Rejected: ${listing?.title || 'Listing'}`,
+          `Listing "${listing?.title || 'Vehicle'}" rejected by admin. Reason: "${reason || 'Verification requirements not met.'}".`
+        );
+      }
+      return res.json({ success: true, message: `Listing ${status}.`, reason });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     request.input('status', sql.NVarChar, status);
@@ -405,10 +634,16 @@ app.post('/api/admin/moderation/:id/resolve', async (req, res) => {
 
 app.post('/api/admin/dealers/:id/resolve', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
     const { action } = req.body;
     const status = action === 'verify' ? 'approved' : 'rejected';
+
+    if (USE_MONGO) {
+      await mongoDB.updateUser(id, { status });
+      return res.json({ success: true, message: `Dealer ${status}.` });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     request.input('status', sql.NVarChar, status);
@@ -421,8 +656,14 @@ app.post('/api/admin/dealers/:id/resolve', async (req, res) => {
 
 app.delete('/api/admin/listings/:id', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
+
+    if (USE_MONGO) {
+      await mongoDB.deleteListing(id);
+      return res.json({ success: true, message: 'Listing removed from marketplace.' });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     await request.query(`DELETE FROM listings WHERE id = @id`);
@@ -437,6 +678,12 @@ app.delete('/api/admin/listings/:id', async (req, res) => {
 // ==========================================
 app.get('/api/notifications', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const notifications = await mongoDB.findNotifications();
+      const unreadCount = notifications.filter(n => !n.is_read).length;
+      return res.json({ success: true, unreadCount, notifications });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM notifications ORDER BY id DESC`);
     const notifications = result.recordset;
@@ -449,8 +696,14 @@ app.get('/api/notifications', async (req, res) => {
 
 app.put('/api/notifications/:id/read', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
+
+    if (USE_MONGO) {
+      await mongoDB.markNotificationRead(id);
+      return res.json({ success: true });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     await request.query(`UPDATE notifications SET is_read = 1 WHERE id = @id`);
@@ -460,13 +713,27 @@ app.put('/api/notifications/:id/read', async (req, res) => {
   }
 });
 
+// ==========================================
 // Start Server
+// ==========================================
 app.listen(PORT, async () => {
   console.log(`[Binmar API] Server is running on http://127.0.0.1:${PORT}`);
-  try {
-    await getPool();
-    console.log('[Binmar API] MSSQL connection verified and ready.');
-  } catch (e) {
-    console.error('[Binmar API] MSSQL connection error at startup:', e.message);
+  if (USE_MONGO) {
+    try {
+      await mongoDB.connectMongoDB(process.env.MONGODB_URI);
+      console.log('[Binmar API] MongoDB Atlas connected and ready.');
+    } catch (e) {
+      console.warn('[Binmar API] Note: MongoDB Atlas IP whitelist not active yet. Serving via resilient In-Memory Store.');
+      console.warn('[Binmar API] Error detail:', e.message);
+    }
+  } else {
+    try {
+      if (getPool) {
+        await getPool();
+        console.log('[Binmar API] MSSQL connection verified and ready.');
+      }
+    } catch (e) {
+      console.error('[Binmar API] MSSQL connection error at startup:', e.message);
+    }
   }
 });

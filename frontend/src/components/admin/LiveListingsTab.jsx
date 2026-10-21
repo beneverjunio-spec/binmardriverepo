@@ -15,11 +15,17 @@ import {
   FileText,
   X,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Download,
+  FileSpreadsheet,
+  ExternalLink,
+  Tag
 } from 'lucide-react';
+import DocumentViewerModal from '../common/DocumentViewerModal';
+import { exportToExcel } from '../../utils/exportToExcel';
 
 export default function LiveListingsTab({
-  adminListings,
+  adminListings = [],
   adminSearch,
   setAdminSearch,
   onRemoveListing,
@@ -27,16 +33,118 @@ export default function LiveListingsTab({
 }) {
   const [inspectingListing, setInspectingListing] = useState(null);
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const [filterType, setFilterType] = useState('all'); // 'all' | 'sale' | 'rent'
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [viewingDocument, setViewingDocument] = useState(null);
 
-  const filteredListings = adminListings.filter(
-    l =>
-      !adminSearch ||
-      l.title?.toLowerCase().includes(adminSearch.toLowerCase()) ||
-      l.seller_name?.toLowerCase().includes(adminSearch.toLowerCase()) ||
-      l.seller?.toLowerCase().includes(adminSearch.toLowerCase()) ||
-      l.make?.toLowerCase().includes(adminSearch.toLowerCase()) ||
-      l.city?.toLowerCase().includes(adminSearch.toLowerCase())
-  );
+  // Counts for filter pills
+  const totalCount = adminListings.length;
+  const saleCount = adminListings.filter(l => (l.listing_type || l.type || 'sale').toLowerCase() === 'sale').length;
+  const rentCount = adminListings.filter(l => (l.listing_type || l.type || '').toLowerCase() === 'rent').length;
+
+  const filteredListings = adminListings.filter(l => {
+    // 1. Listing Type filter
+    const listingType = (l.listing_type || l.type || 'sale').toLowerCase();
+    if (filterType === 'sale' && listingType !== 'sale') return false;
+    if (filterType === 'rent' && listingType !== 'rent') return false;
+
+    // 2. Search query filter
+    if (!adminSearch) return true;
+    const q = adminSearch.toLowerCase();
+    return (
+      l.title?.toLowerCase().includes(q) ||
+      l.seller_name?.toLowerCase().includes(q) ||
+      l.seller?.toLowerCase().includes(q) ||
+      l.make?.toLowerCase().includes(q) ||
+      l.city?.toLowerCase().includes(q) ||
+      l.country?.toLowerCase().includes(q)
+    );
+  });
+
+  // Selection handlers
+  const allFilteredSelected = filteredListings.length > 0 && filteredListings.every(l => selectedIds.includes(l.id));
+
+  const handleToggleAll = () => {
+    if (allFilteredSelected) {
+      const filteredIdSet = new Set(filteredListings.map(l => l.id));
+      setSelectedIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+    } else {
+      const newIds = Array.from(new Set([...selectedIds, ...filteredListings.map(l => l.id)]));
+      setSelectedIds(newIds);
+    }
+  };
+
+  const handleToggleRow = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Export to Excel handler
+  const handleExportExcel = () => {
+    const listToExport = selectedIds.length > 0
+      ? filteredListings.filter(l => selectedIds.includes(l.id))
+      : filteredListings;
+
+    if (listToExport.length === 0) {
+      alert('No listing data available to export.');
+      return;
+    }
+
+    const headers = [
+      'Listing ID',
+      'Vehicle Title',
+      'Listing Type',
+      'Make',
+      'Model',
+      'Year',
+      'Category',
+      'Condition',
+      'Price',
+      'Currency',
+      'Price Label',
+      'Location City',
+      'Country',
+      'Seller Name',
+      'Contact Phone',
+      'WhatsApp',
+      'Mileage',
+      'Fuel Type',
+      'Transmission',
+      'Status',
+      'Created Date'
+    ];
+
+    const rows = listToExport.map(l => {
+      const typeStr = (l.listing_type || l.type || 'sale').toLowerCase() === 'rent' ? 'For Rent' : 'For Sale';
+      return [
+        l.id || 'N/A',
+        l.title || 'Untitled',
+        typeStr,
+        l.make || '',
+        l.model || '',
+        l.year || '',
+        l.category || 'SUV',
+        l.condition_type || l.condition || 'Used',
+        l.price || 0,
+        l.currency || 'AED',
+        l.price_label || '',
+        l.city || 'Dubai',
+        l.country || 'United Arab Emirates',
+        l.seller_name || l.seller || 'Verified Seller',
+        l.contact_phone || l.phone || '',
+        l.whatsapp_number || '',
+        l.mileage || '0 km',
+        l.fuel || 'Petrol',
+        l.transmission || 'Automatic',
+        l.status || 'approved',
+        l.created_at ? new Date(l.created_at).toLocaleDateString() : 'N/A'
+      ];
+    });
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportToExcel(`BinmarDrive_Listings_Export_${dateStr}`, headers, rows);
+  };
 
   const getSellerProfile = (listing) => {
     if (!listing) return null;
@@ -101,6 +209,20 @@ export default function LiveListingsTab({
     setActivePhotoIdx(0);
   };
 
+  const openMulkiyaViewer = (listing) => {
+    const docName = listing.document_name || listing.document_file || `${listing.title?.replace(/\s+/g, '_')}_Mulkiya.pdf`;
+    setViewingDocument({
+      title: 'Vehicle Mulkiya & Registration Certificate',
+      documentName: docName,
+      documentType: 'mulkiya',
+      documentUrl: listing.document_url || null,
+      data: {
+        ...listing,
+        seller_name: listing.seller_name || listing.seller || 'Owner'
+      }
+    });
+  };
+
   const activeSeller = inspectingListing ? getSellerProfile(inspectingListing) : null;
 
   return (
@@ -108,9 +230,37 @@ export default function LiveListingsTab({
       <div className="panel-head">
         <div>
           <h2>All Live Marketplace Listings ({adminListings.length})</h2>
-          <p>Manage, audit, and inspect approved vehicle postings and seller/dealer profiles currently live.</p>
+          <p>Manage, audit, filter by type (For Rent / For Sale), and export vehicle inventory to Excel.</p>
         </div>
-        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Export to Excel Button */}
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              background: 'rgba(34, 197, 94, 0.15)',
+              border: '1px solid rgba(34, 197, 94, 0.4)',
+              color: '#4ade80',
+              fontWeight: 700,
+              fontSize: '0.84rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="Export selected or filtered listings to Excel (CSV)"
+          >
+            <FileSpreadsheet size={16} />
+            <span>
+              {selectedIds.length > 0
+                ? `Export Selected (${selectedIds.length}) to Excel`
+                : 'Export to Excel'}
+            </span>
+          </button>
+
           {adminListings.length > 0 && onRemoveAllListings && (
             <button
               className="act-btn reject"
@@ -121,6 +271,7 @@ export default function LiveListingsTab({
               Clear All Live Listings (Zero Out)
             </button>
           )}
+
           <input
             className="search"
             placeholder="Search listings, sellers, or makes..."
@@ -130,27 +281,141 @@ export default function LiveListingsTab({
         </div>
       </div>
 
+      {/* FILTER PILLS / TYPE TABS (For Rent / For Sale Filter) */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 1.5rem 1rem',
+        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        flexWrap: 'wrap',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setFilterType('all')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterType === 'all' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: filterType === 'all' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+              color: filterType === 'all' ? 'var(--gold, #d4af37)' : '#94a3b8'
+            }}
+          >
+            All Listings ({totalCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterType('sale')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterType === 'sale' ? '1px solid #4ade80' : '1px solid rgba(74, 222, 128, 0.25)',
+              background: filterType === 'sale' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.06)',
+              color: '#4ade80'
+            }}
+          >
+            For Sale ({saleCount})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilterType('rent')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterType === 'rent' ? '1px solid #60a5fa' : '1px solid rgba(96, 165, 250, 0.25)',
+              background: filterType === 'rent' ? 'rgba(96, 165, 250, 0.25)' : 'rgba(96, 165, 250, 0.06)',
+              color: '#60a5fa'
+            }}
+          >
+            For Rent ({rentCount})
+          </button>
+        </div>
+
+        {selectedIds.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--gold, #d4af37)', fontWeight: 700 }}>
+              {selectedIds.length} listing(s) selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
+      </div>
+
       <table>
         <thead>
           <tr>
+            <th style={{ width: '40px', textAlign: 'center' }}>
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={handleToggleAll}
+                title="Select all / Deselect all"
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--gold, #d4af37)' }}
+              />
+            </th>
             <th>Vehicle & Photos</th>
+            {/* Dedicated Column: Type of Listing (For Rent or For Sale) */}
+            <th>Type</th>
             <th>Seller / Dealer Details</th>
             <th>Price</th>
             <th>Location</th>
+            <th>Mulkiya / Doc</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filteredListings.length > 0 ? (
             filteredListings.map(l => {
+              const isSelected = selectedIds.includes(l.id);
               const images = Array.isArray(l.images) && l.images.length > 0
                 ? l.images
                 : ['https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&auto=format&fit=crop'];
               const coverImage = images[0];
               const sellerProfile = getSellerProfile(l);
+              const isRent = (l.listing_type || l.type || '').toLowerCase() === 'rent';
 
               return (
-                <tr key={l.id}>
+                <tr
+                  key={l.id}
+                  style={{
+                    background: isSelected ? 'rgba(212, 175, 55, 0.08)' : 'transparent'
+                  }}
+                >
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleRow(l.id)}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--gold, #d4af37)' }}
+                    />
+                  </td>
+
                   {/* Vehicle Thumbnail & Title */}
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -202,6 +467,27 @@ export default function LiveListingsTab({
                     </div>
                   </td>
 
+                  {/* DEDICATED COLUMN: TYPE OF LISTING (For Rent or For Sale) */}
+                  <td>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '0.76rem',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      background: isRent ? 'rgba(59, 130, 246, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                      color: isRent ? '#60a5fa' : '#4ade80',
+                      border: isRent ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)'
+                    }}>
+                      <Tag size={11} />
+                      {isRent ? 'For Rent' : 'For Sale'}
+                    </span>
+                  </td>
+
                   {/* Seller / Dealer */}
                   <td>
                     <div
@@ -238,8 +524,8 @@ export default function LiveListingsTab({
                     <div style={{ fontWeight: 700, color: 'var(--gold, #d4af37)' }}>
                       {l.price_label || `${l.currency || 'AED'} ${Number(l.price || 0).toLocaleString()}`}
                     </div>
-                    <div className="cell-sub" style={{ textTransform: 'capitalize' }}>
-                      {(l.listing_type || l.type) === 'rent' ? 'For Rent' : 'For Sale'}
+                    <div className="cell-sub" style={{ fontSize: '0.74rem', color: '#94a3b8' }}>
+                      {isRent ? 'Daily / Weekly' : 'Single Payment'}
                     </div>
                   </td>
 
@@ -249,6 +535,31 @@ export default function LiveListingsTab({
                       <MapPin size={12} style={{ color: 'var(--gold, #d4af37)' }} />
                       <span>{l.city || 'Dubai'}, {l.country || 'UAE'}</span>
                     </div>
+                  </td>
+
+                  {/* Mulkiya / Document Button */}
+                  <td>
+                    <button
+                      type="button"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '5px 10px',
+                        background: 'rgba(212, 175, 55, 0.12)',
+                        border: '1px solid rgba(212, 175, 55, 0.35)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        color: 'var(--gold, #d4af37)',
+                        fontSize: '0.76rem',
+                        fontWeight: 700
+                      }}
+                      onClick={() => openMulkiyaViewer(l)}
+                      title="Click to view attached official Mulkiya/Istimara document"
+                    >
+                      <FileText size={13} />
+                      <span>Mulkiya</span>
+                    </button>
                   </td>
 
                   {/* Actions */}
@@ -289,7 +600,7 @@ export default function LiveListingsTab({
             })
           ) : (
             <tr className="empty-row">
-              <td colSpan="5">No live listings found matching search criteria.</td>
+              <td colSpan="8">No live listings found matching your search and filter criteria.</td>
             </tr>
           )}
         </tbody>
@@ -350,6 +661,23 @@ export default function LiveListingsTab({
                     border: '1px solid rgba(34, 197, 94, 0.3)'
                   }}>
                     Live on Marketplace
+                  </span>
+                  <span style={{
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: (inspectingListing.listing_type || inspectingListing.type) === 'rent'
+                      ? 'rgba(59, 130, 246, 0.2)'
+                      : 'rgba(34, 197, 94, 0.2)',
+                    color: (inspectingListing.listing_type || inspectingListing.type) === 'rent'
+                      ? '#60a5fa'
+                      : '#4ade80',
+                    border: (inspectingListing.listing_type || inspectingListing.type) === 'rent'
+                      ? '1px solid rgba(59, 130, 246, 0.4)'
+                      : '1px solid rgba(34, 197, 94, 0.4)'
+                  }}>
+                    {(inspectingListing.listing_type || inspectingListing.type) === 'rent' ? 'For Rent' : 'For Sale'}
                   </span>
                   <span style={{
                     fontSize: '0.7rem',
@@ -495,7 +823,7 @@ export default function LiveListingsTab({
                 })()}
               </div>
 
-              {/* SELLER & DEALER CREDENTIALS SECTION (Highlighted for user request) */}
+              {/* SELLER & DEALER CREDENTIALS SECTION */}
               <div style={{
                 background: 'linear-gradient(145deg, #101721 0%, #172230 100%)',
                 border: '1px solid rgba(212, 175, 55, 0.35)',
@@ -599,29 +927,53 @@ export default function LiveListingsTab({
                   </div>
                 </div>
 
-                {/* Attached Document info */}
-                {(inspectingListing.document_name || inspectingListing.document_file || activeSeller?.trade_license_file) && (
-                  <div style={{
-                    marginTop: '10px',
-                    padding: '8px 12px',
-                    background: 'rgba(212, 175, 55, 0.08)',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(212, 175, 55, 0.2)',
+                {/* CLICKABLE ATTACHED DOCUMENT / MULKIYA BOX */}
+                <div
+                  onClick={() => openMulkiyaViewer(inspectingListing)}
+                  style={{
+                    marginTop: '12px',
+                    padding: '12px 14px',
+                    background: 'rgba(212, 175, 55, 0.12)',
+                    borderRadius: '8px',
+                    border: '1.5px solid rgba(212, 175, 55, 0.45)',
                     display: 'flex',
                     alignItems: 'center',
-                    justifyContent: 'space-between'
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.82rem' }}>
-                      <FileText size={16} style={{ color: 'var(--gold, #d4af37)' }} />
-                      <span>
-                        Verified Document on file: <strong>{inspectingListing.document_name || inspectingListing.document_file || activeSeller?.trade_license_file || 'Mulkiya_Registration.pdf'}</strong>
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                  }}
+                  title="Click to view and inspect this official document"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '0.84rem' }}>
+                    <FileText size={20} style={{ color: 'var(--gold, #d4af37)' }} />
+                    <div>
+                      <span style={{ color: '#f8fafc', fontWeight: 800 }}>
+                        {inspectingListing.document_name || inspectingListing.document_file || activeSeller?.trade_license_file || `${inspectingListing.title}_Mulkiya.pdf`}
                       </span>
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
+                        Official Technical Mulkiya / License &bull; <span style={{ color: 'var(--gold, #d4af37)', fontWeight: 600 }}>Click to View & Print</span>
+                      </p>
                     </div>
-                    <span style={{ fontSize: '0.72rem', color: '#4ade80', fontWeight: 700 }}>
-                      Verified & Passed
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '0.72rem',
+                      color: '#4ade80',
+                      fontWeight: 800,
+                      background: 'rgba(34, 197, 94, 0.2)',
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      border: '1px solid rgba(34, 197, 94, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <ExternalLink size={12} /> View Document
                     </span>
                   </div>
-                )}
+                </div>
               </div>
 
               {/* Price & Location Banner */}
@@ -653,63 +1005,60 @@ export default function LiveListingsTab({
 
               {/* Vehicle Specifications Grid */}
               <div>
-                <h4 style={{ fontSize: '0.85rem', textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.05em', marginBottom: '8px' }}>
-                  Vehicle Specifications
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '0.95rem', fontWeight: 700, color: '#f8fafc' }}>
+                  Technical Specifications & Overview
                 </h4>
                 <div style={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
-                  gap: '8px'
+                  gap: '10px'
                 }}>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Make</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.make || 'Toyota'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Model</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.model || '2024'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Year</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.year || '2024'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Category</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.category || 'SUV'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Mileage</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.mileage || '0 km'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Fuel Type</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.fuel || 'Petrol'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Transmission</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>{inspectingListing.transmission || 'Automatic'}</p>
-                  </div>
-                  <div style={{ background: '#131b24', padding: '9px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <span style={{ fontSize: '0.68rem', color: '#94a3b8' }}>Condition</span>
-                    <p style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem', textTransform: 'capitalize' }}>
-                      {inspectingListing.condition_type || inspectingListing.condition || 'Used'}
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Listing Type</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: (inspectingListing.listing_type || inspectingListing.type) === 'rent' ? '#60a5fa' : '#4ade80' }}>
+                      {(inspectingListing.listing_type || inspectingListing.type) === 'rent' ? 'For Rent' : 'For Sale'}
                     </p>
+                  </div>
+
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Year</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{inspectingListing.year}</p>
+                  </div>
+
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Category</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{inspectingListing.category || 'SUV'}</p>
+                  </div>
+
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Mileage</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{inspectingListing.mileage || '0 km'}</p>
+                  </div>
+
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Fuel</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{inspectingListing.fuel || 'Petrol'}</p>
+                  </div>
+
+                  <div style={{ background: '#131b24', padding: '10px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Transmission</span>
+                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{inspectingListing.transmission || 'Automatic'}</p>
                   </div>
                 </div>
               </div>
 
-              {/* Remarks & Description */}
+              {/* Description */}
               {inspectingListing.description && (
-                <div style={{ background: '#131b24', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <h4 style={{ margin: '0 0 6px 0', fontSize: '0.85rem', color: '#94a3b8' }}>Vehicle Description / Remarks</h4>
-                  <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: '1.5', color: '#cbd5e1' }}>
+                <div style={{ background: '#131b24', padding: '1rem', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase' }}>Seller Description</span>
+                  <p style={{ margin: '6px 0 0 0', fontSize: '0.88rem', lineHeight: '1.6', color: '#cbd5e1' }}>
                     {inspectingListing.description}
                   </p>
                 </div>
               )}
             </div>
 
-            {/* Modal Actions Footer */}
+            {/* Modal Footer */}
             <div style={{
               padding: '1rem 1.5rem',
               borderTop: '1px solid rgba(255, 255, 255, 0.08)',
@@ -731,25 +1080,74 @@ export default function LiveListingsTab({
                   cursor: 'pointer'
                 }}
               >
-                Close Details
+                Close Inspection
               </button>
 
-              <button
-                type="button"
-                className="act-btn reject"
-                style={{ padding: '8px 20px', fontSize: '0.88rem' }}
-                onClick={() => {
-                  onRemoveListing(inspectingListing.id);
-                  closeInspection();
-                }}
-              >
-                <Trash2 size={14} style={{ display: 'inline', marginRight: 6 }} />
-                Remove from Live Marketplace
-              </button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    background: 'rgba(212, 175, 55, 0.15)',
+                    border: '1px solid rgba(212, 175, 55, 0.45)',
+                    color: 'var(--gold, #d4af37)',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => openMulkiyaViewer(inspectingListing)}
+                >
+                  <FileText size={15} /> View Official Mulkiya
+                </button>
+
+                <button
+                  type="button"
+                  className="act-btn reject"
+                  style={{ padding: '8px 18px' }}
+                  onClick={() => {
+                    onRemoveListing(inspectingListing.id);
+                    closeInspection();
+                  }}
+                >
+                  <Trash2 size={14} style={{ display: 'inline', marginRight: 4 }} />
+                  Remove from Live
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* DOCUMENT VIEWER MODAL POPUP */}
+      <DocumentViewerModal
+        isOpen={Boolean(viewingDocument)}
+        onClose={() => setViewingDocument(null)}
+        title={viewingDocument?.title}
+        documentName={viewingDocument?.documentName}
+        documentType={viewingDocument?.documentType}
+        documentUrl={viewingDocument?.documentUrl}
+        data={viewingDocument?.data}
+        onSaveDocument={(fileUrl, fileName) => {
+          if (!viewingDocument?.data?.id) return;
+          try {
+            const raw = localStorage.getItem('binmar_custom_listings');
+            if (raw) {
+              const listings = JSON.parse(raw);
+              const idx = listings.findIndex(l => String(l.id) === String(viewingDocument.data.id));
+              if (idx !== -1) {
+                listings[idx].document_url = fileUrl;
+                if (fileName) listings[idx].document_file = fileName;
+                localStorage.setItem('binmar_custom_listings', JSON.stringify(listings));
+              }
+            }
+          } catch (e) {
+            console.warn(e);
+          }
+        }}
+      />
     </div>
   );
 }

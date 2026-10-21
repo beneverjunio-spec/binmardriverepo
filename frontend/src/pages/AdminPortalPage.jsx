@@ -6,6 +6,7 @@ import ModerationTab from '../components/admin/ModerationTab';
 import DealersTab from '../components/admin/DealersTab';
 import LiveListingsTab from '../components/admin/LiveListingsTab';
 import AdminsTab from '../components/admin/AdminsTab';
+import NotificationsTab from '../components/admin/NotificationsTab';
 import {
   fetchAdminPortalData,
   resolveModerationListing,
@@ -121,10 +122,10 @@ export default function AdminPortalPage({
     };
   }, []);
 
-  const handleResolveModeration = async (id, approve) => {
+  const handleResolveModeration = async (id, approve, reason = '') => {
     try {
       const targetItem = moderationQueue.find(item => item.id === id);
-      const data = await resolveModerationListing(id, approve);
+      const data = await resolveModerationListing(id, approve, reason);
       notify(data.message);
       setModerationQueue(prev => prev.filter(item => item.id !== id));
       if (approve && targetItem) {
@@ -164,9 +165,39 @@ export default function AdminPortalPage({
           rejectedDealers: updated.filter(d => d.status === 'rejected').length
         };
       });
+      window.dispatchEvent(new Event('binmar_dealers_updated'));
     } catch (err) {
       notify(err.message || 'Unable to update dealer. Please try again.');
     }
+  };
+
+  const handleMarkAllNotificationsRead = () => {
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, is_read: true }));
+      try {
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    notify('All notifications marked as read.');
+  };
+
+  const handleClearAllNotifications = () => {
+    setNotifications([]);
+    try {
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify([]));
+    } catch {}
+    notify('All notifications cleared.');
+  };
+
+  const handleToggleNotificationRead = (id) => {
+    setNotifications(prev => {
+      const updated = prev.map(n => (n.id === id ? { ...n, is_read: !n.is_read } : n));
+      try {
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
   };
 
   const handleRemoveListing = async (id) => {
@@ -272,7 +303,9 @@ export default function AdminPortalPage({
         adminTab={adminTab}
         setAdminTab={setAdminTab}
         moderationCount={moderationQueue.length}
-        dealerCount={dealerQueue.filter(d => !d.status || d.status === 'pending').length}
+        dealerCount={dealerQueue.length}
+        listingsCount={adminListings.length}
+        notificationCount={notifications.filter(n => !n.is_read).length}
         adminCount={admins.length}
         onExit={onExit}
       />
@@ -287,7 +320,10 @@ export default function AdminPortalPage({
           </p>
         )}
 
-        <AdminHeader notifications={notifications} />
+        <AdminHeader
+          notifications={notifications}
+          onOpenNotifications={() => setAdminTab('notifications')}
+        />
 
         {adminTab === 'dashboard' && (
           <DashboardTab
@@ -321,6 +357,16 @@ export default function AdminPortalPage({
             setAdminSearch={setAdminSearch}
             onRemoveListing={handleRemoveListing}
             onRemoveAllListings={handleRemoveAllListings}
+          />
+        )}
+
+        {adminTab === 'notifications' && (
+          <NotificationsTab
+            notifications={notifications}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+            onClearAll={handleClearAllNotifications}
+            onToggleRead={handleToggleNotificationRead}
+            setAdminTab={setAdminTab}
           />
         )}
 

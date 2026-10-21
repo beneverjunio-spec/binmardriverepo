@@ -24,6 +24,7 @@ export default function RegistrationPage({
   const [regError, setRegError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const [tradeLicenseFile, setTradeLicenseFile] = useState(null);
+  const [tradeLicenseUrl, setTradeLicenseUrl] = useState(null);
 
   const licenseInputRef = useRef(null);
 
@@ -31,6 +32,11 @@ export default function RegistrationPage({
     const file = e.target.files?.[0];
     if (file) {
       setTradeLicenseFile(file.name);
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setTradeLicenseUrl(event.target.result);
+      };
+      reader.readAsDataURL(file);
       notify(`Trade license file attached: ${file.name}`);
     }
   };
@@ -67,6 +73,7 @@ export default function RegistrationPage({
       company_name: companyName,
       trade_license: tradeLicense,
       trade_license_file: tradeDoc,
+      trade_license_url: tradeLicenseUrl || null,
       country: regCountry,
       email: regEmail.trim()
     };
@@ -81,6 +88,7 @@ export default function RegistrationPage({
       user_type: regAccountType,
       trade_license: tradeLicense,
       trade_license_file: tradeDoc,
+      trade_license_url: tradeLicenseUrl || null,
       status: 'pending',
       created_at: new Date().toISOString()
     };

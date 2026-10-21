@@ -154,8 +154,11 @@ export async function fetchAdminPortalData() {
       apiRequest('/api/notifications')
     ]);
 
-    const queue = [...pendingCustom, ...(modRes.queue || [])]
-      .filter(item => !isTestData(item) && !resolvedModeration.includes(String(item.id)));
+    const activeServerQueue = (modRes.queue || [])
+      .filter(item => !resolvedModeration.includes(String(item.id)));
+    // pendingCustom should always be included for review, especially when resubmitted by seller
+    const queue = [...pendingCustom, ...activeServerQueue]
+      .filter(item => !isTestData(item));
 
     const liveList = [...approvedCustom, ...(listRes.listings || [])]
       .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
@@ -203,8 +206,9 @@ export async function fetchAdminPortalData() {
 }
 
 
-export async function resolveModerationListing(id, approve) {
+export async function resolveModerationListing(id, approve, reason = '') {
   let foundTitle = 'Vehicle';
+  let sellerEmail = '';
 
   // Mark as permanently resolved in localStorage so it never comes back
   try {
@@ -224,11 +228,14 @@ export async function resolveModerationListing(id, approve) {
       const matchIndex = items.findIndex(item => String(item.id) === String(id));
       if (matchIndex !== -1) {
         foundTitle = items[matchIndex].title || 'Vehicle';
+        sellerEmail = items[matchIndex].seller_email || items[matchIndex].email || '';
         if (approve) {
           items[matchIndex].status = 'approved';
           items[matchIndex].approved_at = new Date().toISOString();
         } else {
           items[matchIndex].status = 'rejected';
+          items[matchIndex].rejection_reason = reason;
+          items[matchIndex].rejected_at = new Date().toISOString();
         }
         localStorage.setItem('binmar_custom_listings', JSON.stringify(items));
       }
@@ -237,17 +244,54 @@ export async function resolveModerationListing(id, approve) {
     console.warn('Could not update custom listing in localStorage', e);
   }
 
+  // Create real-time notification for the Seller Portal if rejected
+  if (!approve) {
+    try {
+      const sellerNotifRaw = localStorage.getItem('binmar_seller_notifications');
+      const sellerNotifs = sellerNotifRaw ? JSON.parse(sellerNotifRaw) : [];
+      const newNotif = {
+        id: Date.now(),
+        listing_id: id,
+        seller_email: sellerEmail,
+        title: `Vehicle Listing Rejected: ${foundTitle}`,
+        message: `Your vehicle submission for "${foundTitle}" was rejected by admin. Reason: "${reason || 'Verification requirements not met.'}". Please review the remarks and update your listing.`,
+        type: 'rejection',
+        rejection_reason: reason,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      localStorage.setItem('binmar_seller_notifications', JSON.stringify([newNotif, ...sellerNotifs]));
+
+      const adminNotifRaw = localStorage.getItem('binmar_admin_notifications');
+      const adminNotifs = adminNotifRaw ? JSON.parse(adminNotifRaw) : [];
+      adminNotifs.unshift({
+        id: Date.now() + 1,
+        title: `Vehicle Rejected: ${foundTitle}`,
+        message: `Listing "${foundTitle}" was rejected. Reason: ${reason || 'Not specified'}.`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      });
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify(adminNotifs));
+
+      try {
+        window.dispatchEvent(new Event('storage'));
+      } catch {}
+    } catch (e) {
+      console.warn('Could not write rejection notification', e);
+    }
+  }
+
   try {
     const res = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: approve ? 'approve' : 'reject' })
+      body: JSON.stringify({ action: approve ? 'approve' : 'reject', reason })
     });
     return res;
   } catch {
     return {
       success: true,
-      message: `"${foundTitle}" has been ${approve ? 'approved and is now LIVE on public listings!' : 'rejected.'}`
+      message: `"${foundTitle}" has been ${approve ? 'approved and is now LIVE on public listings!' : 'rejected with remarks recorded.'}`
     };
   }
 }

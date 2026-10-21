@@ -4,21 +4,24 @@ import {
   ShieldCheck,
   X,
   Building2,
-  UserCheck,
-  Mail,
-  Phone,
   Search,
   Eye,
-  Check,
-  Ban,
-  RefreshCw,
-  User
+  User,
+  Download,
+  FileSpreadsheet,
+  CheckSquare,
+  Square,
+  ExternalLink
 } from 'lucide-react';
+import DocumentViewerModal from '../common/DocumentViewerModal';
+import { exportToExcel } from '../../utils/exportToExcel';
 
 export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
   const [selectedDealerDoc, setSelectedDealerDoc] = useState(null);
+  const [viewingDocument, setViewingDocument] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending' | 'verified' | 'rejected'
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedIds, setSelectedIds] = useState([]);
 
   const pendingCount = dealerQueue.filter(d => !d.status || d.status === 'pending').length;
   const verifiedCount = dealerQueue.filter(d => d.status === 'verified' || d.status === 'approved').length;
@@ -47,14 +50,109 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
     );
   });
 
+  // Selection handlers
+  const allFilteredSelected = filteredDealers.length > 0 && filteredDealers.every(d => selectedIds.includes(d.id));
+
+  const handleToggleAll = () => {
+    if (allFilteredSelected) {
+      const filteredIdSet = new Set(filteredDealers.map(d => d.id));
+      setSelectedIds(prev => prev.filter(id => !filteredIdSet.has(id)));
+    } else {
+      const newIds = Array.from(new Set([...selectedIds, ...filteredDealers.map(d => d.id)]));
+      setSelectedIds(newIds);
+    }
+  };
+
+  const handleToggleRow = (id) => {
+    setSelectedIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  // Export to Excel handler
+  const handleExportExcel = () => {
+    const listToExport = selectedIds.length > 0
+      ? filteredDealers.filter(d => selectedIds.includes(d.id))
+      : filteredDealers;
+
+    if (listToExport.length === 0) {
+      alert('No dealer data available to export.');
+      return;
+    }
+
+    const headers = [
+      'Dealer / Company Name',
+      'Account Type',
+      'Email Address',
+      'Phone Number',
+      'Country / Jurisdiction',
+      'License / ID Number',
+      'Verification Status',
+      'Document Name',
+      'Registration Date'
+    ];
+
+    const rows = listToExport.map(d => [
+      d.company_name || d.name || 'N/A',
+      d.user_type === 'company' ? 'Commercial Dealership' : 'Private Seller',
+      d.email || 'N/A',
+      d.phone || 'N/A',
+      d.country || 'United Arab Emirates',
+      d.trade_license || 'CN-Pending',
+      d.status || 'Pending Review',
+      d.trade_license_file || 'Trade_License.pdf',
+      d.created_at ? new Date(d.created_at).toLocaleDateString() : 'N/A'
+    ]);
+
+    const dateStr = new Date().toISOString().slice(0, 10);
+    exportToExcel(`BinmarDrive_Dealers_Export_${dateStr}`, headers, rows);
+  };
+
+  const openDocumentViewer = (dealer) => {
+    setViewingDocument({
+      title: dealer.user_type === 'company' ? 'Commercial Trade License Certificate' : 'Seller Verification Document',
+      documentName: dealer.trade_license_file || `${dealer.name || 'Dealer'}_Trade_License.pdf`,
+      documentType: 'license',
+      documentUrl: dealer.trade_license_url || dealer.document_url || null,
+      data: dealer
+    });
+  };
+
   return (
     <div className="panel">
       <div className="panel-head">
         <div>
           <h2>Registered Dealers & Sellers Directory</h2>
-          <p>Complete directory of commercial dealerships and private sellers. Audit trade licenses, verify documents, and manage account authorization.</p>
+          <p>Complete directory of commercial dealerships and private sellers. Audit trade licenses, verify documents, and export records.</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              background: 'rgba(34, 197, 94, 0.15)',
+              border: '1px solid rgba(34, 197, 94, 0.4)',
+              color: '#4ade80',
+              fontWeight: 700,
+              fontSize: '0.84rem',
+              cursor: 'pointer',
+              transition: 'all 0.2s'
+            }}
+            title="Export selected or filtered dealers to Excel (CSV)"
+          >
+            <FileSpreadsheet size={16} />
+            <span>
+              {selectedIds.length > 0
+                ? `Export Selected (${selectedIds.length}) to Excel`
+                : 'Export to Excel'}
+            </span>
+          </button>
+
           <input
             className="search"
             placeholder="Search by company, name, email, license..."
@@ -68,83 +166,119 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
       {/* Filter Tabs / Pills */}
       <div style={{
         display: 'flex',
-        gap: '8px',
+        alignItems: 'center',
+        justifyContent: 'space-between',
         padding: '0 1.5rem 1rem',
         borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-        flexWrap: 'wrap'
+        flexWrap: 'wrap',
+        gap: '12px'
       }}>
-        <button
-          type="button"
-          onClick={() => setFilterStatus('all')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            border: filterStatus === 'all' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(255, 255, 255, 0.15)',
-            background: filterStatus === 'all' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.04)',
-            color: filterStatus === 'all' ? 'var(--gold, #d4af37)' : '#94a3b8'
-          }}
-        >
-          All Registered ({dealerQueue.length})
-        </button>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('all')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterStatus === 'all' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(255, 255, 255, 0.15)',
+              background: filterStatus === 'all' ? 'rgba(212, 175, 55, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+              color: filterStatus === 'all' ? 'var(--gold, #d4af37)' : '#94a3b8'
+            }}
+          >
+            All Registered ({dealerQueue.length})
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setFilterStatus('pending')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            border: filterStatus === 'pending' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(212, 175, 55, 0.25)',
-            background: filterStatus === 'pending' ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.06)',
-            color: 'var(--gold, #d4af37)'
-          }}
-        >
-          Pending Review ({pendingCount})
-        </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('pending')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterStatus === 'pending' ? '1px solid var(--gold, #d4af37)' : '1px solid rgba(212, 175, 55, 0.25)',
+              background: filterStatus === 'pending' ? 'rgba(212, 175, 55, 0.25)' : 'rgba(212, 175, 55, 0.06)',
+              color: 'var(--gold, #d4af37)'
+            }}
+          >
+            Pending Review ({pendingCount})
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setFilterStatus('verified')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            border: filterStatus === 'verified' ? '1px solid #4ade80' : '1px solid rgba(74, 222, 128, 0.25)',
-            background: filterStatus === 'verified' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.06)',
-            color: '#4ade80'
-          }}
-        >
-          Verified Active ({verifiedCount})
-        </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('verified')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterStatus === 'verified' ? '1px solid #4ade80' : '1px solid rgba(74, 222, 128, 0.25)',
+              background: filterStatus === 'verified' ? 'rgba(34, 197, 94, 0.25)' : 'rgba(34, 197, 94, 0.06)',
+              color: '#4ade80'
+            }}
+          >
+            Verified Active ({verifiedCount})
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setFilterStatus('rejected')}
-          style={{
-            padding: '6px 14px',
-            borderRadius: '20px',
-            fontSize: '0.8rem',
-            fontWeight: 700,
-            cursor: 'pointer',
-            border: filterStatus === 'rejected' ? '1px solid #f87171' : '1px solid rgba(239, 68, 68, 0.25)',
-            background: filterStatus === 'rejected' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.06)',
-            color: '#f87171'
-          }}
-        >
-          Rejected ({rejectedCount})
-        </button>
+          <button
+            type="button"
+            onClick={() => setFilterStatus('rejected')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              border: filterStatus === 'rejected' ? '1px solid #f87171' : '1px solid rgba(239, 68, 68, 0.25)',
+              background: filterStatus === 'rejected' ? 'rgba(239, 68, 68, 0.25)' : 'rgba(239, 68, 68, 0.06)',
+              color: '#f87171'
+            }}
+          >
+            Rejected ({rejectedCount})
+          </button>
+        </div>
+
+        {/* Selection Status indicator */}
+        {selectedIds.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--gold, #d4af37)', fontWeight: 700 }}>
+              {selectedIds.length} dealer(s) selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedIds([])}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: '#94a3b8',
+                fontSize: '0.78rem',
+                cursor: 'pointer',
+                textDecoration: 'underline'
+              }}
+            >
+              Clear selection
+            </button>
+          </div>
+        )}
       </div>
 
       <table>
         <thead>
           <tr>
+            <th style={{ width: '40px', textAlign: 'center' }}>
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={handleToggleAll}
+                title="Select all / Deselect all"
+                style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--gold, #d4af37)' }}
+              />
+            </th>
             <th>Company / Seller</th>
             <th>Account Type</th>
             <th>Contact Email</th>
@@ -158,12 +292,26 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
         <tbody>
           {filteredDealers.length > 0 ? (
             filteredDealers.map(dealer => {
+              const isSelected = selectedIds.includes(dealer.id);
               const isPending = !dealer.status || dealer.status === 'pending';
               const isVerified = dealer.status === 'verified' || dealer.status === 'approved';
               const isRejected = dealer.status === 'rejected';
 
               return (
-                <tr key={dealer.id}>
+                <tr
+                  key={dealer.id}
+                  style={{
+                    background: isSelected ? 'rgba(212, 175, 55, 0.08)' : 'transparent'
+                  }}
+                >
+                  <td style={{ textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => handleToggleRow(dealer.id)}
+                      style={{ cursor: 'pointer', width: '16px', height: '16px', accentColor: 'var(--gold, #d4af37)' }}
+                    />
+                  </td>
                   <td>
                     <div
                       className="cell-main"
@@ -242,27 +390,51 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                     )}
                   </td>
                   <td>
-                    <button
-                      type="button"
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '5px 12px',
-                        background: 'rgba(212, 175, 55, 0.12)',
-                        border: '1px solid rgba(212, 175, 55, 0.4)',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        color: 'var(--gold, #d4af37)',
-                        fontSize: '0.8rem',
-                        fontWeight: 700
-                      }}
-                      onClick={() => setSelectedDealerDoc(dealer)}
-                      title="Inspect full seller credentials and documents"
-                    >
-                      <Eye size={14} />
-                      <span>View Details</span>
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '5px 10px',
+                          background: 'rgba(212, 175, 55, 0.12)',
+                          border: '1px solid rgba(212, 175, 55, 0.4)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          color: 'var(--gold, #d4af37)',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
+                        }}
+                        onClick={() => setSelectedDealerDoc(dealer)}
+                        title="Inspect full seller credentials and review document"
+                      >
+                        <Eye size={13} />
+                        <span>View Details</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 9px',
+                          background: 'rgba(34, 197, 94, 0.12)',
+                          border: '1px solid rgba(34, 197, 94, 0.35)',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          color: '#4ade80',
+                          fontSize: '0.78rem',
+                          fontWeight: 700
+                        }}
+                        onClick={() => openDocumentViewer(dealer)}
+                        title="Click to view attached official Trade License document"
+                      >
+                        <FileText size={13} />
+                        <span>Doc</span>
+                      </button>
+                    </div>
                   </td>
                   <td>
                     <div className="row-actions">
@@ -273,7 +445,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                             onClick={() => onResolveDealer(dealer.id, true)}
                             title="Verify and grant full access to Seller Studio"
                           >
-                            Approve & Verify
+                            Approve
                           </button>
                           <button
                             className="act-btn reject"
@@ -290,7 +462,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                           onClick={() => onResolveDealer(dealer.id, false)}
                           title="Revoke verified status"
                         >
-                          Revoke / Reject
+                          Revoke
                         </button>
                       )}
                       {isRejected && (
@@ -309,7 +481,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
             })
           ) : (
             <tr className="empty-row">
-              <td colSpan="8">
+              <td colSpan="9">
                 {filterStatus === 'all'
                   ? 'No registered dealers or sellers found.'
                   : `No dealers or sellers found under "${filterStatus}" status.`}
@@ -319,7 +491,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
         </tbody>
       </table>
 
-      {/* DOCUMENT VERIFICATION MODAL POPUP (Inspect anytime!) */}
+      {/* DOCUMENT VERIFICATION MODAL POPUP */}
       {selectedDealerDoc && (
         <div
           style={{
@@ -338,7 +510,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
           <div
             style={{
               width: '100%',
-              maxWidth: '44rem',
+              maxWidth: '46rem',
               maxHeight: '90vh',
               background: '#0d131a',
               border: '1px solid rgba(212, 175, 55, 0.45)',
@@ -375,11 +547,9 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                   {selectedDealerDoc.user_type === 'company' ? <Building2 size={20} /> : <User size={20} />}
                 </div>
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
-                      {selectedDealerDoc.user_type === 'company' ? 'Commercial Trade License Certificate' : 'Seller Identity & Registration Certificate'}
-                    </h3>
-                  </div>
+                  <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
+                    {selectedDealerDoc.user_type === 'company' ? 'Commercial Trade License Certificate' : 'Seller Identity & Registration Certificate'}
+                  </h3>
                   <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
                     Official Administrative Verification & Review Archive
                   </p>
@@ -498,39 +668,64 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                   </div>
                 </div>
 
-                {/* Attached Document File Box */}
-                <div style={{
-                  marginTop: '1rem',
-                  padding: '10px 14px',
-                  background: 'rgba(212, 175, 55, 0.08)',
-                  border: '1px solid rgba(212, 175, 55, 0.25)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FileText size={22} style={{ color: 'var(--gold, #d4af37)' }} />
+                {/* CLICKABLE Attached Document File Box */}
+                <div
+                  onClick={() => openDocumentViewer(selectedDealerDoc)}
+                  style={{
+                    marginTop: '1.25rem',
+                    padding: '12px 16px',
+                    background: 'rgba(212, 175, 55, 0.12)',
+                    border: '1.5px solid rgba(212, 175, 55, 0.45)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                  }}
+                  title="Click to view and inspect this document in full viewer"
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '38px',
+                      height: '38px',
+                      borderRadius: '6px',
+                      background: 'rgba(212, 175, 55, 0.2)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--gold, #d4af37)'
+                    }}>
+                      <FileText size={22} />
+                    </div>
                     <div>
-                      <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem', color: '#f8fafc' }}>
-                        {selectedDealerDoc.trade_license_file || `${selectedDealerDoc.name || 'Company'}_Trade_License.pdf`}
+                      <p style={{ margin: 0, fontWeight: 800, fontSize: '0.92rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{selectedDealerDoc.trade_license_file || `${selectedDealerDoc.name || 'Company'}_Trade_License.pdf`}</span>
+                        <Eye size={14} style={{ color: 'var(--gold, #d4af37)' }} />
                       </p>
-                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
-                        Uploaded document &bull; Digital Verification Archive Attached
+                      <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                        Uploaded document &bull; <span style={{ color: 'var(--gold, #d4af37)', fontWeight: 600 }}>Click to View & Print Document</span>
                       </p>
                     </div>
                   </div>
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(34, 197, 94, 0.15)',
-                    color: '#4ade80',
-                    border: '1px solid rgba(34, 197, 94, 0.3)'
-                  }}>
-                    PDF Document
-                  </span>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 800,
+                      padding: '5px 12px',
+                      borderRadius: '4px',
+                      background: 'rgba(34, 197, 94, 0.2)',
+                      color: '#4ade80',
+                      border: '1px solid rgba(34, 197, 94, 0.4)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}>
+                      <ExternalLink size={12} /> View Document
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -542,7 +737,9 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
               background: '#131b24',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '10px'
             }}>
               <button
                 type="button"
@@ -557,7 +754,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                   cursor: 'pointer'
                 }}
               >
-                Close Document
+                Close
               </button>
 
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -588,6 +785,34 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
           </div>
         </div>
       )}
+
+      {/* FULL DOCUMENT VIEWER MODAL */}
+      <DocumentViewerModal
+        isOpen={Boolean(viewingDocument)}
+        onClose={() => setViewingDocument(null)}
+        title={viewingDocument?.title}
+        documentName={viewingDocument?.documentName}
+        documentType={viewingDocument?.documentType}
+        documentUrl={viewingDocument?.documentUrl}
+        data={viewingDocument?.data}
+        onSaveDocument={(fileUrl, fileName) => {
+          if (!viewingDocument?.data?.id) return;
+          try {
+            const raw = localStorage.getItem('binmar_custom_dealers');
+            if (raw) {
+              const items = JSON.parse(raw);
+              const idx = items.findIndex(d => String(d.id) === String(viewingDocument.data.id));
+              if (idx !== -1) {
+                items[idx].trade_license_url = fileUrl;
+                if (fileName) items[idx].trade_license_file = fileName;
+                localStorage.setItem('binmar_custom_dealers', JSON.stringify(items));
+              }
+            }
+          } catch (e) {
+            console.warn(e);
+          }
+        }}
+      />
     </div>
   );
 }

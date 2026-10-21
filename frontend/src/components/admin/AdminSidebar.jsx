@@ -1,12 +1,14 @@
 import React from 'react';
-import { Car, Clock, ShieldCheck, CheckCircle2, Users, ArrowLeft } from 'lucide-react';
+import { Car, Clock, ShieldCheck, CheckCircle2, Users, Bell, ArrowLeft } from 'lucide-react';
 
 export default function AdminSidebar({
   adminTab,
   setAdminTab,
-  moderationCount,
-  dealerCount,
-  adminCount,
+  moderationCount = 0,
+  dealerCount = 0,
+  listingsCount = 0,
+  adminCount = 0,
+  notificationCount = 0,
   onExit
 }) {
   return (
@@ -43,6 +45,22 @@ export default function AdminSidebar({
       >
         <CheckCircle2 size={18} />
         <span>All live listings</span>
+        <span className="admin-nav-count">{listingsCount}</span>
+      </div>
+
+      <div
+        className={`admin-nav-item ${adminTab === 'notifications' ? 'active' : ''}`}
+        onClick={() => setAdminTab('notifications')}
+      >
+        <Bell size={18} />
+        <span>Notifications</span>
+        {notificationCount > 0 ? (
+          <span className="admin-nav-count" style={{ background: '#dc2626', color: '#fff' }}>
+            {notificationCount}
+          </span>
+        ) : (
+          <span className="admin-nav-count">0</span>
+        )}
       </div>
 
       <div
