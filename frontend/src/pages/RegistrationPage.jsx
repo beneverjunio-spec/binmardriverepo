@@ -3,6 +3,8 @@ import { User, Building2, Upload } from 'lucide-react';
 import { signup } from '@netlify/identity';
 import { GCC_COUNTRIES, COUNTRY_DIAL_CODES } from '../constants';
 import { authErrorMessage, loadProfile } from '../api/auth';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function RegistrationPage({
   regAccountType,
@@ -13,6 +15,7 @@ export default function RegistrationPage({
   setLoginError,
   notify
 }) {
+  const { t, isRTL } = useLanguage();
   const [regStep, setRegStep] = useState(1);
   const [regPhone, setRegPhone] = useState('');
   const [regEmail, setRegEmail] = useState('');
@@ -202,6 +205,9 @@ export default function RegistrationPage({
       </div>
 
       <div className="flow-formside">
+        <div style={{ display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end', width: '100%', maxWidth: '440px', marginBottom: '1rem' }}>
+          <LanguageSwitcher />
+        </div>
         <div className="flow-card">
           {/* Progress Nodes */}
           <div className="steps">
@@ -215,9 +221,9 @@ export default function RegistrationPage({
           {/* Step 1: Who is registering */}
           {regStep === 1 && (
             <div>
-              <span className="free-badge">Free to register anywhere</span>
-              <h1 className="step-title">Who's registering?</h1>
-              <p className="step-desc">Open to individual vehicle owners, dealers, and corporate rental companies across the Middle East.</p>
+              <span className="free-badge">{t('hero_badge')}</span>
+              <h1 className="step-title">{t('reg_who_title')}</h1>
+              <p className="step-desc">{t('reg_who_desc')}</p>
 
               <div className="type-grid">
                 <div
@@ -225,24 +231,24 @@ export default function RegistrationPage({
                   onClick={() => setRegAccountType('individual')}
                 >
                   <User size={28} className="type-icon" />
-                  <span>Individual seller / private owner</span>
-                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>Requires Admin Approval</small>
+                  <span>{t('reg_individual')}</span>
+                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>{t('reg_individual_note')}</small>
                 </div>
                 <div
                   className={`type-card ${regAccountType === 'company' ? 'selected' : ''}`}
                   onClick={() => setRegAccountType('company')}
                 >
                   <Building2 size={28} className="type-icon" />
-                  <span>Commercial seller / dealer</span>
-                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>Requires Admin Approval</small>
+                  <span>{t('reg_company')}</span>
+                  <small style={{ display: 'block', fontSize: '0.72rem', color: 'var(--gold)', marginTop: '4px' }}>{t('reg_company_note')}</small>
                 </div>
               </div>
 
               <button className="btn-primary" onClick={() => setRegStep(2)}>
-                Continue &rarr;
+                {t('reg_continue')}
               </button>
               <button className="btn-secondary" onClick={() => setCurrentPage('user-login')}>
-                Already have an account? Sign in
+                {t('reg_already_account')}
               </button>
             </div>
           )}
@@ -250,10 +256,10 @@ export default function RegistrationPage({
           {/* Step 2: Phone Verification */}
           {regStep === 2 && (
             <div>
-              <h1 className="step-title">Account credentials</h1>
-              <p className="step-desc">Use your email and a secure password to sign in. Your phone number is for vehicle enquiries.</p>
+              <h1 className="step-title">{t('reg_credentials_title')}</h1>
+              <p className="step-desc">{t('reg_credentials_desc')}</p>
 
-              <label htmlFor="register-email">Email</label>
+              <label htmlFor="register-email">{t('seller_email')}</label>
               <input
                 id="register-email"
                 type="email"
@@ -262,7 +268,7 @@ export default function RegistrationPage({
                 onChange={e => setRegEmail(e.target.value)}
               />
 
-              <label htmlFor="register-password">Password</label>
+              <label htmlFor="register-password">{t('seller_password')}</label>
               <input
                 id="register-password"
                 type="password"
@@ -272,7 +278,7 @@ export default function RegistrationPage({
                 onChange={e => setRegPassword(e.target.value)}
               />
 
-              <label>Mobile number (optional)</label>
+              <label>{t('reg_phone')}</label>
               <div className="row-2">
                 <select defaultValue="+971">
                   {COUNTRY_DIAL_CODES.map(c => (
@@ -300,10 +306,10 @@ export default function RegistrationPage({
                   setRegStep(3);
                 }}
               >
-                Continue &rarr;
+                {t('reg_continue')}
               </button>
               <button className="btn-secondary" onClick={() => setRegStep(1)}>
-                Back
+                {t('reg_back')}
               </button>
             </div>
           )}
@@ -312,20 +318,20 @@ export default function RegistrationPage({
           {regStep === 3 && (
             <div>
               <h1 className="step-title">
-                {regAccountType === 'individual' ? 'Tell us about you' : 'Dealer & company details'}
+                {regAccountType === 'individual' ? t('reg_about_you') : t('reg_dealer_details')}
               </h1>
-              <p className="step-desc">Last step &mdash; this takes less than a minute.</p>
+              <p className="step-desc">{isRTL ? 'الخطوة الأخيرة — يستغرق الأمر أقل من دقيقة.' : 'Last step — this takes less than a minute.'}</p>
 
               {regAccountType === 'individual' ? (
                 <div>
-                  <label>Full name</label>
+                  <label>{t('reg_full_name')}</label>
                   <input
                     type="text"
                     placeholder="e.g. Ahmed Al Mansoori"
                     value={regName}
                     onChange={e => setRegName(e.target.value)}
                   />
-                  <label>Country</label>
+                  <label>{t('label_country')}</label>
                   <select value={regCountry} onChange={e => setRegCountry(e.target.value)}>
                     {GCC_COUNTRIES.map(country => (
                       <option key={country}>{country}</option>
@@ -333,7 +339,7 @@ export default function RegistrationPage({
                   </select>
 
                   <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
-                    National ID / Passport Verification Document
+                    {t('reg_id_upload_label')}
                   </label>
                   <input
                     type="file"
@@ -344,27 +350,27 @@ export default function RegistrationPage({
                   />
                   <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
                     <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
-                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload National ID / Passport / Driving License (PDF / JPG / PNG)'}</p>
-                    <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Upload your ID or passport for admin verification'}</p>
+                    <p>{tradeLicenseFile ? `${isRTL ? 'المرفق:' : 'Attached:'} ${tradeLicenseFile}` : t('reg_id_upload_btn')}</p>
+                    <p className="small">{tradeLicenseFile ? (isRTL ? 'المستند جاهز للتحقق' : 'Document ready for verification') : (isRTL ? 'قم بتحميل الهوية للتحقق من قِبل المشرف' : 'Upload your ID or passport for admin verification')}</p>
                   </div>
                 </div>
               ) : (
                 <div>
-                  <label>Company / Dealership name</label>
+                  <label>{t('reg_company_name')}</label>
                   <input
                     type="text"
                     placeholder="e.g. Al Futtaim Motors"
                     value={regCompanyName}
                     onChange={e => setRegCompanyName(e.target.value)}
                   />
-                  <label>Trade license number</label>
+                  <label>{t('reg_license_num')}</label>
                   <input
                     type="text"
                     placeholder="e.g. CN-1234567"
                     value={regLicense}
                     onChange={e => setRegLicense(e.target.value)}
                   />
-                  <label>Country of registration</label>
+                  <label>{t('label_country')}</label>
                   <select value={regCountry} onChange={e => setRegCountry(e.target.value)}>
                     {GCC_COUNTRIES.map(country => (
                       <option key={country}>{country}</option>
@@ -372,7 +378,7 @@ export default function RegistrationPage({
                   </select>
 
                   <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
-                    Commercial Trade License Document
+                    {t('reg_license_upload_label')}
                   </label>
                   <input
                     type="file"
@@ -383,8 +389,8 @@ export default function RegistrationPage({
                   />
                   <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
                     <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
-                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload Commercial Trade License (PDF / JPG / PNG)'}</p>
-                    <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Required for dealer verification'}</p>
+                    <p>{tradeLicenseFile ? `${isRTL ? 'المرفق:' : 'Attached:'} ${tradeLicenseFile}` : t('reg_license_upload_btn')}</p>
+                    <p className="small">{tradeLicenseFile ? (isRTL ? 'المستند جاهز للتحقق' : 'Document ready for verification') : (isRTL ? 'مطلوب للتحقق من هوية المعرض' : 'Required for dealer verification')}</p>
                   </div>
                 </div>
               )}
@@ -397,11 +403,11 @@ export default function RegistrationPage({
                 onClick={handleUserRegister}
               >
                 {authLoading
-                  ? 'Submitting registration…'
-                  : 'Submit for Admin Verification'}
+                  ? t('reg_submitting_btn')
+                  : t('reg_submit_btn')}
               </button>
               <button className="btn-secondary" onClick={() => setRegStep(2)}>
-                Back
+                {t('reg_back')}
               </button>
             </div>
           )}

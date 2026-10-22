@@ -79,6 +79,18 @@ export default function App() {
         sortBy
       });
       setListings(data);
+
+      // If URL contains ?listing=ID or ?id=ID from social sharing, auto-open modal
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const sharedId = params.get('listing') || params.get('id');
+        if (sharedId && data && data.length > 0) {
+          const matched = data.find(item => String(item.id) === String(sharedId));
+          if (matched) {
+            setSelectedListing(matched);
+          }
+        }
+      } catch {}
     } catch (e) {
       console.warn('API error, using cached data', e);
     }

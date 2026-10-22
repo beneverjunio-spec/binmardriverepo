@@ -3344,4 +3344,144 @@ tr:last-child td {
   }
 }
 
+/* ==========================================
+   Social Media Sharing Bar (Listing Details Modal)
+   ========================================== */
+.modal-share-bar {
+  margin: 1.2rem 0;
+  padding: 0.9rem 1.1rem;
+  background: #FAF7EF;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-share-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-share-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  user-select: none;
+}
+
+.share-btn:hover {
+  transform: translateY(-1px);
+}
+
+.share-btn-fb {
+  background: #1877F2;
+  color: #ffffff;
+}
+.share-btn-fb:hover {
+  background: #1464cc;
+  box-shadow: 0 4px 12px rgba(24, 119, 242, 0.25);
+}
+
+.share-btn-ig {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  color: #ffffff;
+}
+.share-btn-ig:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px rgba(220, 39, 67, 0.25);
+}
+
+.share-btn-tiktok {
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.share-btn-tiktok:hover {
+  background: #1a1a1a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.share-btn-link {
+  background: #ffffff;
+  color: var(--deep);
+  border: 1px solid var(--gold-dim);
+}
+.share-btn-link:hover {
+  background: #FAF7EF;
+  border-color: var(--gold);
+  color: var(--deep);
+}
+
+.share-btn-copied {
+  background: #15803d !important;
+  color: #ffffff !important;
+  border-color: #15803d !important;
+}
+
+/* ==========================================
+   RTL & Arabic Typography Styles
+   ========================================== */
+[dir="rtl"] {
+  font-family: 'Cairo', 'Manrope', sans-serif;
+  text-align: right;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] select,
+[dir="rtl"] textarea,
+[dir="rtl"] button {
+  font-family: 'Cairo', 'Manrope', sans-serif;
+}
+
+[dir="rtl"] .modal-close {
+  right: auto;
+  left: 12px;
+}
+
+[dir="rtl"] .card-tag {
+  left: auto;
+  right: 14px;
+}
+
+[dir="rtl"] .btn-loc-maps {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+[dir="rtl"] .flow-brand {
+  border-right: none;
+  border-left: 1px solid var(--gold-dim);
+}
+
+[dir="rtl"] .admin-sidebar {
+  border-right: none;
+  border-left: 1px solid var(--gold-dim);
+}
+
+[dir="rtl"] .nav-links {
+  margin-right: 0;
+}
+
 

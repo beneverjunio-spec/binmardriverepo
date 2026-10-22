@@ -3,12 +3,15 @@ import { Eye, EyeOff } from 'lucide-react';
 import { login, logout } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from '../api/auth';
 import { DEFAULT_ADMIN_DATA } from '../constants';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AdminLoginPage({
   setCurrentUser,
   setCurrentPage,
   notify
 }) {
+  const { t, isRTL } = useLanguage();
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -148,11 +151,14 @@ export default function AdminLoginPage({
       </div>
 
       <div className="flow-formside">
+        <div style={{ display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end', width: '100%', maxWidth: '440px', marginBottom: '1rem' }}>
+          <LanguageSwitcher />
+        </div>
         <form className="flow-card" onSubmit={handleAdminLogin}>
-          <h1 className="step-title">Admin log in</h1>
-          <p className="step-desc">Enter staff credentials to access moderation and verification queues.</p>
+          <h1 className="step-title">{t('admin_login_title')}</h1>
+          <p className="step-desc">{t('admin_login_sub')}</p>
 
-          <label htmlFor="admin-email">Admin email</label>
+          <label htmlFor="admin-email">{t('admin_email_label')}</label>
           <input
             id="admin-email"
             type="email"
@@ -163,7 +169,7 @@ export default function AdminLoginPage({
             onChange={e => setAdminEmail(e.target.value)}
           />
 
-          <label htmlFor="admin-password">Password</label>
+          <label htmlFor="admin-password">{t('admin_password_label')}</label>
           <div className="password-input-wrap">
             <input
               id="admin-password"
@@ -187,7 +193,7 @@ export default function AdminLoginPage({
           {adminLoginError && <p className="err" role="alert">{adminLoginError}</p>}
 
           <button className="btn-primary" type="submit" disabled={authLoading}>
-            {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
+            {authLoading ? 'Signing in…' : t('admin_login_btn')}
           </button>
 
           <button
@@ -196,7 +202,7 @@ export default function AdminLoginPage({
             style={{ marginTop: '1rem' }}
             onClick={() => setCurrentPage('marketplace')}
           >
-            Back to Marketplace
+            {t('admin_exit_marketplace')}
           </button>
         </form>
       </div>

@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import { login } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from '../api/auth';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function UserLoginPage({
   loginEmail,
@@ -12,6 +14,7 @@ export default function UserLoginPage({
   setCurrentPage,
   notify
 }) {
+  const { t, isRTL } = useLanguage();
   const [loginPass, setLoginPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
@@ -226,11 +229,14 @@ export default function UserLoginPage({
       </div>
 
       <div className="flow-formside">
+        <div style={{ display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end', width: '100%', maxWidth: '440px', marginBottom: '1rem' }}>
+          <LanguageSwitcher />
+        </div>
         <form className="flow-card" onSubmit={handleUserLogin}>
-          <h1 className="step-title">Sign in</h1>
-          <p className="step-desc">Enter your email and password to manage or publish your vehicle listings.</p>
+          <h1 className="step-title">{t('seller_sign_in_title')}</h1>
+          <p className="step-desc">{t('seller_sign_in_sub')}</p>
 
-          <label htmlFor="login-email">Email</label>
+          <label htmlFor="login-email">{t('seller_email')}</label>
           <input
             id="login-email"
             type="email"
@@ -241,7 +247,7 @@ export default function UserLoginPage({
             onChange={e => setLoginEmail(e.target.value)}
           />
 
-          <label htmlFor="login-password">Password</label>
+          <label htmlFor="login-password">{t('seller_password')}</label>
           <div className="password-input-wrap">
             <input
               id="login-password"
@@ -265,16 +271,15 @@ export default function UserLoginPage({
           {loginError && <p className="err" role="alert">{loginError}</p>}
 
           <button className="btn-primary" type="submit" disabled={authLoading}>
-            {authLoading ? 'Signing in…' : 'Sign in'}
+            {authLoading ? t('seller_signing_in') : t('seller_login_btn')}
           </button>
-
 
           <button
             className="btn-secondary"
             type="button"
             onClick={() => setCurrentPage('registration')}
           >
-            New to BinmarDrive? Create an account (Free)
+            {t('seller_register_free')}
           </button>
         </form>
       </div>

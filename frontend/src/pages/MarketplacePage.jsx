@@ -3,6 +3,7 @@ import HeroSection from '../components/marketplace/HeroSection';
 import TrustBanner from '../components/marketplace/TrustBanner';
 import CategoryStrip from '../components/marketplace/CategoryStrip';
 import ListingCard from '../components/marketplace/ListingCard';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function MarketplacePage({
   listings,
@@ -21,6 +22,8 @@ export default function MarketplacePage({
   onSelectListing,
   onPostListingClick
 }) {
+  const { t } = useLanguage();
+
   return (
     <div>
       {/* Hero Section */}
@@ -38,7 +41,6 @@ export default function MarketplacePage({
       {/* Trust Metrics */}
       <TrustBanner listings={listings} listingsCount={listings.length} selectedCountry={selectedCountry} />
 
-
       {/* Category Chips Strip */}
       <CategoryStrip
         selectedCategory={selectedCategory}
@@ -49,8 +51,8 @@ export default function MarketplacePage({
       <div className="browse" id="browse">
         <div className="browse-head">
           <div>
-            <h2>Browse listings</h2>
-            <p>Showing {listings.length} live verified listing{listings.length === 1 ? '' : 's'}</p>
+            <h2>{t('browse_title')}</h2>
+            <p>{t('showing_verified', { count: listings.length })}</p>
           </div>
           <div className="browse-controls">
             <div className="tab-pair">
@@ -58,25 +60,25 @@ export default function MarketplacePage({
                 className={`tab-opt ${selectedType === '' ? 'on' : ''}`}
                 onClick={() => setSelectedType('')}
               >
-                All
+                {t('tab_all')}
               </div>
               <div
                 className={`tab-opt ${selectedType === 'sale' ? 'on' : ''}`}
                 onClick={() => setSelectedType('sale')}
               >
-                For sale
+                {t('tab_sale')}
               </div>
               <div
                 className={`tab-opt ${selectedType === 'rent' ? 'on' : ''}`}
                 onClick={() => setSelectedType('rent')}
               >
-                For rent
+                {t('tab_rent')}
               </div>
             </div>
             <select className="sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-              <option value="newest">Newest first</option>
-              <option value="low">Price: low to high</option>
-              <option value="high">Price: high to low</option>
+              <option value="newest">{t('sort_newest')}</option>
+              <option value="low">{t('sort_low')}</option>
+              <option value="high">{t('sort_high')}</option>
             </select>
           </div>
         </div>
@@ -96,40 +98,19 @@ export default function MarketplacePage({
             <div className="empty" style={{ textAlign: 'center', padding: '3.5rem 1.5rem', gridColumn: '1 / -1' }}>
               <div style={{ fontSize: '2.5rem', marginBottom: '0.8rem' }}>🚗</div>
               <h3 style={{ fontFamily: 'Fraunces, serif', fontSize: '1.4rem', color: 'var(--ink)', marginBottom: '0.5rem' }}>
-                No active listings yet
+                {t('no_listings_title')}
               </h3>
               <p style={{ color: 'var(--ink-soft)', maxWidth: '420px', margin: '0 auto 1.5rem', fontSize: '0.92rem', lineHeight: '1.5' }}>
                 {selectedMake || selectedCountry || selectedType || selectedCategory || maxPrice
-                  ? 'No vehicles found matching your current filters. Try resetting search criteria.'
-                  : 'All test data has been cleared. Post your vehicle now to become the first live verified listing on BinmarDrive!'}
+                  ? (t('no_listings_desc'))
+                  : (t('no_listings_desc'))}
               </p>
               <button className="btn-gold" onClick={onPostListingClick}>
-                Post a listing — free
+                {t('nav_post_listing')}
               </button>
             </div>
           )}
         </div>
-      </div>
-
-      {/* Post a Listing Banner */}
-      <div
-        className="cta"
-        style={{
-          background: 'linear-gradient(160deg, var(--deep) 0%, var(--deep-2) 100%)',
-          padding: '3rem 2rem',
-          textAlign: 'center',
-          color: '#F5EFE0'
-        }}
-      >
-        <h2 style={{ fontFamily: 'Fraunces, serif', fontSize: '1.8rem', marginBottom: '8px' }}>
-          Have a car to sell? <em style={{ color: 'var(--gold-bright)' }}>List it free</em>, today.
-        </h2>
-        <p style={{ color: 'var(--sage)', marginBottom: '1.5rem', fontSize: '0.92rem' }}>
-          No commission, no listing fees &mdash; for individual owners, dealers and companies.
-        </p>
-        <button className="btn-gold" onClick={onPostListingClick}>
-          Post a listing
-        </button>
       </div>
     </div>
   );
