@@ -270,7 +270,14 @@ export default function SellerPortalPage({
         const parsed = JSON.parse(raw);
         const localItems = parsed.filter(item => !isTestData(item));
         localItems.forEach(item => {
-          if (!allCustom.some(c => String(c.id) === String(item.id))) {
+          const matchIdx = allCustom.findIndex(c =>
+            String(c.id) === String(item.id) ||
+            ((c.title || '').trim().toLowerCase() === (item.title || '').trim().toLowerCase() &&
+             Number(c.price) === Number(item.price))
+          );
+          if (matchIdx !== -1) {
+            allCustom[matchIdx] = { ...allCustom[matchIdx], ...item };
+          } else {
             allCustom.push(item);
           }
         });

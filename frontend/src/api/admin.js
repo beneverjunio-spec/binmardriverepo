@@ -3,6 +3,38 @@ import { DEFAULT_ADMIN_DATA } from '../constants';
 
 const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
 
+export function isSameVehicle(a, b) {
+  if (!a || !b) return false;
+  const aId = String(a.id || a._id || '');
+  const bId = String(b.id || b._id || '');
+  if (aId && bId && aId === bId) return true;
+
+  const aTitle = (a.title || `${a.year || ''} ${a.make || ''} ${a.model || ''}`).trim().toLowerCase();
+  const bTitle = (b.title || `${b.year || ''} ${b.make || ''} ${b.model || ''}`).trim().toLowerCase();
+  const aPrice = Number(a.price);
+  const bPrice = Number(b.price);
+
+  if (aTitle && bTitle && aTitle === bTitle && (!Number.isFinite(aPrice) || !Number.isFinite(bPrice) || aPrice === bPrice)) {
+    const aSeller = (a.seller_name || '').trim().toLowerCase();
+    const bSeller = (b.seller_name || '').trim().toLowerCase();
+    if (aSeller && bSeller && aSeller === bSeller) return true;
+
+    const aPhone = (a.whatsapp_number || a.contact_phone || a.phone || '').replace(/\D/g, '');
+    const bPhone = (b.whatsapp_number || b.contact_phone || b.phone || '').replace(/\D/g, '');
+    if (aPhone && bPhone && aPhone === bPhone) return true;
+
+    const aEmail = (a.seller_email || a.email || '').trim().toLowerCase();
+    const bEmail = (b.seller_email || b.email || '').trim().toLowerCase();
+    if (aEmail && bEmail && aEmail === bEmail) return true;
+
+    if (a.make && b.make && a.make.toLowerCase() === b.make.toLowerCase() &&
+        a.model && b.model && a.model.toLowerCase() === b.model.toLowerCase()) {
+      return true;
+    }
+  }
+  return false;
+}
+
 function isTestData(item) {
   if (!item) return false;
   const idStr = String(item.id || item._id || '');
@@ -134,27 +166,61 @@ export async function fetchAdminPortalData() {
       apiRequest('/api/notifications')
     ]);
 
-    // 1. Combine Moderation Queue
+    // 1. Combine Moderation Queue (Strictly Deduplicated)
     const activeServerQueue = (modRes.queue || [])
       .filter(item => !resolvedModeration.includes(String(item.id)));
-    const combinedQueue = [...pendingCustom];
+
+    // Deduplicate pendingCustom first
+    const dedupedPendingCustom = [];
+    for (const pc of pendingCustom) {
+      if (!dedupedPendingCustom.some(ex => isSameVehicle(ex, pc))) {
+        dedupedPendingCustom.push(pc);
+      }
+    }
+
+    const combinedQueue = [...dedupedPendingCustom];
     for (const sq of activeServerQueue) {
-      if (!combinedQueue.some(cq => String(cq.id) === String(sq.id))) {
+      const matchIdx = combinedQueue.findIndex(cq => isSameVehicle(cq, sq));
+      if (matchIdx !== -1) {
+        // Merge so server is primary, retaining client-attached document URL
+        combinedQueue[matchIdx] = {
+          ...combinedQueue[matchIdx],
+          ...sq,
+          document_url: combinedQueue[matchIdx].document_url || sq.document_url || null,
+          document_file: combinedQueue[matchIdx].document_file || sq.document_file || null
+        };
+      } else {
         combinedQueue.push(sq);
       }
     }
-    const queue = combinedQueue.filter(item => !isTestData(item));
 
-    // 2. Combine Live Listings
+    // Final deduplication guaranteeing strictly 1 entry per vehicle in moderation
+    const queue = [];
+    for (const item of combinedQueue) {
+      if (!isTestData(item) && !queue.some(q => isSameVehicle(q, item))) {
+        queue.push(item);
+      }
+    }
+
+    // 2. Combine Live Listings (Strictly Deduplicated)
     const activeServerListings = (listRes.listings || [])
       .filter(l => (l.status === 'approved' || !l.status) && !deletedListingIds.includes(String(l.id)));
     const combinedLive = [...approvedCustom];
     for (const sl of activeServerListings) {
-      if (!combinedLive.some(cl => String(cl.id) === String(sl.id))) {
+      const matchIdx = combinedLive.findIndex(cl => isSameVehicle(cl, sl));
+      if (matchIdx !== -1) {
+        combinedLive[matchIdx] = { ...combinedLive[matchIdx], ...sl };
+      } else {
         combinedLive.push(sl);
       }
     }
-    const liveList = combinedLive.filter(item => !isTestData(item));
+    const rawLiveList = combinedLive.filter(item => !isTestData(item));
+    const liveList = [];
+    for (const item of rawLiveList) {
+      if (!liveList.some(l => isSameVehicle(l, item))) {
+        liveList.push(item);
+      }
+    }
 
     // 3. Combine Dealers from online server database
     const serverDealers = (dealerRes.dealers || []).filter(d => !isTestData(d) && d.user_type !== 'admin');
@@ -188,12 +254,16 @@ export async function fetchAdminPortalData() {
     const verifiedDealers = combinedDealers.filter(d => d.status === 'approved' || d.status === 'verified');
     const rejectedDealers = combinedDealers.filter(d => d.status === 'rejected');
 
-    // 4. Combine Notifications
+    // 4. Combine Notifications (Deduplicated)
     const serverNotifs = (notifRes.notifications || []).filter(n => !isTestData(n));
-    const combinedNotifs = [...customNotifs];
-    for (const sn of serverNotifs) {
-      if (!combinedNotifs.some(cn => String(cn.id) === String(sn.id))) {
-        combinedNotifs.push(sn);
+    const combinedNotifs = [];
+    for (const n of [...customNotifs, ...serverNotifs]) {
+      const alreadyExists = combinedNotifs.some(cn =>
+        String(cn.id) === String(n.id) ||
+        (cn.title === n.title && cn.message === n.message)
+      );
+      if (!alreadyExists) {
+        combinedNotifs.push(n);
       }
     }
 
@@ -219,8 +289,30 @@ export async function fetchAdminPortalData() {
     const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || [])
       .filter(item => !isTestData(item));
 
-    const queue = [...pendingCustom, ...defaultMod];
-    const liveList = [...approvedCustom, ...defaultListings];
+    const combinedQueueFallback = [...pendingCustom];
+    for (const dm of defaultMod) {
+      if (!combinedQueueFallback.some(cq => isSameVehicle(cq, dm))) {
+        combinedQueueFallback.push(dm);
+      }
+    }
+    const queue = [];
+    for (const item of combinedQueueFallback) {
+      if (!queue.some(q => isSameVehicle(q, item))) {
+        queue.push(item);
+      }
+    }
+    const combinedLiveFallback = [...approvedCustom];
+    for (const dl of defaultListings) {
+      if (!combinedLiveFallback.some(cl => isSameVehicle(cl, dl))) {
+        combinedLiveFallback.push(dl);
+      }
+    }
+    const liveList = [];
+    for (const item of combinedLiveFallback) {
+      if (!liveList.some(l => isSameVehicle(l, item))) {
+        liveList.push(item);
+      }
+    }
 
     const combinedDealers = [...customDealers];
     for (const dd of defaultDealers) {
@@ -261,32 +353,34 @@ export async function resolveModerationListing(id, approve, reason = '') {
     if (rawRes) resolved = JSON.parse(rawRes);
     if (!resolved.includes(String(id))) {
       resolved.push(String(id));
-      localStorage.setItem('binmar_resolved_moderation', JSON.stringify(resolved));
     }
-  } catch {}
 
-  try {
+    // Also find any matching duplicate items in custom listings and resolve them
     const raw = localStorage.getItem('binmar_custom_listings');
     if (raw) {
       const items = JSON.parse(raw);
-      const matchIndex = items.findIndex(item => String(item.id) === String(id));
-      if (matchIndex !== -1) {
-        foundTitle = items[matchIndex].title || 'Vehicle';
-        sellerEmail = items[matchIndex].seller_email || items[matchIndex].email || '';
-        if (approve) {
-          items[matchIndex].status = 'approved';
-          items[matchIndex].approved_at = new Date().toISOString();
-        } else {
-          items[matchIndex].status = 'rejected';
-          items[matchIndex].rejection_reason = reason;
-          items[matchIndex].rejected_at = new Date().toISOString();
+      const targetItem = items.find(item => String(item.id) === String(id));
+      items.forEach(item => {
+        if (String(item.id) === String(id) || (targetItem && isSameVehicle(item, targetItem))) {
+          if (!resolved.includes(String(item.id))) {
+            resolved.push(String(item.id));
+          }
+          foundTitle = item.title || foundTitle;
+          sellerEmail = item.seller_email || item.email || sellerEmail;
+          if (approve) {
+            item.status = 'approved';
+            item.approved_at = new Date().toISOString();
+          } else {
+            item.status = 'rejected';
+            item.rejection_reason = reason;
+            item.rejected_at = new Date().toISOString();
+          }
         }
-        localStorage.setItem('binmar_custom_listings', JSON.stringify(items));
-      }
+      });
+      localStorage.setItem('binmar_custom_listings', JSON.stringify(items));
     }
-  } catch (e) {
-    console.warn('Could not update custom listing in localStorage', e);
-  }
+    localStorage.setItem('binmar_resolved_moderation', JSON.stringify(resolved));
+  } catch {}
 
   // Create real-time notification for the Seller Portal if rejected
   if (!approve) {

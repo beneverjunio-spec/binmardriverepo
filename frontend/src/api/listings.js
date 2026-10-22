@@ -1,5 +1,6 @@
 import { apiRequest } from './client';
 import { DEFAULT_LISTINGS } from '../constants';
+import { isSameVehicle } from './admin';
 
 const MAKE_FALLBACK_IMAGES = {
   Toyota: 'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80',
@@ -170,10 +171,11 @@ export async function createListing(payload) {
   const city = payload.city && payload.city.trim() ? payload.city.trim() : 'Dubai';
   const country = payload.country || 'United Arab Emirates';
   const location = `${city}, ${country}`;
+  const listingId = payload.id || Date.now();
 
   const newListing = {
-    id: Date.now(),
-    title: `${payload.year} ${payload.make} ${payload.model}`,
+    id: listingId,
+    title: payload.title || `${payload.year} ${payload.make} ${payload.model}`,
     make: payload.make,
     model: payload.model,
     year: Number(payload.year),
@@ -198,42 +200,56 @@ export async function createListing(payload) {
     contact_phone: payload.whatsapp_number,
     description: payload.description,
     images,
+    document_name: payload.document_name || payload.document_file || `${payload.make}_${payload.model}_Mulkiya.pdf`,
+    document_file: payload.document_file || payload.document_name || `${payload.make}_${payload.model}_Mulkiya.pdf`,
+    document_url: payload.document_url || null,
     status: 'pending', // PENDING: Sent to Admin Moderation Queue first!
     created_at: new Date().toISOString()
   };
 
-  // Save to custom listings in pending status for Admin moderation
-  try {
-    const raw = localStorage.getItem('binmar_custom_listings');
-    const existing = raw ? JSON.parse(raw) : [];
-    localStorage.setItem('binmar_custom_listings', JSON.stringify([newListing, ...existing]));
-
-    // Send high-priority notification to Admin Portal
-    const notifRaw = localStorage.getItem('binmar_admin_notifications');
-    const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
-    const newNotif = {
-      id: Date.now(),
-      title: 'New Vehicle Pending Review',
-      message: `${newListing.title} was submitted by ${newListing.seller_name} (${newListing.city}, ${newListing.country}) and is waiting in the Moderation Queue for review.`,
-      is_read: false,
-      created_at: new Date().toISOString()
-    };
-    localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
-  } catch (e) {
-    console.warn('Could not save to localStorage', e);
-  }
-
+  // Synchronize with backend API first so identical ID is preserved online
+  let serverId = listingId;
   try {
     const apiRes = await apiRequest('/api/listings', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payload, city, country, location, images })
+      body: JSON.stringify({ ...payload, id: listingId, city, country, location, images })
     });
-    return apiRes;
+    if (apiRes && (apiRes.id || (apiRes.listing && apiRes.listing.id))) {
+      serverId = apiRes.id || apiRes.listing.id;
+    }
   } catch (err) {
     console.warn('API submission offline, queued locally for moderation', err);
-    return { success: true, message: 'Listing submitted for moderation.' };
   }
+
+  newListing.id = serverId;
+
+  // Save to custom listings in pending status (strictly deduplicated by vehicle match)
+  try {
+    const raw = localStorage.getItem('binmar_custom_listings');
+    const existing = raw ? JSON.parse(raw) : [];
+    const filtered = existing.filter(ex => !isSameVehicle(ex, newListing));
+    localStorage.setItem('binmar_custom_listings', JSON.stringify([newListing, ...filtered]));
+
+    // Send single notification to Admin Portal (deduplicated)
+    const notifRaw = localStorage.getItem('binmar_admin_notifications');
+    const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+    const notifTitle = 'New Vehicle Pending Review';
+    const notifMsg = `${newListing.title} was submitted by ${newListing.seller_name} (${newListing.city}, ${newListing.country}) and is waiting in the Moderation Queue for review.`;
+    const filteredNotifs = existingNotifs.filter(n => !(n.title === notifTitle && n.message === notifMsg));
+    const newNotif = {
+      id: Date.now(),
+      title: notifTitle,
+      message: notifMsg,
+      is_read: false,
+      created_at: new Date().toISOString()
+    };
+    localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...filteredNotifs]));
+  } catch (e) {
+    console.warn('Could not save to localStorage', e);
+  }
+
+  return { success: true, id: serverId, message: 'Listing submitted for moderation.' };
 }
 
 

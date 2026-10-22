@@ -664,8 +664,12 @@ export default async (request: Request) => {
 
       const currency = body.currency || 'AED';
       const listingType = body.listing_type === 'rent' ? 'rent' : 'sale';
+
+      // Use client-provided ID if supplied, otherwise generate new timestamp ID
+      const listingId: number = (body.id && Number.isFinite(Number(body.id))) ? Number(body.id) : Date.now();
+
       const newListing: ListingItem = {
-        id: Date.now(),
+        id: listingId,
         title: body.title || `${year} ${body.make.trim()} ${body.model.trim()}`,
         make: body.make.trim(),
         model: body.model.trim(),
@@ -695,7 +699,16 @@ export default async (request: Request) => {
       };
 
       const allListings = await loadListings();
-      await saveListings([newListing, ...allListings]);
+
+      // Deduplicate: if a listing with the same ID already exists, replace it instead of adding new
+      const existingIdx = allListings.findIndex(l => String(l.id) === String(listingId));
+      let updatedListings: ListingItem[];
+      if (existingIdx !== -1) {
+        updatedListings = allListings.map((l, i) => i === existingIdx ? newListing : l);
+      } else {
+        updatedListings = [newListing, ...allListings];
+      }
+      await saveListings(updatedListings);
 
       // Notification
       const notifs = await loadNotifications();
@@ -708,7 +721,7 @@ export default async (request: Request) => {
       };
       await saveNotifications([newNotif, ...notifs]);
 
-      return reply({ success: true, listingId: newListing.id, message: 'Listing submitted for moderation.' }, 201);
+      return reply({ success: true, id: newListing.id, listingId: newListing.id, message: 'Listing submitted for moderation.' }, 201);
     }
 
     // ----------------------------------------------------
