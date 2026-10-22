@@ -1,77 +1,4 @@
-{regAccountType === 'individual' ? (
-                <div>
-                  <label>Full name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Ahmed Al Mansoori"
-                    value={regName}
-                    onChange={e => setRegName(e.target.value)}
-                  />
-                  <label>Country</label>
-                  <select value={regCountry} onChange={e => setRegCountry(e.target.value)}>
-                    {GCC_COUNTRIES.map(country => (
-                      <option key={country}>{country}</option>
-                    ))}
-                  </select>
-
-                  <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
-                    National ID / Passport Verification Document
-                  </label>
-                  <input
-                    type="file"
-                    ref={licenseInputRef}
-                    accept=".pdf,image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleLicenseSelect}
-                  />
-                  <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
-                    <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
-                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload National ID / Passport / Driving License (PDF / JPG / PNG)'}</p>
-                    <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Upload your ID or passport for admin verification'}</p>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label>Company / Dealership name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. Al Futtaim Motors"
-                    value={regCompanyName}
-                    onChange={e => setRegCompanyName(e.target.value)}
-                  />
-                  <label>Trade license number</label>
-                  <input
-                    type="text"
-                    placeholder="e.g. CN-1234567"
-                    value={regLicense}
-                    onChange={e => setRegLicense(e.target.value)}
-                  />
-                  <label>Country of registration</label>
-                  <select value={regCountry} onChange={e => setRegCountry(e.target.value)}>
-                    {GCC_COUNTRIES.map(country => (
-                      <option key={country}>{country}</option>
-                    ))}
-                  </select>
-
-                  <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
-                    Commercial Trade License Document
-                  </label>
-                  <input
-                    type="file"
-                    ref={licenseInputRef}
-                    accept=".pdf,image/*"
-                    style={{ display: 'none' }}
-                    onChange={handleLicenseSelect}
-                  />
-                  <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
-                    <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
-                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload Commercial Trade License (PDF / JPG / PNG)'}</p>
-                    <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Required for dealer verification'}</p>
-                  </div>
-                </div>
-              )}
-
-              import React, { useState, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { User, Building2, Upload } from 'lucide-react';
 import { signup } from '@netlify/identity';
 import { GCC_COUNTRIES, COUNTRY_DIAL_CODES } from '../constants';
@@ -98,14 +25,12 @@ export default function RegistrationPage({
   const [authLoading, setAuthLoading] = useState(false);
   const [tradeLicenseFile, setTradeLicenseFile] = useState(null);
   const [tradeLicenseUrl, setTradeLicenseUrl] = useState(null);
-  const [selectedDocFile, setSelectedDocFile] = useState(null);
 
   const licenseInputRef = useRef(null);
 
   const handleLicenseSelect = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      setSelectedDocFile(file);
       setTradeLicenseFile(file.name);
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -141,18 +66,6 @@ export default function RegistrationPage({
       : (regLicense || 'ID-' + Math.floor(1000000 + Math.random() * 9000000));
     const tradeDoc = tradeLicenseFile || (isCompany ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf');
 
-    let finalDocUrl = tradeLicenseUrl;
-    if (selectedDocFile && !finalDocUrl) {
-      try {
-        finalDocUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(selectedDocFile);
-        });
-      } catch {}
-    }
-
     const payload = {
       user_type: regAccountType,
       name: displayName,
@@ -160,7 +73,7 @@ export default function RegistrationPage({
       company_name: companyName,
       trade_license: tradeLicense,
       trade_license_file: tradeDoc,
-      trade_license_url: finalDocUrl || null,
+      trade_license_url: tradeLicenseUrl || null,
       country: regCountry,
       email: regEmail.trim(),
       password: regPassword,
@@ -177,7 +90,7 @@ export default function RegistrationPage({
       user_type: regAccountType,
       trade_license: tradeLicense,
       trade_license_file: tradeDoc,
-      trade_license_url: finalDocUrl || null,
+      trade_license_url: tradeLicenseUrl || null,
       status: 'pending',
       created_at: new Date().toISOString()
     };
@@ -418,6 +331,22 @@ export default function RegistrationPage({
                       <option key={country}>{country}</option>
                     ))}
                   </select>
+
+                  <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
+                    National ID / Passport Verification Document
+                  </label>
+                  <input
+                    type="file"
+                    ref={licenseInputRef}
+                    accept=".pdf,image/*"
+                    style={{ display: 'none' }}
+                    onChange={handleLicenseSelect}
+                  />
+                  <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
+                    <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
+                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload National ID / Passport / Driving License (PDF / JPG / PNG)'}</p>
+                    <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Upload your ID or passport for admin verification'}</p>
+                  </div>
                 </div>
               ) : (
                 <div>
@@ -442,6 +371,9 @@ export default function RegistrationPage({
                     ))}
                   </select>
 
+                  <label style={{ display: 'block', marginTop: '14px', fontSize: '0.85rem', fontWeight: 600 }}>
+                    Commercial Trade License Document
+                  </label>
                   <input
                     type="file"
                     ref={licenseInputRef}
@@ -449,9 +381,9 @@ export default function RegistrationPage({
                     style={{ display: 'none' }}
                     onChange={handleLicenseSelect}
                   />
-                  <div className="dropzone" onClick={() => licenseInputRef.current?.click()}>
+                  <div className="dropzone" onClick={() => licenseInputRef.current?.click()} style={{ cursor: 'pointer', marginTop: '6px' }}>
                     <Upload size={22} style={{ margin: '0 auto 6px', display: 'block', color: 'var(--sage-dim)' }} />
-                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload Commercial Trade License (PDF / JPG)'}</p>
+                    <p>{tradeLicenseFile ? `Attached: ${tradeLicenseFile}` : 'Click to upload Commercial Trade License (PDF / JPG / PNG)'}</p>
                     <p className="small">{tradeLicenseFile ? 'Document ready for verification' : 'Required for dealer verification'}</p>
                   </div>
                 </div>
