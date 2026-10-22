@@ -667,13 +667,26 @@ app.get('/api/seller/listings', async (req, res) => {
         return res.json({ success: true, listings: allListings });
       }
       const sLower = seller.trim().toLowerCase();
+      // Match by email (primary) OR seller_name. Return ALL statuses so seller sees full history.
       const matched = allListings.filter(l =>
         (l.seller_email && l.seller_email.toLowerCase() === sLower) ||
         (l.seller_name && l.seller_name.toLowerCase() === sLower)
       );
       return res.json({ success: true, listings: matched });
     }
-    res.json({ success: true, listings: [] });
+
+    // MSSQL Path
+    const pool = await getPool();
+    let queryStr = `SELECT * FROM listings ORDER BY id DESC`;
+    const request = pool.request();
+    if (seller) {
+      const sLower = seller.trim().toLowerCase();
+      queryStr = `SELECT * FROM listings WHERE LOWER(seller_email) = @seller OR LOWER(seller_name) = @seller ORDER BY id DESC`;
+      request.input('seller', sql.NVarChar, sLower);
+    }
+    const result = await request.query(queryStr);
+    const listings = result.recordset.map(r => ({ ...r, images: parseImages(r.images) }));
+    res.json({ success: true, listings });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

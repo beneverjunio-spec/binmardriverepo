@@ -248,14 +248,32 @@ export default function SellerPortalPage({
     const currentUserEmail = (currentUser?.email || '').toLowerCase();
     const sellerParam = currentUserEmail || currentUserCompany || currentUserName;
 
-    // 1. Fetch online seller listings from database
+    // 1. Fetch online seller listings from server database (primary source - works across all devices)
     try {
-      if (sellerParam) {
-        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(sellerParam)}`);
+      if (currentUserEmail) {
+        // Query by email first (most reliable identifier)
+        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(currentUserEmail)}`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.success && Array.isArray(data.listings) && data.listings.length > 0) {
+          if (data && data.success && Array.isArray(data.listings)) {
             allCustom = data.listings.filter(item => !isTestData(item));
+          }
+        }
+      }
+
+      // Also try querying by seller name / company name if email gave no results
+      if (allCustom.length === 0 && (currentUserName || currentUserCompany)) {
+        const nameParam = currentUserCompany || currentUserName;
+        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(nameParam)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.listings)) {
+            const byName = data.listings.filter(item => !isTestData(item));
+            for (const item of byName) {
+              if (!allCustom.some(c => String(c.id) === String(item.id))) {
+                allCustom.push(item);
+              }
+            }
           }
         }
       }
@@ -263,12 +281,22 @@ export default function SellerPortalPage({
       console.warn('API seller listings fetch note:', e.message);
     }
 
-    // 2. Combine with local custom listings
+    // 2. Merge with local custom listings (covers offline/pending submissions on this device)
     try {
       const raw = localStorage.getItem('binmar_custom_listings');
       if (raw) {
         const parsed = JSON.parse(raw);
-        const localItems = parsed.filter(item => !isTestData(item));
+        const localItems = parsed.filter(item => {
+          if (isTestData(item)) return false;
+          const sName = (item.seller_name || '').toLowerCase();
+          const sEmail = (item.seller_email || '').toLowerCase();
+          return (
+            !sellerParam ||
+            sName === currentUserName ||
+            (currentUserCompany && sName === currentUserCompany) ||
+            (currentUserEmail && sEmail === currentUserEmail)
+          );
+        });
         localItems.forEach(item => {
           const matchIdx = allCustom.findIndex(c =>
             String(c.id) === String(item.id) ||
@@ -276,7 +304,13 @@ export default function SellerPortalPage({
              Number(c.price) === Number(item.price))
           );
           if (matchIdx !== -1) {
-            allCustom[matchIdx] = { ...allCustom[matchIdx], ...item };
+            // Prefer server data but keep local document_url if server doesn't have it
+            allCustom[matchIdx] = {
+              ...item,
+              ...allCustom[matchIdx],
+              document_url: allCustom[matchIdx].document_url || item.document_url || null,
+              document_file: allCustom[matchIdx].document_file || item.document_file || null
+            };
           } else {
             allCustom.push(item);
           }
@@ -292,18 +326,10 @@ export default function SellerPortalPage({
       if (rawDel) deletedIds = JSON.parse(rawDel);
     } catch {}
 
-    // Find custom listings added by this user
     const matchedListings = allCustom.filter(item => {
       if (deletedIds.includes(String(item.id))) return false;
       if (isTestData(item)) return false;
-      const sName = (item.seller_name || '').toLowerCase();
-      const sEmail = (item.seller_email || '').toLowerCase();
-      return (
-        !sellerParam ||
-        sName === currentUserName ||
-        (currentUserCompany && sName === currentUserCompany) ||
-        (currentUserEmail && sEmail === currentUserEmail)
-      );
+      return true;
     });
 
     setSellerListings(matchedListings);

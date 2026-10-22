@@ -639,15 +639,18 @@ export default async (request: Request) => {
     }
 
     if (path === '/api/seller/listings' && method === 'GET') {
-      const seller = (url.searchParams.get('seller') || '').toLowerCase();
+      const seller = (url.searchParams.get('seller') || '').trim().toLowerCase();
       const allListings = await loadListings();
       if (!seller) {
         return reply({ success: true, listings: allListings });
       }
-      const matched = allListings.filter(l =>
-        (l.seller_email && l.seller_email.toLowerCase() === seller) ||
-        (l.seller_name && l.seller_name.toLowerCase() === seller)
-      );
+      // Match by email (primary) or seller_name/company_name (fallback)
+      // Include ALL statuses: pending, approved, rejected - so seller sees their own history
+      const matched = allListings.filter(l => {
+        const lEmail = (l.seller_email || '').toLowerCase();
+        const lName = (l.seller_name || '').toLowerCase();
+        return lEmail === seller || lName === seller;
+      });
       return reply({ success: true, listings: matched });
     }
 

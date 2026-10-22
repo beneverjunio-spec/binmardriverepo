@@ -195,6 +195,7 @@ export async function createListing(payload) {
     longitude: payload.longitude || null,
     maps_url: payload.maps_url || null,
     seller_name: payload.seller_name || 'Car Owner',
+    seller_email: (payload.seller_email || '').toLowerCase(),
     contact_preference: 'WhatsApp',
     whatsapp_number: payload.whatsapp_number,
     contact_phone: payload.whatsapp_number,
