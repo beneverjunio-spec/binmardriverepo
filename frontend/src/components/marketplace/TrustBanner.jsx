@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCountryCurrency, GCC_COUNTRIES } from '../../constants';
 import { fetchAdminPortalData } from '../../api/admin';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function TrustBanner({ listings = [], listingsCount, selectedCountry }) {
+  const { t, tCountry } = useLanguage();
   const currency = getCountryCurrency(selectedCountry);
   const [verifiedDealersCount, setVerifiedDealersCount] = useState(0);
 
@@ -38,7 +40,6 @@ export default function TrustBanner({ listings = [], listingsCount, selectedCoun
       }
     } catch {}
 
-    // Fallback: direct localStorage inspection matching admin criteria
     try {
       const raw = localStorage.getItem('binmar_custom_dealers');
       if (raw) {
@@ -64,23 +65,25 @@ export default function TrustBanner({ listings = [], listingsCount, selectedCoun
     };
   }, []);
 
+  const countryLabel = selectedCountry ? tCountry(selectedCountry) : t('trust_gcc_countries');
+
   return (
     <div className="trust">
       <div className="trust-item">
         <div className="trust-value">{activeCount}</div>
-        <div className="trust-label">Active listings</div>
+        <div className="trust-label">{t('trust_active_listings')}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">{verifiedDealersCount}</div>
-        <div className="trust-label">Verified dealers</div>
+        <div className="trust-label">{t('trust_verified_dealers')}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">{countriesCount}</div>
-        <div className="trust-label">{selectedCountry ? selectedCountry : 'GCC Countries'}</div>
+        <div className="trust-label">{countryLabel}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">0 {currency}</div>
-        <div className="trust-label">Listing fees</div>
+        <div className="trust-label">{t('trust_listing_fees')}</div>
       </div>
     </div>
   );

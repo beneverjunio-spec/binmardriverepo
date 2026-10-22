@@ -47,6 +47,8 @@ import {
 } from '../constants';
 import { uploadListingPhotos, isTestData } from '../api/listings';
 import { apiRequest } from '../api/client';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
 
 // Helper to compress images on the client side to keep uploads fast and avoid localStorage quota errors
 function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
@@ -140,6 +142,7 @@ export default function SellerPortalPage({
   onRefreshListings,
   onOpenCreateListing
 }) {
+  const { t, isRTL } = useLanguage();
   // Navigation tabs
   const [activeTab, setActiveTab] = useState('listings'); // 'listings', 'dashboard', 'profile', 'analytics', 'inquiries', 'wallet', 'settings'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'published', 'pending', 'drafts', 'expired'
@@ -706,7 +709,7 @@ export default function SellerPortalPage({
 
         {/* Navigation Items */}
         <nav className="seller-nav-wrap">
-          <p className="seller-nav-section-title">Main</p>
+          <p className="seller-nav-section-title">{isRTL ? 'الرئيسية' : 'Main'}</p>
           <ul className="seller-nav-list">
             <li>
               <button
@@ -714,7 +717,7 @@ export default function SellerPortalPage({
                 onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
               >
                 <LayoutDashboard size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Dashboard</span>
+                <span className="seller-nav-label">{t('admin_tab_dashboard')}</span>
               </button>
             </li>
             <li>
@@ -724,7 +727,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'listings' && <span className="seller-active-indicator" />}
                 <Car size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">My Listings</span>
+                <span className="seller-nav-label">{t('studio_my_listings')}</span>
                 <span className="seller-nav-badge">{publishedCount + pendingCount}</span>
               </button>
             </li>
@@ -734,7 +737,7 @@ export default function SellerPortalPage({
                 onClick={() => { setShowAddModal(true); setMobileMenuOpen(false); }}
               >
                 <PlusCircle size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Add Listing</span>
+                <span className="seller-nav-label">{t('studio_add_listing')}</span>
               </button>
             </li>
             <li>
@@ -744,7 +747,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'orders' && <span className="seller-active-indicator" />}
                 <Tag size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Orders</span>
+                <span className="seller-nav-label">{t('studio_orders')}</span>
                 <span className="seller-nav-badge">0</span>
               </button>
             </li>
@@ -755,7 +758,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'messages' && <span className="seller-active-indicator" />}
                 <MessageSquare size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Messages</span>
+                <span className="seller-nav-label">{t('studio_messages')}</span>
                 <span className="seller-nav-badge">5</span>
               </button>
             </li>
@@ -765,12 +768,12 @@ export default function SellerPortalPage({
                 onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }}
               >
                 <BarChart3 size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Analytics</span>
+                <span className="seller-nav-label">{t('studio_analytics')}</span>
               </button>
             </li>
           </ul>
 
-          <p className="seller-nav-section-title mt-6">Account</p>
+          <p className="seller-nav-section-title mt-6">{isRTL ? 'الحساب' : 'Account'}</p>
           <ul className="seller-nav-list">
             <li>
               <button
@@ -779,7 +782,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'profile' && <span className="seller-active-indicator" />}
                 <User size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Profile</span>
+                <span className="seller-nav-label">{t('studio_profile')}</span>
               </button>
             </li>
             <li>
@@ -789,7 +792,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'wallet' && <span className="seller-active-indicator" />}
                 <Wallet size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Wallet</span>
+                <span className="seller-nav-label">{t('studio_wallet')}</span>
               </button>
             </li>
             <li>
@@ -799,7 +802,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'settings' && <span className="seller-active-indicator" />}
                 <Settings size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Settings</span>
+                <span className="seller-nav-label">{t('studio_settings')}</span>
               </button>
             </li>
             <li>
@@ -809,7 +812,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'help' && <span className="seller-active-indicator" />}
                 <HelpCircle size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Help Center</span>
+                <span className="seller-nav-label">{t('studio_help')}</span>
               </button>
             </li>
           </ul>
@@ -819,14 +822,14 @@ export default function SellerPortalPage({
         <div className="seller-upgrade-card">
           <div className="seller-card-dec1" />
           <div className="seller-card-dec2" />
-          <p className="seller-card-tag">PREMIUM</p>
-          <p className="seller-card-title">Boost your listings</p>
-          <p className="seller-card-desc">Get up to 5x more buyer inquiries.</p>
+          <p className="seller-card-tag">{t('studio_premium_tag')}</p>
+          <p className="seller-card-title">{t('studio_premium_title')}</p>
+          <p className="seller-card-desc">{t('studio_premium_desc')}</p>
           <button
             className="seller-upgrade-btn"
             onClick={() => notify('Premium dealer boost feature active for verified accounts.')}
           >
-            Upgrade Now <ChevronRight size={14} />
+            {t('studio_upgrade_btn')} <ChevronRight size={14} />
           </button>
         </div>
 
@@ -839,7 +842,7 @@ export default function SellerPortalPage({
             <p className="seller-user-name" title={sellerDisplayName}>{sellerDisplayName}</p>
             <p className="seller-user-badge">
               <ShieldCheck size={12} className="inline text-emerald-500 mr-1" />
-              Verified Seller
+              {t('studio_verified_seller')}
             </p>
           </div>
           <button
@@ -880,7 +883,7 @@ export default function SellerPortalPage({
             className="text-xs font-semibold text-gold-deep px-2.5 py-1 rounded-md bg-cream-deep border border-tan/60"
             onClick={() => setCurrentPage('marketplace')}
           >
-            Marketplace
+            {t('studio_mobile_marketplace')}
           </button>
         </div>
 
@@ -889,21 +892,21 @@ export default function SellerPortalPage({
           <header className="seller-top-header">
           <div className="seller-header-inner">
             <div>
-              <p className="seller-header-kicker">SELLER STUDIO</p>
+              <p className="seller-header-kicker">{t('studio_header_kicker')}</p>
               <h1 className="seller-header-title">
-                {activeTab === 'listings' && 'My Listings'}
-                {activeTab === 'dashboard' && 'Studio Dashboard'}
-                {activeTab === 'profile' && 'Seller Profile & Commercial Verification'}
-                {activeTab === 'analytics' && 'Performance Analytics'}
-                {activeTab === 'inquiries' && 'Buyer Leads & Inquiries'}
-                {activeTab === 'wallet' && 'Seller Wallet & Transactions'}
-                {activeTab === 'settings' && 'Studio Settings'}
-                {activeTab === 'help' && 'Seller Support & Knowledge Base'}
+                {activeTab === 'listings' && t('studio_tab_listings_title')}
+                {activeTab === 'dashboard' && t('studio_tab_dashboard_title')}
+                {activeTab === 'profile' && t('studio_tab_profile_title')}
+                {activeTab === 'analytics' && t('studio_tab_analytics_title')}
+                {activeTab === 'inquiries' && t('studio_tab_inquiries_title')}
+                {activeTab === 'wallet' && t('studio_tab_wallet_title')}
+                {activeTab === 'settings' && t('studio_tab_settings_title')}
+                {activeTab === 'help' && t('studio_tab_help_title')}
               </h1>
               <p className="seller-header-subtitle">
                 {activeTab === 'listings'
-                  ? 'Edit any published listing in place — vehicle details, photos, price & location.'
-                  : `Manage your dealer operations, verification credentials, and buyer requests.`}
+                  ? t('studio_listings_subtitle')
+                  : t('studio_manage_subtitle')}
               </p>
             </div>
 
@@ -913,7 +916,7 @@ export default function SellerPortalPage({
                   <Search size={16} className="seller-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search make, model, city…"
+                    placeholder={t('studio_search_placeholder')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="seller-search-input"
@@ -929,11 +932,13 @@ export default function SellerPortalPage({
                 </div>
               )}
 
+              <LanguageSwitcher />
+
               <button
                 className="seller-new-listing-btn"
                 onClick={() => setShowAddModal(true)}
               >
-                <Plus size={16} /> New Listing
+                <Plus size={16} /> {t('studio_add_listing')}
               </button>
 
               <button
@@ -942,7 +947,7 @@ export default function SellerPortalPage({
                 title="View live website"
               >
                 <ExternalLink size={15} />
-                <span className="hidden sm:inline">Marketplace</span>
+                <span className="hidden sm:inline">{t('nav_marketplace')}</span>
               </button>
             </div>
           </div>
@@ -961,9 +966,9 @@ export default function SellerPortalPage({
                     <CheckCircle2 size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Published</p>
+                    <p className="seller-stat-label">{t('studio_published_label')}</p>
                     <p className="seller-stat-value">{publishedCount}</p>
-                    <p className="seller-stat-sub">active listings</p>
+                    <p className="seller-stat-sub">{t('studio_active_label')}</p>
                   </div>
                 </div>
 
@@ -972,9 +977,9 @@ export default function SellerPortalPage({
                     <Eye size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Total views</p>
+                    <p className="seller-stat-label">{t('studio_views_label')}</p>
                     <p className="seller-stat-value">{totalViews.toLocaleString()}</p>
-                    <p className="seller-stat-sub">last 30 days</p>
+                    <p className="seller-stat-sub">{t('studio_views_sub')}</p>
                   </div>
                 </div>
 
@@ -983,9 +988,9 @@ export default function SellerPortalPage({
                     <MessageSquare size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Inquiries</p>
+                    <p className="seller-stat-label">{t('studio_inquiries_label')}</p>
                     <p className="seller-stat-value">{totalInquiries}</p>
-                    <p className="seller-stat-sub">buyer messages</p>
+                    <p className="seller-stat-sub">{t('studio_inquiries_sub')}</p>
                   </div>
                 </div>
               </div>
@@ -997,31 +1002,31 @@ export default function SellerPortalPage({
                     className={`seller-pill ${statusFilter === 'all' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('all')}
                   >
-                    All <span className="seller-pill-badge">{sellerListings.length}</span>
+                    {t('studio_tab_all')} <span className="seller-pill-badge">{sellerListings.length}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'published' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('published')}
                   >
-                    Published <span className="seller-pill-badge">{publishedCount}</span>
+                    {t('studio_tab_published')} <span className="seller-pill-badge">{publishedCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'pending' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('pending')}
                   >
-                    Pending <span className="seller-pill-badge">{pendingCount}</span>
+                    {t('studio_tab_pending')} <span className="seller-pill-badge">{pendingCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'drafts' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('drafts')}
                   >
-                    Drafts <span className="seller-pill-badge">{draftsCount}</span>
+                    {t('studio_tab_drafts')} <span className="seller-pill-badge">{draftsCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'expired' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('expired')}
                   >
-                    Expired <span className="seller-pill-badge">{expiredCount}</span>
+                    {t('studio_tab_expired')} <span className="seller-pill-badge">{expiredCount}</span>
                   </button>
                 </div>
 
@@ -1032,9 +1037,9 @@ export default function SellerPortalPage({
                     onChange={e => setSortBy(e.target.value)}
                     className="seller-sorter-select"
                   >
-                    <option value="recent">Sort by recent</option>
-                    <option value="price_desc">Price: High to Low</option>
-                    <option value="price_asc">Price: Low to High</option>
+                    <option value="recent">{t('studio_sort_recent')}</option>
+                    <option value="price_desc">{t('studio_sort_price_high')}</option>
+                    <option value="price_asc">{t('studio_sort_price_low')}</option>
                   </select>
                 </div>
               </div>
@@ -1043,17 +1048,17 @@ export default function SellerPortalPage({
               {filteredListings.length === 0 ? (
                 <div className="seller-empty-state">
                   <Car size={48} className="text-gold-dim mx-auto mb-3" />
-                  <h3 className="text-xl font-bold font-serif-display text-ink">No vehicle listings found</h3>
+                  <h3 className="text-xl font-bold font-serif-display text-ink">{t('studio_no_listings')}</h3>
                   <p className="text-ink-soft text-sm max-w-md mx-auto mt-1 mb-5">
                     {searchQuery
-                      ? `No vehicles matched "${searchQuery}". Clear your search query to see all vehicles.`
-                      : 'You do not have any listings in this status tab yet. Post your first vehicle to get started!'}
+                      ? t('studio_no_search_result', { query: searchQuery })
+                      : t('studio_no_listings_sub')}
                   </p>
                   <button
                     className="seller-new-listing-btn mx-auto"
                     onClick={() => setShowAddModal(true)}
                   >
-                    <Plus size={16} /> Add Your First Listing
+                    <Plus size={16} /> {t('studio_add_first_btn')}
                   </button>
                 </div>
               ) : (
@@ -1086,13 +1091,13 @@ export default function SellerPortalPage({
                               className={`seller-dot ${isPublished ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-gray-400'}`}
                             />
                             <span className="text-xs font-semibold text-ink">
-                              {isPublished ? 'Published' : isPending ? 'Pending Review' : isRejected ? 'Rejected by Admin' : 'Draft'}
+                              {isPublished ? t('studio_status_published') : isPending ? t('studio_status_pending') : isRejected ? t('studio_status_rejected') : t('studio_status_draft')}
                             </span>
                           </div>
 
                           {/* Sale/Rent Pill */}
                           <div className={`seller-badge-type ${isForRent ? 'rent' : 'sale'}`}>
-                            {isForRent ? 'For Rent' : 'For Sale'}
+                            {isForRent ? t('studio_status_for_rent') : t('studio_status_for_sale')}
                           </div>
 
                           {/* Photo Count */}
@@ -1162,13 +1167,13 @@ export default function SellerPortalPage({
                               textAlign: 'left'
                             }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontWeight: 800, fontSize: '0.82rem', marginBottom: '4px' }}>
-                                <AlertTriangle size={15} /> Moderation Rejection Remarks:
+                                <AlertTriangle size={15} /> {t('studio_rejection_title')}
                               </div>
                               <p style={{ margin: '0 0 8px', color: '#991b1b', fontSize: '0.82rem', lineHeight: '1.4', fontWeight: 600, fontStyle: 'italic' }}>
                                 "{listing.rejection_reason || 'Verification requirements not met. Please review your Mulkiya document and specs.'}"
                               </p>
                               <div style={{ fontSize: '0.74rem', color: '#b91c1c', marginBottom: '10px' }}>
-                                Please correct the issue above, then click <strong>"Edit &amp; Resubmit"</strong> to send back for Admin re-review before going live.
+                                {t('studio_rejection_note')}
                               </div>
                               <button
                                 style={{
@@ -1188,7 +1193,7 @@ export default function SellerPortalPage({
                                 }}
                                 onClick={(e) => { e.stopPropagation(); handleStartEdit(listing, e); }}
                               >
-                                <Edit size={14} /> Edit & Resubmit for Review
+                                <Edit size={14} /> {t('studio_edit_resubmit')}
                               </button>
                             </div>
                           )}
@@ -1197,7 +1202,7 @@ export default function SellerPortalPage({
                               className="seller-edit-btn"
                               onClick={(e) => handleStartEdit(listing, e)}
                             >
-                              <Edit size={14} /> Edit Listing
+                              <Edit size={14} /> {t('studio_edit_btn')}
                             </button>
 
                             <div className="relative">
@@ -1225,7 +1230,7 @@ export default function SellerPortalPage({
                                       handleStartEdit(listing);
                                     }}
                                   >
-                                    <Edit size={14} /> {isRejected ? 'Edit & Resubmit for Review' : 'Edit Details & Photos'}
+                                    <Edit size={14} /> {isRejected ? t('studio_edit_resubmit') : t('studio_edit_details')}
                                   </button>
                                   <button
                                     className="seller-dropdown-item"
@@ -1234,7 +1239,7 @@ export default function SellerPortalPage({
                                       if (setCurrentPage) setCurrentPage('marketplace');
                                     }}
                                   >
-                                    <ExternalLink size={14} /> View on Public Site
+                                    <ExternalLink size={14} /> {t('studio_view_public')}
                                   </button>
                                   <button
                                     className="seller-dropdown-item text-red-600 hover:bg-red-50"
@@ -1243,7 +1248,7 @@ export default function SellerPortalPage({
                                       handleDeleteListing(listing.id, e);
                                     }}
                                   >
-                                    <Trash2 size={14} /> Delete Listing
+                                    <Trash2 size={14} /> {t('studio_delete_listing')}
                                   </button>
                                 </div>
                               )}
@@ -1264,21 +1269,21 @@ export default function SellerPortalPage({
               <div className="seller-profile-card">
                 <div className="flex items-center justify-between pb-4 border-b border-tan/40">
                   <div>
-                    <h2 className="text-xl font-bold font-serif-display text-ink">Dealer & Seller Credentials</h2>
+                    <h2 className="text-xl font-bold font-serif-display text-ink">{t('profile_credentials_title')}</h2>
                     <p className="text-sm text-ink-soft mt-0.5">
-                      Verified commercial credentials allow direct vehicle posting and buyer WhatsApp lead generation.
+                      {t('profile_credentials_sub')}
                     </p>
                   </div>
                   <span className="seller-verified-badge-lg">
                     <ShieldCheck size={16} className="text-emerald-600" />
-                    Verified by Admin
+                    {t('profile_verified_badge')}
                   </span>
                 </div>
 
                 <form onSubmit={handleSaveProfile} className="mt-6 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="seller-form-label">Dealer / Business Name</label>
+                      <label className="seller-form-label">{t('profile_dealer_name')}</label>
                       <input
                         type="text"
                         required
@@ -1289,7 +1294,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Primary Contact Person</label>
+                      <label className="seller-form-label">{t('profile_contact_person')}</label>
                       <input
                         type="text"
                         required
@@ -1300,7 +1305,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Contact Email</label>
+                      <label className="seller-form-label">{t('profile_contact_email')}</label>
                       <input
                         type="email"
                         required
@@ -1311,7 +1316,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">WhatsApp / Contact Phone</label>
+                      <label className="seller-form-label">{t('profile_whatsapp')}</label>
                       <input
                         type="text"
                         required
@@ -1322,7 +1327,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Commercial Trade License Number</label>
+                      <label className="seller-form-label">{t('profile_license_num')}</label>
                       <input
                         type="text"
                         value={profileForm.trade_license}
@@ -1332,7 +1337,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Country & Headquarters</label>
+                      <label className="seller-form-label">{t('profile_country_hq')}</label>
                       <select
                         value={profileForm.country}
                         onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
@@ -1346,7 +1351,7 @@ export default function SellerPortalPage({
                   </div>
 
                   <div>
-                    <label className="seller-form-label">Showroom Location / City</label>
+                    <label className="seller-form-label">{t('profile_showroom_city')}</label>
                     <input
                       type="text"
                       value={profileForm.city}
@@ -1357,7 +1362,7 @@ export default function SellerPortalPage({
                   </div>
 
                   <div>
-                    <label className="seller-form-label">About Dealership / Bio</label>
+                    <label className="seller-form-label">{t('profile_about_dealer')}</label>
                     <textarea
                       rows={3}
                       value={profileForm.bio}
@@ -1371,7 +1376,7 @@ export default function SellerPortalPage({
                       type="submit"
                       className="seller-primary-save-btn"
                     >
-                      <Check size={16} /> Save Profile Changes
+                      <Check size={16} /> {t('profile_save_btn')}
                     </button>
                   </div>
                 </form>
@@ -1389,9 +1394,9 @@ export default function SellerPortalPage({
                     <CheckCircle2 size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Active Listings</p>
+                    <p className="seller-stat-label">{t('dash_active_listings')}</p>
                     <p className="seller-stat-value">{publishedCount}</p>
-                    <p className="seller-stat-sub">Live on GCC Marketplace</p>
+                    <p className="seller-stat-sub">{t('dash_active_sub')}</p>
                   </div>
                 </div>
 
@@ -1400,9 +1405,9 @@ export default function SellerPortalPage({
                     <Eye size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">30-Day Impressions</p>
+                    <p className="seller-stat-label">{t('dash_impressions')}</p>
                     <p className="seller-stat-value">{totalViews.toLocaleString()}</p>
-                    <p className="seller-stat-sub">+18.4% this week</p>
+                    <p className="seller-stat-sub">{t('dash_impressions_sub')}</p>
                   </div>
                 </div>
 
@@ -1411,9 +1416,9 @@ export default function SellerPortalPage({
                     <MessageSquare size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Direct Leads</p>
+                    <p className="seller-stat-label">{t('dash_direct_leads')}</p>
                     <p className="seller-stat-value">{totalInquiries}</p>
-                    <p className="seller-stat-sub">via WhatsApp / Phone</p>
+                    <p className="seller-stat-sub">{t('dash_leads_sub')}</p>
                   </div>
                 </div>
               </div>
@@ -1424,21 +1429,21 @@ export default function SellerPortalPage({
                 <div className="seller-dashboard-card">
                   <div className="seller-dashboard-header">
                     <div>
-                      <h3 className="seller-dashboard-card-title">Recent Studio Listings</h3>
-                      <p className="text-xs text-ink-soft mt-0.5">Quickly edit or view your latest inventory.</p>
+                      <h3 className="seller-dashboard-card-title">{t('dash_recent_listings')}</h3>
+                      <p className="text-xs text-ink-soft mt-0.5">{t('dash_recent_sub')}</p>
                     </div>
                     <button
                       className="seller-dashboard-link-btn"
                       onClick={() => setActiveTab('listings')}
                     >
-                      View All Listings &rarr;
+                      {t('dash_view_all')}
                     </button>
                   </div>
 
                   <div className="seller-dash-table-wrap">
                     {sellerListings.length === 0 ? (
                       <div className="p-8 text-center text-sm text-ink-soft">
-                        No studio listings yet. Click "New Listing" to add your first vehicle.
+                        {t('dash_no_listings')}
                       </div>
                     ) : (
                       sellerListings.slice(0, 5).map(l => {
@@ -1462,7 +1467,7 @@ export default function SellerPortalPage({
                                 <span>&bull;</span>
                                 <span>{l.city || 'Dubai'}</span>
                                 <span>&bull;</span>
-                                <span>{l.views || 0} views</span>
+                                <span>{l.views || 0} {t('dash_views_label')}</span>
                               </div>
                             </div>
                           </div>
@@ -1476,7 +1481,7 @@ export default function SellerPortalPage({
                               className="seller-dash-action-btn"
                               onClick={() => handleStartEdit(l)}
                             >
-                              <Edit size={13} /> Edit
+                              <Edit size={13} /> {t('dash_edit_btn')}
                             </button>
                           </div>
                         </div>
@@ -1488,7 +1493,7 @@ export default function SellerPortalPage({
                 {/* Quick Showroom Overview Panel */}
                 <div className="seller-dashboard-card space-y-4">
                   <div className="seller-dashboard-header">
-                    <h3 className="seller-dashboard-card-title">Showroom Status</h3>
+                    <h3 className="seller-dashboard-card-title">{t('dash_showroom_status')}</h3>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-3">
