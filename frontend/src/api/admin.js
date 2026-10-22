@@ -6,8 +6,18 @@ const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104',
 function isTestData(item) {
   if (!item) return false;
   const idStr = String(item.id || item._id || '');
+  const email = (item.email || '').toLowerCase();
+  // Filter out any mock sample dealers
+  if (
+    email === 'almajid@test.com' ||
+    email === 'contact@desertstarauto.ae' ||
+    idStr === 'dealer_pending_1' ||
+    idStr === 'dealer_verified_1'
+  ) {
+    return true;
+  }
   // Real registered users or user listings always have timestamp, dealer_, or usr_ IDs
-  if (idStr.startsWith('usr_') || idStr.startsWith('dealer_') || idStr.length >= 12) return false;
+  if (idStr.startsWith('usr_') || idStr.length >= 12) return false;
   if (Number(item.id) > 1000000000000) return false;
   if (TEST_ITEM_IDS.includes(idStr)) return true;
   const title = (item.title || '').toLowerCase();

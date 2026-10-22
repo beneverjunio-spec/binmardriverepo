@@ -797,7 +797,13 @@ app.get('/api/admin/moderation', async (req, res) => {
 app.get('/api/admin/dealers', async (req, res) => {
   try {
     if (USE_MONGO) {
-      const dealers = await mongoDB.findUsers();
+      const allDealers = await mongoDB.findUsers();
+      const dealers = allDealers.filter(d =>
+        d.email !== 'almajid@test.com' &&
+        d.email !== 'contact@desertstarauto.ae' &&
+        d.id !== 'dealer_pending_1' &&
+        d.id !== 'dealer_verified_1'
+      );
       return res.json({ success: true, count: dealers.length, dealers });
     }
 

@@ -33,23 +33,6 @@
   ],
   "users": [
     {
-      "identity_id": "usr_1792584604521",
-      "name": "Al Majid Motors",
-      "user_type": "company",
-      "phone": "+971501112233",
-      "password": null,
-      "company_name": "Al Majid Motors",
-      "trade_license": "CN-Pending",
-      "trade_license_file": null,
-      "trade_license_url": null,
-      "country": "United Arab Emirates",
-      "status": "pending",
-      "email": "almajid@test.com",
-      "_id": "usr_1792584604522",
-      "id": "usr_1792584604522",
-      "created_at": "2026-10-21T12:10:04.522Z"
-    },
-    {
       "identity_id": "usr_1792583353905",
       "name": "Online Seller",
       "user_type": "company",
@@ -66,23 +49,6 @@
       "id": "usr_1792583353905",
       "created_at": "2026-10-21T11:49:13.905Z",
       "is_verified_seller": true
-    },
-    {
-      "identity_id": "usr_dealer_desertstar",
-      "id": "usr_dealer_desertstar",
-      "_id": "usr_dealer_desertstar",
-      "name": "Desert Star Automotive",
-      "company_name": "Desert Star Automotive Showroom",
-      "email": "contact@desertstarauto.ae",
-      "phone": "+971 50 882 1928",
-      "country": "United Arab Emirates",
-      "user_type": "company",
-      "trade_license": "CN-1940294",
-      "trade_license_file": "Commercial_Registration_DesertStar.pdf",
-      "trade_license_url": null,
-      "status": "approved",
-      "is_verified_seller": true,
-      "created_at": "2026-02-14T08:15:00Z"
     }
   ],
   "notifications": [

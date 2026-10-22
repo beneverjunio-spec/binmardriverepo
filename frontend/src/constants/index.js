@@ -70,38 +70,11 @@ export const DEFAULT_ADMIN_DATA = {
   stats: {
     liveListings: 0,
     pendingModeration: 0,
-    verifiedDealers: 1,
-    pendingDealers: 1
+    verifiedDealers: 0,
+    pendingDealers: 0
   },
   moderationQueue: [],
-  dealerQueue: [
-    {
-      id: 'dealer_pending_1',
-      name: 'Al Majid Prestige Motors',
-      company_name: 'Al Majid Prestige Motors LLC',
-      email: 'almajid@test.com',
-      phone: '+971 50 111 2233',
-      country: 'United Arab Emirates',
-      user_type: 'company',
-      trade_license: 'CN-8849201',
-      trade_license_file: 'Trade_License_AlMajid.pdf',
-      status: 'pending',
-      created_at: '2026-03-20T10:30:00Z'
-    },
-    {
-      id: 'dealer_verified_1',
-      name: 'Desert Star Automotive',
-      company_name: 'Desert Star Automotive Showroom',
-      email: 'contact@desertstarauto.ae',
-      phone: '+971 50 882 1928',
-      country: 'United Arab Emirates',
-      user_type: 'company',
-      trade_license: 'CN-1940294',
-      trade_license_file: 'Commercial_Registration_DesertStar.pdf',
-      status: 'approved',
-      created_at: '2026-02-14T08:15:00Z'
-    }
-  ],
+  dealerQueue: [],
   adminListings: [],
   admins: [
     {
@@ -113,28 +86,7 @@ export const DEFAULT_ADMIN_DATA = {
       country: 'United Arab Emirates',
       status: 'Active',
       created_at: '2026-01-15'
-    },
-    {
-      id: 2,
-      name: 'Tariq Mansoor',
-      email: 'tariq@binmardrive.com',
-      role: 'Listing Moderator',
-      department: 'Vehicle Moderation',
-      country: 'United Arab Emirates',
-      status: 'Active',
-      created_at: '2026-02-10'
-    },
-    {
-      id: 3,
-      name: 'Faisal Al-Otaibi',
-      email: 'faisal@binmardrive.com',
-      role: 'Dealer Auditor',
-      department: 'Compliance',
-      country: 'Saudi Arabia',
-      status: 'Active',
-      created_at: '2026-03-01'
     }
   ],
   notifications: []
 };
-

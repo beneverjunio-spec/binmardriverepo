@@ -134,13 +134,50 @@ export default function DocumentViewerModal({
 
   const handleOpenNewTab = () => {
     if (effectiveUrl) {
-      const win = window.open();
-      if (win) {
-        if (effectiveUrl.startsWith('data:application/pdf')) {
-          win.document.write(`<iframe src="${effectiveUrl}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-        } else {
-          win.location.href = effectiveUrl;
+      if (effectiveUrl.startsWith('data:application/pdf')) {
+        try {
+          const byteCharacters = atob(effectiveUrl.split(',')[1]);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: 'application/pdf' });
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+          return;
+        } catch {
+          const win = window.open();
+          if (win) {
+            win.document.write(`<iframe src="${effectiveUrl}" frameborder="0" style="border:0; position:fixed; top:0; left:0; width:100%; height:100%;" allowfullscreen></iframe>`);
+          }
+          return;
         }
+      } else if (effectiveUrl.startsWith('data:image/')) {
+        try {
+          const arr = effectiveUrl.split(',');
+          const mimeMatch = arr[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+          return;
+        } catch {
+          const win = window.open();
+          if (win) {
+            win.document.write(`<img src="${effectiveUrl}" style="max-width:100%; height:auto; display:block; margin:auto; background:#111;" />`);
+          }
+          return;
+        }
+      } else {
+        window.open(effectiveUrl, '_blank');
+        return;
       }
     } else {
       // Open generated PDF in new tab
@@ -169,6 +206,29 @@ export default function DocumentViewerModal({
   const handleDownload = () => {
     // 1. If we have the actual file URL / Base64 Data URL, download it directly with correct name
     if (effectiveUrl && (effectiveUrl.startsWith('http') || effectiveUrl.startsWith('data:') || effectiveUrl.startsWith('blob:'))) {
+      if (effectiveUrl.startsWith('data:')) {
+        try {
+          const arr = effectiveUrl.split(',');
+          const mimeMatch = arr[0].match(/:(.*?);/);
+          const mime = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = effectiveName || (isMulkiya ? 'Mulkiya_Document.pdf' : 'Trade_License.pdf');
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          setTimeout(() => URL.revokeObjectURL(url), 3000);
+          return;
+        } catch {}
+      }
       const link = document.createElement('a');
       link.href = effectiveUrl;
       link.download = effectiveName || (isMulkiya ? 'Mulkiya_Document.pdf' : 'Trade_License.pdf');
