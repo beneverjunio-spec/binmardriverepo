@@ -874,9 +874,7 @@ export default function SellerPortalPage({
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-deep flex items-center justify-center">
-              <Store className="w-4 h-4 text-white" />
-            </div>
+            <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="w-8 h-8 rounded-full object-contain bg-emerald-950 border border-gold/40" />
             <span className="font-bold text-ink">BINMAR <b>STUDIO</b></span>
           </div>
           <button

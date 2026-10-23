@@ -203,7 +203,10 @@ export default function CreateListingPage({
   return (
     <div className="flow-wrap">
       <div className="flow-brand">
-        <div className="nav-mark" onClick={onCancel}>BINMAR<b>DRIVE</b></div>
+        <div className="nav-mark" onClick={onCancel}>
+          <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+          <span>BINMAR<b>DRIVE</b></span>
+        </div>
         <div>
           <div className="flow-hero">{t('create_brand_hero')}</div>
           <p className="flow-sub">

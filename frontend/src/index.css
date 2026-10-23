@@ -56,6 +56,20 @@ button {
   color: var(--gold-bright);
   cursor: pointer;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px rgba(198, 161, 91, 0.45);
+  background: var(--deep);
 }
 
 .nav-mark b {
@@ -1792,6 +1806,9 @@ tr:last-child td {
   font-size: 1.2rem;
   color: var(--gold-bright);
   margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .footer-mark b {

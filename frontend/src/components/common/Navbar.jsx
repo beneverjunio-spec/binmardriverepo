@@ -17,7 +17,8 @@ export default function Navbar({
   return (
     <div className="topnav">
       <div className="nav-mark" onClick={() => setCurrentPage('marketplace')}>
-        BINMAR<b>DRIVE</b>
+        <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+        <span>BINMAR<b>DRIVE</b></span>
       </div>
 
       <div className="nav-links">

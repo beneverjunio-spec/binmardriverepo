@@ -137,7 +137,8 @@ export default function AdminLoginPage({
     <div className="flow-wrap">
       <div className="flow-brand">
         <div className="nav-mark" onClick={() => setCurrentPage('marketplace')}>
-          BINMAR<b>DRIVE</b>
+          <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+          <span>BINMAR<b>DRIVE</b></span>
         </div>
         <div>
           <div className="flow-hero">Admin <em>portal</em> access.</div>

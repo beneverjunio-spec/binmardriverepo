@@ -48,7 +48,10 @@ export default function SetPasswordPage({
   return (
     <div className="flow-wrap">
       <div className="flow-brand">
-        <div className="nav-mark">BINMAR<b>DRIVE</b></div>
+        <div className="nav-mark">
+          <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+          <span>BINMAR<b>DRIVE</b></span>
+        </div>
         <div className="flow-hero">Secure your <em>account</em>.</div>
       </div>
       <div className="flow-formside">

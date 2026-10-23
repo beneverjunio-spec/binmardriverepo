@@ -13,7 +13,10 @@ export default function Footer({
     <div className="footer">
       <div className="footer-grid">
         <div>
-          <div className="footer-mark">BINMAR<b>DRIVE</b></div>
+          <div className="footer-mark">
+            <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+            <span>BINMAR<b>DRIVE</b></span>
+          </div>
           <div>{t('footer_desc')}</div>
         </div>
         <div className="footer-cols">
