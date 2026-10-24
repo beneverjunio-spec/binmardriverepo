@@ -498,6 +498,70 @@ export default function SellerPortalPage({
     }
   };
 
+  // Toggle Sold / Rented Status
+  const handleToggleSoldStatus = async (listing, e) => {
+    if (e) e.stopPropagation();
+    const isRent = (listing.listing_type || listing.type) === 'rent';
+    const isCurrentlySoldOrRented = listing.sale_status === 'sold' || listing.sale_status === 'rented';
+    const targetStatus = isCurrentlySoldOrRented ? 'available' : (isRent ? 'rented' : 'sold');
+    const label = targetStatus === 'available' ? 'Available' : (isRent ? 'Rented' : 'Sold');
+
+    try {
+      const updatedItem = {
+        ...listing,
+        sale_status: targetStatus,
+        sold_at: targetStatus !== 'available' ? new Date().toISOString() : null
+      };
+
+      // 1. Update in local storage
+      const raw = localStorage.getItem('binmar_custom_listings');
+      if (raw) {
+        const items = JSON.parse(raw);
+        const updated = items.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l);
+        safeSaveListings(updated);
+      }
+
+      // 2. Notify Admin Portal if marked as sold/rented
+      if (targetStatus !== 'available') {
+        try {
+          const notifRaw = localStorage.getItem('binmar_admin_notifications');
+          const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+          const notifTitle = isRent ? 'Vehicle Marked as Rented' : 'Vehicle Marked as Sold';
+          const notifMsg = `${listing.title || 'Vehicle'} has been marked as ${targetStatus.toUpperCase()} by seller ${sellerDisplayName} (${listing.city || 'Dubai'}, ${listing.country || 'UAE'}).`;
+          const newNotif = {
+            id: Date.now(),
+            title: notifTitle,
+            message: notifMsg,
+            is_read: false,
+            created_at: new Date().toISOString()
+          };
+          localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs.slice(0, 30)]));
+        } catch (nErr) {
+          console.warn('[Notification error]:', nErr);
+        }
+      }
+
+      // 3. Sync to backend API if available
+      try {
+        await apiRequest(`/api/listings/${listing.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sale_status: targetStatus })
+        });
+      } catch {
+        // Fallback handled via localStorage & broadcast
+      }
+
+      // 4. Update UI
+      setSellerListings(prev => prev.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l));
+      notify(`Listing marked as ${label}! Admin notified.`);
+      if (onRefreshListings) onRefreshListings();
+      window.dispatchEvent(new Event('binmar_listings_updated'));
+    } catch (err) {
+      notify(err.message || 'Unable to update status.');
+    }
+  };
+
   const handleDeleteListing = (id, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this listing from your studio?')) return;
@@ -1071,6 +1135,8 @@ export default function SellerPortalPage({
                     const isPublished = listing.status === 'approved' || listing.status === 'published' || !listing.status;
                     const isPending = listing.status === 'pending';
                     const isRejected = listing.status === 'rejected';
+                    const isSold = listing.sale_status === 'sold';
+                    const isRented = listing.sale_status === 'rented';
 
                     return (
                       <article key={listing.id} className="seller-vehicle-card">
@@ -1086,12 +1152,36 @@ export default function SellerPortalPage({
                           {/* Status Badge */}
                           <div className="seller-badge-status">
                             <span
-                              className={`seller-dot ${isPublished ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-gray-400'}`}
+                              className={`seller-dot ${isSold || isRented ? 'bg-red-500' : isPublished ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-gray-400'}`}
                             />
                             <span className="text-xs font-semibold text-ink">
-                              {isPublished ? t('studio_status_published') : isPending ? t('studio_status_pending') : isRejected ? t('studio_status_rejected') : t('studio_status_draft')}
+                              {isSold ? t('status_sold') : isRented ? t('status_rented') : isPublished ? t('studio_status_published') : isPending ? t('studio_status_pending') : isRejected ? t('studio_status_rejected') : t('studio_status_draft')}
                             </span>
                           </div>
+
+                          {/* Sold / Rented Banner Overlay on Image */}
+                          {(isSold || isRented) && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%) rotate(-12deg)',
+                              background: isSold ? 'rgba(220, 38, 38, 0.95)' : 'rgba(124, 58, 237, 0.95)',
+                              color: '#fff',
+                              padding: '6px 20px',
+                              borderRadius: '8px',
+                              fontWeight: 900,
+                              fontSize: '1.05rem',
+                              letterSpacing: '0.08em',
+                              boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                              zIndex: 10,
+                              textTransform: 'uppercase',
+                              border: '2px solid #fff',
+                              pointerEvents: 'none'
+                            }}>
+                              {isSold ? t('marketplace_badge_sold') : t('marketplace_badge_rented')}
+                            </div>
+                          )}
 
                           {/* Sale/Rent Pill */}
                           <div className={`seller-badge-type ${isForRent ? 'rent' : 'sale'}`}>
@@ -1203,6 +1293,44 @@ export default function SellerPortalPage({
                               <Edit size={14} /> {t('studio_edit_btn')}
                             </button>
 
+                            {/* Mark as Sold / Rented button */}
+                            {isPublished && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleToggleSoldStatus(listing, e)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '7px 11px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  border: isSold || isRented
+                                    ? '1.5px solid #16a34a'
+                                    : '1.5px solid #dc2626',
+                                  background: isSold || isRented
+                                    ? 'rgba(22, 163, 74, 0.08)'
+                                    : 'rgba(220, 38, 38, 0.08)',
+                                  color: isSold || isRented ? '#15803d' : '#b91c1c',
+                                  transition: 'all 0.2s ease',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={isSold || isRented ? 'Re-activate this listing on the marketplace' : `Mark as ${isForRent ? 'Rented' : 'Sold'} and notify admin`}
+                              >
+                                {isSold || isRented ? (
+                                  <>
+                                    <CheckCircle2 size={13} /> {t('action_mark_active')}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Tag size={13} /> {isForRent ? t('action_mark_rented') : t('action_mark_sold')}
+                                  </>
+                                )}
+                              </button>
+                            )}
+
                             <div className="relative">
                               <button
                                 className="seller-more-btn"
@@ -1229,6 +1357,15 @@ export default function SellerPortalPage({
                                     }}
                                   >
                                     <Edit size={14} /> {isRejected ? t('studio_edit_resubmit') : t('studio_edit_details')}
+                                  </button>
+                                  <button
+                                    className="seller-dropdown-item"
+                                    onClick={(e) => {
+                                      setActiveMenuId(null);
+                                      handleToggleSoldStatus(listing, e);
+                                    }}
+                                  >
+                                    <Tag size={14} /> {isSold || isRented ? t('action_mark_active') : (isForRent ? t('action_mark_rented') : t('action_mark_sold'))}
                                   </button>
                                   <button
                                     className="seller-dropdown-item"

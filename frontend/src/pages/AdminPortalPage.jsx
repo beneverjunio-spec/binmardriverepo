@@ -11,7 +11,8 @@ import {
   fetchAdminPortalData,
   resolveModerationListing,
   resolveDealerApplication,
-  deleteLiveListing
+  deleteLiveListing,
+  toggleDisableLiveListing
 } from '../api/admin';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 
@@ -234,6 +235,18 @@ export default function AdminPortalPage({
     });
   };
 
+  const handleToggleDisableListing = async (id, shouldDisable) => {
+    try {
+      await toggleDisableLiveListing(id, shouldDisable);
+      setAdminListings(prev => prev.map(l => String(l.id) === String(id) ? { ...l, disabled: shouldDisable } : l));
+      notify(shouldDisable ? 'Listing disabled from public marketplace.' : 'Listing re-enabled on public marketplace.');
+      if (onRefreshListings) onRefreshListings();
+      window.dispatchEvent(new Event('binmar_listings_updated'));
+    } catch (e) {
+      notify(e.message || 'Unable to update listing state.');
+    }
+  };
+
   const handleRemoveListing = async (id) => {
     if (!window.confirm('Are you sure you want to remove this listing from the live marketplace?')) return;
     try {
@@ -422,6 +435,7 @@ export default function AdminPortalPage({
             adminSearch={adminSearch}
             setAdminSearch={setAdminSearch}
             onRemoveListing={handleRemoveListing}
+            onToggleDisableListing={handleToggleDisableListing}
             onRemoveAllListings={handleRemoveAllListings}
           />
         )}

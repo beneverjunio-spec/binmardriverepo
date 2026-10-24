@@ -19,7 +19,9 @@ import {
   Download,
   FileSpreadsheet,
   ExternalLink,
-  Tag
+  Tag,
+  Ban,
+  CheckCircle2
 } from 'lucide-react';
 import DocumentViewerModal from '../common/DocumentViewerModal';
 import { exportToExcel } from '../../utils/exportToExcel';
@@ -29,6 +31,7 @@ export default function LiveListingsTab({
   adminSearch,
   setAdminSearch,
   onRemoveListing,
+  onToggleDisableListing,
   onRemoveAllListings
 }) {
   const [inspectingListing, setInspectingListing] = useState(null);
@@ -469,23 +472,72 @@ export default function LiveListingsTab({
 
                   {/* DEDICATED COLUMN: TYPE OF LISTING (For Rent or For Sale) */}
                   <td>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '0.76rem',
-                      fontWeight: 800,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.04em',
-                      background: isRent ? 'rgba(59, 130, 246, 0.15)' : 'rgba(34, 197, 94, 0.15)',
-                      color: isRent ? '#60a5fa' : '#4ade80',
-                      border: isRent ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)'
-                    }}>
-                      <Tag size={11} />
-                      {isRent ? 'For Rent' : 'For Sale'}
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'flex-start' }}>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.04em',
+                        background: isRent ? 'rgba(59, 130, 246, 0.15)' : 'rgba(34, 197, 94, 0.15)',
+                        color: isRent ? '#60a5fa' : '#4ade80',
+                        border: isRent ? '1px solid rgba(59, 130, 246, 0.35)' : '1px solid rgba(34, 197, 94, 0.35)'
+                      }}>
+                        <Tag size={11} />
+                        {isRent ? 'For Rent' : 'For Sale'}
+                      </span>
+
+                      {/* Status remarks (Sold / Rented / Disabled) */}
+                      {l.sale_status === 'sold' && (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: 'rgba(239, 68, 68, 0.2)',
+                          color: '#f87171',
+                          border: '1px solid rgba(239, 68, 68, 0.5)',
+                          textTransform: 'uppercase'
+                        }}>
+                          ● SOLD
+                        </span>
+                      )}
+                      {l.sale_status === 'rented' && (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: 'rgba(139, 92, 246, 0.2)',
+                          color: '#c084fc',
+                          border: '1px solid rgba(139, 92, 246, 0.5)',
+                          textTransform: 'uppercase'
+                        }}>
+                          ● RENTED
+                        </span>
+                      )}
+                      {l.disabled && (
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 7px',
+                          borderRadius: '4px',
+                          fontSize: '0.68rem',
+                          fontWeight: 800,
+                          background: 'rgba(245, 158, 11, 0.2)',
+                          color: '#fbbf24',
+                          border: '1px solid rgba(245, 158, 11, 0.5)',
+                          textTransform: 'uppercase'
+                        }}>
+                          ● DISABLED
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Seller / Dealer */}
@@ -564,34 +616,67 @@ export default function LiveListingsTab({
 
                   {/* Actions */}
                   <td>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                       <button
                         type="button"
                         onClick={() => openInspection(l)}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          padding: '6px 12px',
+                          gap: '4px',
+                          padding: '5px 10px',
                           background: 'rgba(212, 175, 55, 0.15)',
                           border: '1px solid rgba(212, 175, 55, 0.45)',
                           borderRadius: '6px',
                           color: 'var(--gold, #d4af37)',
                           cursor: 'pointer',
-                          fontSize: '0.82rem',
+                          fontSize: '0.78rem',
                           fontWeight: 700
                         }}
                       >
-                        <Eye size={14} /> Details
+                        <Eye size={13} /> Details
                       </button>
+
+                      {/* Enable / Disable Button */}
+                      {onToggleDisableListing && (
+                        <button
+                          type="button"
+                          onClick={() => onToggleDisableListing(l.id, !l.disabled)}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                            padding: '5px 10px',
+                            background: l.disabled ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                            border: l.disabled ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(245, 158, 11, 0.45)',
+                            borderRadius: '6px',
+                            color: l.disabled ? '#4ade80' : '#fbbf24',
+                            cursor: 'pointer',
+                            fontSize: '0.78rem',
+                            fontWeight: 700
+                          }}
+                          title={l.disabled ? 'Enable listing on public marketplace' : 'Disable listing from public marketplace'}
+                        >
+                          {l.disabled ? (
+                            <>
+                              <CheckCircle2 size={13} /> Enable
+                            </>
+                          ) : (
+                            <>
+                              <Ban size={13} /> Disable
+                            </>
+                          )}
+                        </button>
+                      )}
 
                       <button
                         className="act-btn reject"
                         onClick={() => onRemoveListing(l.id)}
-                        title="Remove listing from live marketplace"
+                        title="Delete listing permanently from marketplace"
+                        style={{ padding: '5px 10px', fontSize: '0.78rem' }}
                       >
-                        <Trash2 size={13} style={{ display: 'inline', marginRight: 4 }} />
-                        Remove
+                        <Trash2 size={12} style={{ display: 'inline', marginRight: 3 }} />
+                        Delete
                       </button>
                     </div>
                   </td>
@@ -1103,6 +1188,31 @@ export default function LiveListingsTab({
                   <FileText size={15} /> View Official Mulkiya
                 </button>
 
+                {onToggleDisableListing && (
+                  <button
+                    type="button"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      background: inspectingListing.disabled ? 'rgba(34, 197, 94, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                      border: inspectingListing.disabled ? '1px solid rgba(34, 197, 94, 0.45)' : '1px solid rgba(245, 158, 11, 0.45)',
+                      color: inspectingListing.disabled ? '#4ade80' : '#fbbf24',
+                      fontWeight: 700,
+                      cursor: 'pointer'
+                    }}
+                    onClick={() => {
+                      onToggleDisableListing(inspectingListing.id, !inspectingListing.disabled);
+                      setInspectingListing(prev => prev ? { ...prev, disabled: !prev.disabled } : null);
+                    }}
+                  >
+                    {inspectingListing.disabled ? <CheckCircle2 size={15} /> : <Ban size={15} />}
+                    {inspectingListing.disabled ? 'Enable Listing' : 'Disable Listing'}
+                  </button>
+                )}
+
                 <button
                   type="button"
                   className="act-btn reject"
@@ -1113,7 +1223,7 @@ export default function LiveListingsTab({
                   }}
                 >
                   <Trash2 size={14} style={{ display: 'inline', marginRight: 4 }} />
-                  Remove from Live
+                  Delete Listing
                 </button>
               </div>
             </div>

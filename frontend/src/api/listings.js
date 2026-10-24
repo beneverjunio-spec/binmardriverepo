@@ -105,6 +105,12 @@ export async function fetchPublicListings(filters = {}) {
     if (rawDel) deletedListingIds = JSON.parse(rawDel);
   } catch {}
 
+  let disabledListingIds = [];
+  try {
+    const rawDis = localStorage.getItem('binmar_disabled_listings');
+    if (rawDis) disabledListingIds = JSON.parse(rawDis);
+  } catch {}
+
   let serverListings = null;
   try {
     const queryParams = new URLSearchParams();
@@ -126,9 +132,16 @@ export async function fetchPublicListings(filters = {}) {
     // API offline or fallback
   }
 
-  const approvedCustom = localCustom.filter(item => item.status === 'approved' && !deletedListingIds.includes(String(item.id)));
+  const approvedCustom = localCustom.filter(item =>
+    item.status === 'approved' &&
+    !item.disabled &&
+    !deletedListingIds.includes(String(item.id)) &&
+    !disabledListingIds.includes(String(item.id))
+  );
   
-  let baseListings = serverListings !== null ? [...serverListings] : [];
+  let baseListings = serverListings !== null
+    ? serverListings.filter(l => !l.disabled && !disabledListingIds.includes(String(l.id)) && !deletedListingIds.includes(String(l.id)))
+    : [];
 
   const existingIds = new Set(baseListings.map(b => String(b.id)));
   for (const c of approvedCustom) {

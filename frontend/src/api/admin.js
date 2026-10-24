@@ -214,11 +214,20 @@ export async function fetchAdminPortalData() {
         combinedLive.push(sl);
       }
     }
+    let disabledListingIds = [];
+    try {
+      const rawDis = localStorage.getItem('binmar_disabled_listings');
+      if (rawDis) disabledListingIds = JSON.parse(rawDis);
+    } catch {}
+
     const rawLiveList = combinedLive.filter(item => !isTestData(item));
     const liveList = [];
     for (const item of rawLiveList) {
       if (!liveList.some(l => isSameVehicle(l, item))) {
-        liveList.push(item);
+        liveList.push({
+          ...item,
+          disabled: Boolean(item.disabled || disabledListingIds.includes(String(item.id)))
+        });
       }
     }
 
@@ -493,6 +502,41 @@ export async function resolveDealerApplication(id, verify) {
       success: true,
       message: `Dealer "${dealerName}" ${verify ? 'verified successfully! Account is now active.' : 'application rejected.'}`
     };
+  }
+}
+
+export async function toggleDisableLiveListing(id, shouldDisable) {
+  try {
+    let disabled = [];
+    const rawDis = localStorage.getItem('binmar_disabled_listings');
+    if (rawDis) disabled = JSON.parse(rawDis);
+
+    if (shouldDisable) {
+      if (!disabled.includes(String(id))) {
+        disabled.push(String(id));
+      }
+    } else {
+      disabled = disabled.filter(item => String(item) !== String(id));
+    }
+    localStorage.setItem('binmar_disabled_listings', JSON.stringify(disabled));
+
+    // Update in local custom listings
+    const raw = localStorage.getItem('binmar_custom_listings');
+    if (raw) {
+      const items = JSON.parse(raw);
+      const updated = items.map(l => String(l.id) === String(id) ? { ...l, disabled: shouldDisable } : l);
+      localStorage.setItem('binmar_custom_listings', JSON.stringify(updated));
+    }
+  } catch {}
+
+  try {
+    return await apiRequest(`/api/admin/listings/${id}/disable`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ disabled: shouldDisable })
+    });
+  } catch {
+    return { success: true };
   }
 }
 

@@ -376,6 +376,23 @@ export const translations = {
     dash_edit_btn: 'Edit',
     dash_views_label: 'views',
 
+    // Sold / Rented & Admin disable
+    action_mark_sold: 'Mark as Sold',
+    action_mark_rented: 'Mark as Rented',
+    action_mark_active: 'Mark as Available',
+    status_sold: 'Sold',
+    status_rented: 'Rented',
+    status_disabled: 'Disabled',
+    admin_action_disable: 'Disable',
+    admin_action_enable: 'Enable',
+    admin_action_delete: 'Delete',
+    marketplace_badge_sold: 'SOLD',
+    marketplace_badge_rented: 'RENTED',
+    marketplace_sold_out: 'This vehicle is already sold',
+    marketplace_rented_out: 'This vehicle is currently rented out',
+    notif_vehicle_sold_title: 'Vehicle Marked as Sold',
+    notif_vehicle_rented_title: 'Vehicle Marked as Rented',
+
     lang_current: 'English'
   },
 
@@ -751,6 +768,23 @@ export const translations = {
     dash_showroom_status: 'حالة المعرض',
     dash_edit_btn: 'تعديل',
     dash_views_label: 'مشاهدات',
+
+    // Sold / Rented & Admin disable
+    action_mark_sold: 'تحديد كـ مباع',
+    action_mark_rented: 'تحديد كـ مؤجر',
+    action_mark_active: 'تحديد كـ متاح',
+    status_sold: 'تم البيع',
+    status_rented: 'تم التأجير',
+    status_disabled: 'معطل',
+    admin_action_disable: 'تعطيل',
+    admin_action_enable: 'تفعيل',
+    admin_action_delete: 'حذف',
+    marketplace_badge_sold: 'تم البيع',
+    marketplace_badge_rented: 'تم التأجير',
+    marketplace_sold_out: 'تم بيع هذه المركبة بالفعل',
+    marketplace_rented_out: 'هذه المركبة مؤجرة حالياً',
+    notif_vehicle_sold_title: 'تم تحديد المركبة كـ مباعة',
+    notif_vehicle_rented_title: 'تم تحديد المركبة كـ مؤجرة',
 
     lang_current: 'العربية'
   }

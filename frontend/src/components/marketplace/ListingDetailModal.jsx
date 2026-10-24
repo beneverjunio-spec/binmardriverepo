@@ -123,6 +123,8 @@ export default function ListingDetailModal({ listing, onClose }) {
   const isTypeSale = (listing.listing_type || listing.type) === 'sale';
   const typeLabel = isTypeSale ? t('for_sale') : t('for_rent');
   const transmissionLabel = (listing.transmission || '').toLowerCase().includes('man') ? t('trans_manual') : t('trans_auto');
+  const isSold = listing.sale_status === 'sold';
+  const isRented = listing.sale_status === 'rented';
 
   return (
     <div
@@ -151,6 +153,26 @@ export default function ListingDetailModal({ listing, onClose }) {
           >
             {typeLabel}
           </span>
+          {(isSold || isRented) && (
+            <span
+              style={{
+                position: 'absolute',
+                top: 14,
+                [isRTL ? 'left' : 'right']: 14,
+                background: isSold ? 'rgba(220, 38, 38, 0.95)' : 'rgba(124, 58, 237, 0.95)',
+                color: '#ffffff',
+                padding: '4px 14px',
+                borderRadius: '999px',
+                fontSize: '0.82rem',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.4)',
+                textTransform: 'uppercase'
+              }}
+            >
+              {isSold ? t('marketplace_badge_sold') : t('marketplace_badge_rented')}
+            </span>
+          )}
           {!hasRealImages && `${listing.make} ${listing.category} — View ${modalImageIndex + 1} of 4`}
         </div>
 
@@ -290,6 +312,27 @@ export default function ListingDetailModal({ listing, onClose }) {
               }}
             >
               {shareFeedback}
+            </div>
+          )}
+
+          {(isSold || isRented) && (
+            <div
+              style={{
+                background: isSold ? 'rgba(239, 68, 68, 0.12)' : 'rgba(139, 92, 246, 0.12)',
+                border: isSold ? '1.5px solid rgba(239, 68, 68, 0.45)' : '1.5px solid rgba(139, 92, 246, 0.45)',
+                borderRadius: '10px',
+                padding: '12px 16px',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                color: isSold ? '#dc2626' : '#7c3aed',
+                fontWeight: 700,
+                fontSize: '0.9rem'
+              }}
+            >
+              <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+              <span>{isSold ? t('marketplace_sold_out') : t('marketplace_rented_out')}</span>
             </div>
           )}
 

@@ -17,6 +17,8 @@ export default function ListingCard({ listing, index, onSelect }) {
   const typeText = isSale ? t('for_sale') : t('for_rent');
   const isBrandNew = (listing.condition_type || listing.condition) === 'new';
   const condText = isBrandNew ? t('cond_brand_new') : t('cond_used');
+  const isSold = listing.sale_status === 'sold';
+  const isRented = listing.sale_status === 'rented';
 
   return (
     <div className="card" onClick={() => onSelect(listing)}>
@@ -36,6 +38,59 @@ export default function ListingCard({ listing, index, onSelect }) {
         >
           {typeText}
         </span>
+        {(isSold || isRented) && (
+          <span
+            style={{
+              position: 'absolute',
+              top: '14px',
+              [isRTL ? 'left' : 'right']: '14px',
+              background: isSold ? 'rgba(220, 38, 38, 0.95)' : 'rgba(124, 58, 237, 0.95)',
+              color: '#ffffff',
+              padding: '4px 12px',
+              borderRadius: '999px',
+              fontSize: '0.74rem',
+              fontWeight: 800,
+              letterSpacing: '0.06em',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              textTransform: 'uppercase',
+              zIndex: 3
+            }}
+          >
+            {isSold ? t('marketplace_badge_sold') : t('marketplace_badge_rented')}
+          </span>
+        )}
+        {(isSold || isRented) && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'rgba(0, 0, 0, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2,
+              backdropFilter: 'blur(1px)'
+            }}
+          >
+            <span
+              style={{
+                transform: 'rotate(-10deg)',
+                background: isSold ? '#dc2626' : '#7c3aed',
+                color: '#ffffff',
+                padding: '6px 20px',
+                borderRadius: '8px',
+                fontWeight: 900,
+                fontSize: '1.05rem',
+                letterSpacing: '0.1em',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.5)',
+                border: '2px solid rgba(255,255,255,0.9)',
+                textTransform: 'uppercase'
+              }}
+            >
+              {isSold ? t('marketplace_badge_sold') : t('marketplace_badge_rented')}
+            </span>
+          </div>
+        )}
         {!hasRealImage && `${listing.make} ${listing.category}`}
       </div>
       <div className="card-body">

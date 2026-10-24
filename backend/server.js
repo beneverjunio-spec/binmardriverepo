@@ -299,6 +299,73 @@ app.post('/api/listings', async (req, res) => {
 });
 
 // ==========================================
+// Toggle Sold / Rented Status (from Seller Studio)
+// ==========================================
+app.patch('/api/listings/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { sale_status } = req.body; // 'sold' | 'rented' | 'available'
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, {
+        sale_status,
+        sold_at: sale_status !== 'available' ? new Date().toISOString() : null
+      });
+      if (sale_status !== 'available') {
+        await mongoDB.createNotification(
+          `Vehicle Marked as ${sale_status === 'rented' ? 'Rented' : 'Sold'}`,
+          `Listing "${updated?.title || 'Vehicle'}" has been marked as ${sale_status.toUpperCase()} by the seller.`
+        );
+      }
+      return res.json({ success: true, listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('sale_status', sql.NVarChar, sale_status || 'available');
+    await request.query(`UPDATE listings SET sale_status = @sale_status WHERE id = @id`);
+
+    if (sale_status !== 'available') {
+      try {
+        const notifReq = pool.request();
+        notifReq.input('title', sql.NVarChar, `Vehicle Marked as ${sale_status === 'rented' ? 'Rented' : 'Sold'}`);
+        notifReq.input('message', sql.NVarChar, `Vehicle #${id} has been marked as ${sale_status.toUpperCase()} by the seller.`);
+        await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
+      } catch {}
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Admin Disable / Enable Listing
+// ==========================================
+app.post('/api/admin/listings/:id/disable', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { disabled } = req.body;
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, { disabled: Boolean(disabled) });
+      return res.json({ success: true, listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('disabled', sql.Bit, disabled ? 1 : 0);
+    await request.query(`UPDATE listings SET disabled = @disabled WHERE id = @id`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
 // Update Listing (Seller In-Place Edit / Resubmit)
 // Automatically enforces status = 'pending' so it enters Admin Moderation
 // ==========================================
