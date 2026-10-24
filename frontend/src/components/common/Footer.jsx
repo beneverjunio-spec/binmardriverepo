@@ -55,6 +55,8 @@ export default function Footer({
             <a onClick={() => setCurrentPage('contact')}>{t('footer_contact')}</a>
             <a onClick={() => setCurrentPage('user-login')}>{t('nav_sign_in')}</a>
             <a onClick={() => setCurrentPage('admin-login')}>{t('admin_tab_dashboard')}</a>
+            <a onClick={() => setCurrentPage('privacy-policy')} style={{ cursor: 'pointer' }}>{t('footer_privacy_policy')}</a>
+            <a onClick={() => setCurrentPage('terms-of-use')} style={{ cursor: 'pointer' }}>{t('footer_terms_of_use')}</a>
           </div>
           <div className="footer-col">
             <h4>{t('footer_col_countries')}</h4>

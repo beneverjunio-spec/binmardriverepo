@@ -11,8 +11,8 @@ export default function ContactPage({ onBackToMarketplace }) {
         <p>{t('contact_hero_sub')}</p>
       </div>
       <div className="info-section">
-        <p><strong>{t('contact_whatsapp_label')}</strong> <span dir="ltr">+971 50 000 0000</span></p>
-        <p><strong>{t('contact_email_label')}</strong> support@binmardrive.com</p>
+        <p><strong>{t('contact_whatsapp_label')}</strong> <a href="https://wa.me/971527621325" dir="ltr" style={{ color: 'var(--gold-bright)' }}>+971 52 762 1325</a></p>
+        <p><strong>{t('contact_email_label')}</strong> <a href="mailto:Info@binmargroup.com" style={{ color: 'var(--gold-bright)' }}>Info@binmargroup.com</a></p>
         <p>
           <strong>{t('contact_office_label')}</strong> {t('contact_office_desc')}
         </p>

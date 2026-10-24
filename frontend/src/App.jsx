@@ -21,6 +21,8 @@ import AboutPage from './pages/AboutPage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import ContactPage from './pages/ContactPage';
 import SellerPortalPage from './pages/SellerPortalPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfUsePage from './pages/TermsOfUsePage';
 
 function getInitialPage() {
   try {
@@ -34,6 +36,8 @@ function getInitialPage() {
     if (path.includes('about')) return 'about';
     if (path.includes('how-it-works')) return 'how-it-works';
     if (path.includes('contact')) return 'contact';
+    if (path.includes('privacy-policy')) return 'privacy-policy';
+    if (path.includes('terms-of-use')) return 'terms-of-use';
   } catch {}
   return 'marketplace';
 }
@@ -114,7 +118,9 @@ export default function App() {
         'create-listing': '/create-listing',
         'about': '/about',
         'how-it-works': '/how-it-works',
-        'contact': '/contact'
+        'contact': '/contact',
+        'privacy-policy': '/privacy-policy',
+        'terms-of-use': '/terms-of-use'
       };
       const targetPath = pageToPath[currentPage] || '/';
       if (window.location.pathname !== targetPath) {
@@ -253,6 +259,14 @@ export default function App() {
 
         {currentPage === 'contact' && (
           <ContactPage onBackToMarketplace={() => setCurrentPage('marketplace')} />
+        )}
+
+        {currentPage === 'privacy-policy' && (
+          <PrivacyPolicyPage onBack={() => setCurrentPage('marketplace')} />
+        )}
+
+        {currentPage === 'terms-of-use' && (
+          <TermsOfUsePage onBack={() => setCurrentPage('marketplace')} />
         )}
 
         {currentPage === 'registration' && (

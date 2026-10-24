@@ -159,6 +159,8 @@ export const translations = {
     footer_col_countries: 'Countries',
     footer_copyright: '© 2026 Binmar Drive. Free to register anywhere.',
     footer_staff_portal: 'Staff Portal →',
+    footer_privacy_policy: 'Privacy Policy',
+    footer_terms_of_use: 'Terms of Use',
 
     // About Page
     about_hero_title: 'Built to make it free to buy and sell a car.',
@@ -552,6 +554,8 @@ export const translations = {
     footer_col_countries: 'الدول',
     footer_copyright: '© 2026 بنمار درايف. التسجيل مجاني في كل مكان.',
     footer_staff_portal: 'بوابة الموظفين ←',
+    footer_privacy_policy: 'سياسة الخصوصية',
+    footer_terms_of_use: 'شروط الاستخدام',
 
     // About Page
     about_hero_title: 'صُمم ليكون بيع وشراء السيارات مجانياً للجميع.',

@@ -1753,7 +1753,7 @@ export default function SellerPortalPage({
               <p className="text-sm text-ink-soft mt-1 mb-6">
                 {activeTab === 'wallet' && 'Zero commission policy. All buyer deals and payments are settled directly between you and the buyer.'}
                 {activeTab === 'settings' && 'Configure your dealer notification preferences and showroom branding.'}
-                {activeTab === 'help' && 'Need help publishing or managing vehicles? Contact our 24/7 dealer concierges at support@binmardrive.com.'}
+                {activeTab === 'help' && 'Need help publishing or managing vehicles? Contact our 24/7 dealer concierges at Info@binmargroup.com.'}
               </p>
               <div className="p-4 rounded-xl bg-cream border border-tan/40 text-sm">
                 <p className="font-semibold text-ink">Account Status: Active Verified Partner</p>
