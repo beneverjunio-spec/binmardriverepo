@@ -34,7 +34,40 @@ export default function AdminLoginPage({
     setAuthLoading(true);
 
     try {
-      // 1. Check local custom admins & default admin records
+      // 1. Try backend API login against database
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.user) {
+            const u = data.user;
+            if (u.user_type === 'admin') {
+              setCurrentUser(u);
+              setAdminPass('');
+              notify(`Welcome, ${u.name || 'Administrator'}!`);
+              setCurrentPage('admin');
+              return;
+            } else {
+              setAdminLoginError('This account is not authorized for the admin portal. Staff role is required.');
+              return;
+            }
+          }
+        } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+          const errData = await res.json().catch(() => ({}));
+          if (errData.error && !errData.error.includes('route not found')) {
+            setAdminLoginError(errData.error || 'Invalid staff email or password. Please try again.');
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend login fallback to local credentials check:', apiErr);
+      }
+
+      // 2. Check local custom admins & default admin records
       let storedAdmins = [];
       try {
         const local = localStorage.getItem('binmar_custom_admins');
@@ -53,7 +86,6 @@ export default function AdminLoginPage({
       if (matchedAdmin) {
         if (matchedAdmin.status === 'Suspended') {
           setAdminLoginError('This admin account has been suspended. Please contact the Operations Director.');
-          setAuthLoading(false);
           return;
         }
 
@@ -69,7 +101,6 @@ export default function AdminLoginPage({
         setAdminPass('');
         notify(`Welcome, ${staffUser.name}!`);
         setCurrentPage('admin');
-        setAuthLoading(false);
         return;
       }
 
@@ -88,11 +119,10 @@ export default function AdminLoginPage({
         setAdminPass('');
         notify(`Welcome to Admin Portal, ${staffUser.name}!`);
         setCurrentPage('admin');
-        setAuthLoading(false);
         return;
       }
 
-      // 2. Try Netlify Identity if cloud backend is available
+      // 3. Try Netlify Identity if cloud backend is available
       try {
         const identity = await login(email, pass);
         if (identity?.roles?.includes('admin')) {
@@ -111,23 +141,7 @@ export default function AdminLoginPage({
         console.warn('Cloud auth skipped, checking local credentials fallback');
       }
 
-      // If password was admin1234 or email was recognized, let them in
-      if (pass === 'admin1234') {
-        const staffUser = {
-          name: email.split('@')[0] || 'Staff Admin',
-          email: email,
-          user_type: 'admin',
-          role: 'Super Admin',
-          country: 'United Arab Emirates'
-        };
-        setCurrentUser(staffUser);
-        setAdminPass('');
-        notify(`Welcome to Admin Portal, ${staffUser.name}!`);
-        setCurrentPage('admin');
-        return;
-      }
-
-      setAdminLoginError('Invalid staff email or password. Use: admin@binmardrive.com / admin1234');
+      setAdminLoginError('Invalid staff email or password. Please try again.');
     } finally {
       setAuthLoading(false);
     }
@@ -164,7 +178,7 @@ export default function AdminLoginPage({
             id="admin-email"
             type="email"
             autoComplete="email"
-            placeholder="admin@binmardrive.com"
+            placeholder="staff@binmardrive.com"
             required
             value={adminEmail}
             onChange={e => setAdminEmail(e.target.value)}
