@@ -307,10 +307,13 @@ export default function SellerPortalPage({
              Number(c.price) === Number(item.price))
           );
           if (matchIdx !== -1) {
-            // Prefer server data but keep local document_url if server doesn't have it
+            // Prefer server data from database, preserving any local document attachments and status
             allCustom[matchIdx] = {
               ...item,
               ...allCustom[matchIdx],
+              sale_status: allCustom[matchIdx].sale_status || item.sale_status || 'available',
+              sold_at: allCustom[matchIdx].sold_at || item.sold_at || null,
+              disabled: allCustom[matchIdx].disabled !== undefined ? allCustom[matchIdx].disabled : item.disabled,
               document_url: allCustom[matchIdx].document_url || item.document_url || null,
               document_file: allCustom[matchIdx].document_file || item.document_file || null
             };
@@ -513,21 +516,41 @@ export default function SellerPortalPage({
         sold_at: targetStatus !== 'available' ? new Date().toISOString() : null
       };
 
-      // 1. Update in local storage
-      const raw = localStorage.getItem('binmar_custom_listings');
-      if (raw) {
-        const items = JSON.parse(raw);
-        const updated = items.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l);
-        safeSaveListings(updated);
+      // 1. Sync directly to backend API & cloud database
+      try {
+        await apiRequest(`/api/listings/${listing.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sale_status: targetStatus,
+            sold_at: updatedItem.sold_at
+          })
+        });
+      } catch (apiErr) {
+        console.warn('API listing status update note:', apiErr);
       }
 
-      // 2. Notify Admin Portal if marked as sold/rented
+      // 2. Post notification directly to online database for Admin Portal
       if (targetStatus !== 'available') {
+        const notifTitle = isRent ? 'Vehicle Marked as Rented' : 'Vehicle Marked as Sold';
+        const notifMsg = `${listing.title || 'Vehicle'} has been marked as ${targetStatus.toUpperCase()} by seller ${sellerDisplayName} (${listing.city || 'Dubai'}, ${listing.country || 'UAE'}).`;
+        try {
+          await apiRequest('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: notifTitle,
+              message: notifMsg
+            })
+          });
+        } catch (nErr) {
+          console.warn('API notification note:', nErr);
+        }
+
+        // Also update local notifications cache
         try {
           const notifRaw = localStorage.getItem('binmar_admin_notifications');
           const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
-          const notifTitle = isRent ? 'Vehicle Marked as Rented' : 'Vehicle Marked as Sold';
-          const notifMsg = `${listing.title || 'Vehicle'} has been marked as ${targetStatus.toUpperCase()} by seller ${sellerDisplayName} (${listing.city || 'Dubai'}, ${listing.country || 'UAE'}).`;
           const newNotif = {
             id: Date.now(),
             title: notifTitle,
@@ -536,23 +559,18 @@ export default function SellerPortalPage({
             created_at: new Date().toISOString()
           };
           localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs.slice(0, 30)]));
-        } catch (nErr) {
-          console.warn('[Notification error]:', nErr);
-        }
+        } catch {}
       }
 
-      // 3. Sync to backend API if available
-      try {
-        await apiRequest(`/api/listings/${listing.id}/status`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sale_status: targetStatus })
-        });
-      } catch {
-        // Fallback handled via localStorage & broadcast
+      // 3. Update in local storage cache
+      const raw = localStorage.getItem('binmar_custom_listings');
+      if (raw) {
+        const items = JSON.parse(raw);
+        const updated = items.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l);
+        safeSaveListings(updated);
       }
 
-      // 4. Update UI
+      // 4. Update UI state immediately
       setSellerListings(prev => prev.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l));
       notify(`Listing marked as ${label}! Admin notified.`);
       if (onRefreshListings) onRefreshListings();
@@ -562,12 +580,19 @@ export default function SellerPortalPage({
     }
   };
 
-  const handleDeleteListing = (id, e) => {
+  const handleDeleteListing = async (id, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this listing from your studio?')) return;
 
     try {
-      // Add to deleted IDs
+      // 1. Delete from online database via API
+      try {
+        await apiRequest(`/api/listings/${id}`, { method: 'DELETE' });
+      } catch (apiErr) {
+        console.warn('API delete listing note:', apiErr);
+      }
+
+      // 2. Add to local deleted IDs cache
       let deleted = [];
       const rawDel = localStorage.getItem('binmar_deleted_listings');
       if (rawDel) deleted = JSON.parse(rawDel);
@@ -576,7 +601,7 @@ export default function SellerPortalPage({
         localStorage.setItem('binmar_deleted_listings', JSON.stringify(deleted));
       }
 
-      // Remove from custom listings
+      // 3. Remove from custom listings cache
       const raw = localStorage.getItem('binmar_custom_listings');
       if (raw) {
         const items = JSON.parse(raw);

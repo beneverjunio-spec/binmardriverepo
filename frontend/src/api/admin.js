@@ -209,13 +209,14 @@ export async function fetchAdminPortalData() {
     for (const sl of activeServerListings) {
       const matchIdx = combinedLive.findIndex(cl => isSameVehicle(cl, sl));
       if (matchIdx !== -1) {
-        // Preserve sale_status from localStorage (seller marks sold/rented locally)
+        // Prefer server database values, falling back to local cache
         const localSaleStatus = combinedLive[matchIdx].sale_status;
         combinedLive[matchIdx] = {
           ...combinedLive[matchIdx],
           ...sl,
-          sale_status: localSaleStatus || sl.sale_status || 'available',
-          sold_at: combinedLive[matchIdx].sold_at || sl.sold_at || null
+          sale_status: sl.sale_status || localSaleStatus || 'available',
+          sold_at: sl.sold_at || combinedLive[matchIdx].sold_at || null,
+          disabled: sl.disabled !== undefined ? sl.disabled : combinedLive[matchIdx].disabled
         };
       } else {
         combinedLive.push(sl);

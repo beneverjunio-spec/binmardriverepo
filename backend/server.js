@@ -301,7 +301,8 @@ app.post('/api/listings', async (req, res) => {
 // ==========================================
 // Toggle Sold / Rented Status (from Seller Studio)
 // ==========================================
-app.patch('/api/listings/:id/status', async (req, res) => {
+app.all('/api/listings/:id/status', async (req, res) => {
+  if (req.method !== 'PATCH' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
   try {
     const { id } = req.params;
     const { sale_status } = req.body; // 'sold' | 'rented' | 'available'
@@ -967,6 +968,23 @@ app.delete('/api/admin/listings/:id', async (req, res) => {
   }
 });
 
+app.delete('/api/listings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (USE_MONGO) {
+      await mongoDB.deleteListing(id);
+      return res.json({ success: true, message: 'Listing removed.' });
+    }
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    await request.query(`DELETE FROM listings WHERE id = @id`);
+    res.json({ success: true, message: 'Listing removed.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // ==========================================
 // Notifications
 // ==========================================
@@ -1001,6 +1019,24 @@ app.put('/api/notifications/:id/read', async (req, res) => {
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     await request.query(`UPDATE notifications SET is_read = 1 WHERE id = @id`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/notifications', async (req, res) => {
+  try {
+    const { title, message } = req.body;
+    if (USE_MONGO) {
+      await mongoDB.createNotification(title || 'Notification', message || '');
+      return res.json({ success: true });
+    }
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('title', sql.NVarChar, title || 'Notification');
+    request.input('message', sql.NVarChar, message || '');
+    await request.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });

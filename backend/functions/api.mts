@@ -106,6 +106,9 @@ export interface ListingItem {
   description: string;
   images: string[];
   status: string;
+  sale_status?: string;
+  sold_at?: string | null;
+  disabled?: boolean;
   document_name?: string;
   document_file?: string;
   document_url?: string;
@@ -279,7 +282,10 @@ export default async (request: Request) => {
 
   if (method !== 'GET') {
     const origin = request.headers.get('origin');
-    if (origin && origin !== url.origin) return reply({ error: 'Request origin is not allowed.' }, 403);
+    if (origin && origin !== url.origin) {
+      const isAllowed = origin.includes('localhost') || origin.includes('127.0.0.1') || origin.includes('netlify.app') || origin.includes('binmargroup.com');
+      if (!isAllowed) return reply({ error: 'Request origin is not allowed.' }, 403);
+    }
   }
 
   try {
@@ -288,7 +294,7 @@ export default async (request: Request) => {
     // ----------------------------------------------------
     if (path === '/api/listings' && method === 'GET') {
       const allListings = await loadListings();
-      let filtered = allListings.filter(l => l.status === 'approved');
+      let filtered = allListings.filter(l => l.status === 'approved' && !l.disabled);
 
       const make = url.searchParams.get('make');
       if (make) filtered = filtered.filter(l => l.make.toLowerCase() === make.toLowerCase());
@@ -629,13 +635,112 @@ export default async (request: Request) => {
       return reply({ success: true, listings: live });
     }
 
-    const deleteListingMatch = path.match(/^\/api\/admin\/listings\/([^\/]+)$/);
+    // ----------------------------------------------------
+    // Update Listing Sale Status (Sold / Rented / Available)
+    // ----------------------------------------------------
+    const listingStatusMatch = path.match(/^\/api\/listings\/([^\/]+)\/status$/);
+    if (listingStatusMatch && (method === 'PATCH' || method === 'POST')) {
+      const listId = listingStatusMatch[1];
+      const body = await request.json();
+      const sale_status = body.sale_status || 'available'; // 'sold' | 'rented' | 'available'
+      const sold_at = sale_status !== 'available' ? (body.sold_at || new Date().toISOString()) : null;
+
+      const allListings = await loadListings();
+      let targetListing: ListingItem | undefined;
+
+      const updated: ListingItem[] = allListings.map(l => {
+        if (String(l.id) === String(listId)) {
+          const item: ListingItem = {
+            ...l,
+            sale_status,
+            sold_at
+          };
+          targetListing = item;
+          return item;
+        }
+        return l;
+      });
+
+      await saveListings(updated);
+
+      // Create admin notification if marked as sold or rented
+      if (sale_status !== 'available') {
+        const notifs = await loadNotifications();
+        const isRent = sale_status === 'rented' || (targetListing && ((targetListing as any).listing_type === 'rent'));
+        const notifTitle = isRent ? 'Vehicle Marked as Rented' : 'Vehicle Marked as Sold';
+        const carTitle = targetListing ? (targetListing as any).title : `Vehicle #${listId}`;
+        const sellerName = targetListing ? ((targetListing as any).seller_name || 'Seller') : 'Seller';
+        const locationStr = targetListing ? `${(targetListing as any).city || 'Dubai'}, ${(targetListing as any).country || 'UAE'}` : 'Dubai, UAE';
+
+        const newNotif: NotificationItem = {
+          id: Date.now(),
+          title: notifTitle,
+          message: `${carTitle} has been marked as ${sale_status.toUpperCase()} by seller ${sellerName} (${locationStr}).`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+        await saveNotifications([newNotif, ...notifs]);
+      }
+
+      return reply({ success: true, listing: targetListing, message: `Status updated to ${sale_status}` });
+    }
+
+    // ----------------------------------------------------
+    // Admin Toggle Disable Listing
+    // ----------------------------------------------------
+    const disableListingMatch = path.match(/^\/api\/admin\/listings\/([^\/]+)\/disable$/);
+    if (disableListingMatch && (method === 'POST' || method === 'PATCH')) {
+      const listId = disableListingMatch[1];
+      const body = await request.json();
+      const disabled = Boolean(body.disabled);
+
+      const allListings = await loadListings();
+      const updated = allListings.map(l => {
+        if (String(l.id) === String(listId)) {
+          return { ...l, disabled };
+        }
+        return l;
+      });
+      await saveListings(updated);
+      return reply({ success: true, message: `Listing ${disabled ? 'disabled' : 'enabled'}.` });
+    }
+
+    // ----------------------------------------------------
+    // Delete Listing (Admin or Seller)
+    // ----------------------------------------------------
+    const deleteListingMatch = path.match(/^\/api\/(admin\/)?listings\/([^\/]+)$/);
     if (deleteListingMatch && method === 'DELETE') {
-      const listId = deleteListingMatch[1];
+      const listId = deleteListingMatch[2];
       const allListings = await loadListings();
       const updated = allListings.filter(l => String(l.id) !== String(listId));
       await saveListings(updated);
       return reply({ success: true, message: 'Listing removed from marketplace.' });
+    }
+
+    // ----------------------------------------------------
+    // Update Listing in Place (Seller Edit)
+    // ----------------------------------------------------
+    const updateListingMatch = path.match(/^\/api\/listings\/([^\/]+)$/);
+    if (updateListingMatch && (method === 'PUT' || method === 'PATCH')) {
+      const listId = updateListingMatch[1];
+      const body = await request.json();
+      const allListings = await loadListings();
+      let updatedListing: ListingItem | undefined;
+      const updated: ListingItem[] = allListings.map(l => {
+        if (String(l.id) === String(listId)) {
+          const item: ListingItem = {
+            ...l,
+            ...body,
+            id: l.id,
+            status: body.status || 'pending'
+          };
+          updatedListing = item;
+          return item;
+        }
+        return l;
+      });
+      await saveListings(updated);
+      return reply({ success: true, listing: updatedListing, message: 'Listing updated successfully.' });
     }
 
     if (path === '/api/seller/listings' && method === 'GET') {
@@ -649,7 +754,7 @@ export default async (request: Request) => {
       const matched = allListings.filter(l => {
         const lEmail = (l.seller_email || '').toLowerCase();
         const lName = (l.seller_name || '').toLowerCase();
-        return lEmail === seller || lName === seller;
+        return lEmail === seller || lName === seller || lEmail.includes(seller) || lName.includes(seller) || seller.includes(lName);
       });
       return reply({ success: true, listings: matched });
     }
@@ -739,6 +844,20 @@ export default async (request: Request) => {
       });
     }
 
+    if (path === '/api/notifications' && method === 'POST') {
+      const body = await request.json();
+      const notifs = await loadNotifications();
+      const newNotif: NotificationItem = {
+        id: body.id || Date.now(),
+        title: body.title || 'Notification',
+        message: body.message || '',
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      await saveNotifications([newNotif, ...notifs]);
+      return reply({ success: true, notification: newNotif }, 201);
+    }
+
     if (path === '/api/notifications/mark-all-read' && method === 'POST') {
       const allNotifs = await loadNotifications();
       const updated = allNotifs.map(n => ({ ...n, is_read: true }));
@@ -795,6 +914,7 @@ export const config: Config = {
     '/api/notifications/*',
     '/api/auth/*',
     '/api/listings',
+    '/api/listings/*',
     '/api/seller/*'
   ]
 };
