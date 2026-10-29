@@ -42,18 +42,41 @@ function getInitialPage() {
   return 'marketplace';
 }
 
+function getSavedUser() {
+  try {
+    const raw = localStorage.getItem('binmar_current_user');
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return null;
+}
+
 export default function App() {
   // Navigation & Page State
   const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [toast, setToast] = useState({ show: false, message: '' });
 
-  // User & Auth State
-  const [currentUser, setCurrentUser] = useState(null);
+  // User & Auth State — restored immediately from localStorage on refresh
+  const [currentUser, setCurrentUserState] = useState(getSavedUser);
   const [passwordCallback, setPasswordCallback] = useState(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginError, setLoginError] = useState('');
   const [regAccountType, setRegAccountType] = useState('individual');
   const authCallbackRef = useRef(null);
+
+  // Wrapper that persists user to localStorage so refresh restores session
+  const setCurrentUser = (userOrUpdater) => {
+    setCurrentUserState(prev => {
+      const next = typeof userOrUpdater === 'function' ? userOrUpdater(prev) : userOrUpdater;
+      try {
+        if (next) {
+          localStorage.setItem('binmar_current_user', JSON.stringify(next));
+        } else {
+          localStorage.removeItem('binmar_current_user');
+        }
+      } catch {}
+      return next;
+    });
+  };
 
   // Marketplace & Filter State
   const [listings, setListings] = useState([]);
@@ -144,7 +167,8 @@ export default function App() {
 
     try {
       const unsubscribe = onAuthChange((event, user) => {
-        if (!user && active) {
+        // Only clear the user if Netlify fires an explicit logout/signout event
+        if (!user && active && (event === 'logout' || event === 'signout')) {
           setCurrentUser(null);
           setCurrentPage(page => (page === 'admin' ? 'admin-login' : page));
         }
@@ -164,11 +188,14 @@ export default function App() {
 
           const identity = await getUser();
           if (identity) {
+            // Netlify has a valid session — refresh profile from API
             const profile = await loadProfile();
             if (active) setCurrentUser(profile);
           }
+          // If no identity from Netlify but we have a cached user in localStorage,
+          // keep the cached session (handled by getSavedUser initializer above)
         } catch {
-          // Gracefully do nothing on initial load so marketplace remains open
+          // Gracefully do nothing — the localStorage-restored user stays in place
         }
       }
 

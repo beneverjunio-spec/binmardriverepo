@@ -2,8 +2,8 @@ import React from 'react';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function PrivacyPolicyPage({ onBack }) {
-  const { language } = useLanguage();
-  const isAr = language === 'ar';
+  const { lang } = useLanguage();
+  const isAr = lang === 'ar';
 
   return (
     <div dir={isAr ? 'rtl' : 'ltr'} style={{ fontFamily: 'inherit' }}>
