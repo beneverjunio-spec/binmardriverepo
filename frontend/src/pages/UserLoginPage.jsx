@@ -44,16 +44,32 @@ export default function UserLoginPage({
       const data = await response.json();
       if (response.ok && data.success && data.user) {
         const u = data.user;
+        if (u.user_type === 'admin') {
+          setCurrentUser(u);
+          setLoginPass('');
+          notify(`Welcome back, ${u.name}!`);
+          setCurrentPage('admin');
+          setAuthLoading(false);
+          return;
+        }
+
+        const isVerified = u.status === 'approved' || u.status === 'verified' || Boolean(u.is_verified_seller);
+        if (!isVerified) {
+          if (u.status === 'pending') {
+            setLoginError('Your seller account is currently pending administrative verification. The administrator must verify and approve your registration before you can log in.');
+          } else if (u.status === 'rejected') {
+            setLoginError('Your seller registration was rejected by the administrator.');
+          } else {
+            setLoginError('Seller Studio access is reserved for verified sellers only. Please wait for administrative approval.');
+          }
+          setAuthLoading(false);
+          return;
+        }
+
         setCurrentUser(u);
         setLoginPass('');
         notify(`Welcome back, ${u.name}!`);
-        if (u.user_type === 'admin') {
-          setCurrentPage('admin');
-        } else if (u.user_type === 'company' || u.is_verified_seller) {
-          setCurrentPage('seller');
-        } else {
-          setCurrentPage('marketplace');
-        }
+        setCurrentPage('seller');
         setAuthLoading(false);
         return;
       } else if (!response.ok && data.error) {
@@ -168,14 +184,17 @@ export default function UserLoginPage({
             return;
           }
 
+          const isVerified = matched.status === 'approved' || matched.status === 'verified' || Boolean(matched.is_verified_seller);
+          if (!isVerified) {
+            setLoginError('Seller Studio access is reserved for verified sellers only. Please wait for account verification.');
+            setAuthLoading(false);
+            return;
+          }
+
           setCurrentUser(matched);
           setLoginPass('');
           notify(`Welcome back, ${matched.name}!`);
-          if (matched.user_type === 'company' || matched.is_verified_seller) {
-            setCurrentPage('seller');
-          } else {
-            setCurrentPage('marketplace');
-          }
+          setCurrentPage('seller');
           setAuthLoading(false);
           return;
         }
@@ -196,12 +215,18 @@ export default function UserLoginPage({
         setAuthLoading(false);
         return;
       }
+      const isVerified = profile.status === 'approved' || profile.status === 'verified' || Boolean(profile.is_verified_seller);
+      if (!isVerified && profile.user_type !== 'admin') {
+        setLoginError('Seller Studio access is reserved for verified sellers only. Please wait for account verification.');
+        setAuthLoading(false);
+        return;
+      }
       setCurrentUser(profile);
       setLoginPass('');
       notify(`Welcome back, ${profile.name}!`);
-      setCurrentPage(profile.user_type === 'admin' ? 'admin' : (profile.user_type === 'company' ? 'seller' : 'marketplace'));
+      setCurrentPage(profile.user_type === 'admin' ? 'admin' : 'seller');
     } catch (err) {
-      setLoginError(authErrorMessage(err) || 'Invalid email or password. Please verify your credentials or register an account.');
+      setLoginError(authErrorMessage(err) || 'Account not found. Please register as a verified seller first.');
     } finally {
       setAuthLoading(false);
     }

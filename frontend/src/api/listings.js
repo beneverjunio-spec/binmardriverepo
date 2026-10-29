@@ -118,6 +118,7 @@ export async function fetchPublicListings(filters = {}) {
     if (filters.country) queryParams.append('country', filters.country);
     if (filters.type) queryParams.append('type', filters.type);
     if (filters.category) queryParams.append('category', filters.category);
+    if (filters.seller) queryParams.append('seller', filters.seller);
     if (filters.maxPrice) queryParams.append('maxPrice', filters.maxPrice);
     if (filters.sortBy) queryParams.append('sort', filters.sortBy);
 
@@ -164,6 +165,14 @@ export async function fetchPublicListings(filters = {}) {
   if (filters.category) {
     filtered = filtered.filter(item => item.category.toLowerCase() === filters.category.toLowerCase());
   }
+  if (filters.seller) {
+    const s = filters.seller.trim().toLowerCase();
+    filtered = filtered.filter(item => {
+      const sellerName = (item.seller_name || '').toLowerCase();
+      const sellerEmail = (item.seller_email || '').toLowerCase();
+      return sellerName === s || sellerName.includes(s) || s.includes(sellerName) || sellerEmail === s;
+    });
+  }
   if (filters.maxPrice && Number(filters.maxPrice) > 0) {
     filtered = filtered.filter(item => Number(item.price) <= Number(filters.maxPrice));
   }
@@ -174,6 +183,64 @@ export async function fetchPublicListings(filters = {}) {
   }
 
   return filtered;
+}
+
+export async function fetchRegisteredSellers() {
+  try {
+    const res = await fetch('/api/dealers');
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && Array.isArray(data.dealers)) {
+        return data.dealers;
+      }
+    }
+  } catch (err) {
+    console.warn('API fetchRegisteredSellers fallback:', err);
+  }
+
+  // Fallback to locally approved dealers and users
+  const sellers = [];
+  try {
+    const rawDealers = localStorage.getItem('binmar_custom_dealers');
+    if (rawDealers) {
+      const parsed = JSON.parse(rawDealers);
+      parsed.forEach(d => {
+        if ((d.status === 'approved' || d.status === 'verified') && !isTestData(d)) {
+          const name = d.company_name || d.name;
+          if (name && !sellers.some(s => s.name?.toLowerCase() === name.toLowerCase())) {
+            sellers.push({
+              id: d.id,
+              name,
+              company_name: name,
+              country: d.country
+            });
+          }
+        }
+      });
+    }
+  } catch {}
+
+  try {
+    const rawUsers = localStorage.getItem('binmar_custom_users');
+    if (rawUsers) {
+      const parsed = JSON.parse(rawUsers);
+      parsed.forEach(u => {
+        if ((u.status === 'approved' || u.status === 'verified' || u.is_verified_seller) && u.user_type !== 'admin') {
+          const name = u.company_name || u.name;
+          if (name && !sellers.some(s => s.name?.toLowerCase() === name.toLowerCase())) {
+            sellers.push({
+              id: u.id,
+              name,
+              company_name: name,
+              country: u.country
+            });
+          }
+        }
+      });
+    }
+  } catch {}
+
+  return sellers;
 }
 
 export async function createListing(payload) {

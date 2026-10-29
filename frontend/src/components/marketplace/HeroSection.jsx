@@ -9,6 +9,9 @@ export default function HeroSection({
   setSelectedCountry,
   selectedType,
   setSelectedType,
+  selectedSeller,
+  setSelectedSeller,
+  registeredSellers = [],
   maxPrice,
   setMaxPrice
 }) {
@@ -49,6 +52,20 @@ export default function HeroSection({
             <option value="">{t('buy_or_rent')}</option>
             <option value="sale">{t('for_sale')}</option>
             <option value="rent">{t('for_rent')}</option>
+          </select>
+        </div>
+        <div>
+          <label>{t('label_seller')}</label>
+          <select value={selectedSeller} onChange={e => setSelectedSeller(e.target.value)}>
+            <option value="">{t('any_seller')}</option>
+            {registeredSellers.map(seller => {
+              const val = seller.company_name || seller.name;
+              return (
+                <option key={seller.id || val} value={val}>
+                  {val}
+                </option>
+              );
+            })}
           </select>
         </div>
         <div>

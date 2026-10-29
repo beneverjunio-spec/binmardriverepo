@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import HeroSection from '../components/marketplace/HeroSection';
 import TrustBanner from '../components/marketplace/TrustBanner';
 import CategoryStrip from '../components/marketplace/CategoryStrip';
@@ -13,6 +13,9 @@ export default function MarketplacePage({
   setSelectedCountry,
   selectedType,
   setSelectedType,
+  selectedSeller,
+  setSelectedSeller,
+  registeredSellers = [],
   maxPrice,
   setMaxPrice,
   selectedCategory,
@@ -24,6 +27,24 @@ export default function MarketplacePage({
 }) {
   const { t } = useLanguage();
 
+  // Combine registered sellers and active listing sellers to ensure comprehensive filter options
+  const sellerOptions = useMemo(() => {
+    const map = new Map();
+    (registeredSellers || []).forEach(s => {
+      const name = (s.company_name || s.name || '').trim();
+      if (name && !map.has(name.toLowerCase())) {
+        map.set(name.toLowerCase(), { id: s.id, name, company_name: name });
+      }
+    });
+    (listings || []).forEach(l => {
+      const name = (l.seller_name || '').trim();
+      if (name && !map.has(name.toLowerCase())) {
+        map.set(name.toLowerCase(), { id: l.seller_id || name, name, company_name: name });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [registeredSellers, listings]);
+
   return (
     <div>
       {/* Hero Section */}
@@ -34,6 +55,9 @@ export default function MarketplacePage({
         setSelectedCountry={setSelectedCountry}
         selectedType={selectedType}
         setSelectedType={setSelectedType}
+        selectedSeller={selectedSeller}
+        setSelectedSeller={setSelectedSeller}
+        registeredSellers={sellerOptions}
         maxPrice={maxPrice}
         setMaxPrice={setMaxPrice}
       />
@@ -52,7 +76,41 @@ export default function MarketplacePage({
         <div className="browse-head">
           <div>
             <h2>{t('browse_title')}</h2>
-            <p>{t('showing_verified', { count: listings.length })}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <p style={{ margin: 0 }}>{t('showing_verified', { count: listings.length })}</p>
+              {selectedSeller && (
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'rgba(212, 175, 55, 0.15)',
+                  border: '1px solid rgba(212, 175, 55, 0.4)',
+                  padding: '3px 10px',
+                  borderRadius: '16px',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  color: 'var(--ink)'
+                }}>
+                  {t('seller_filter_active')}: <strong>{selectedSeller}</strong>
+                  <button
+                    onClick={() => setSelectedSeller('')}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      lineHeight: 1,
+                      padding: 0,
+                      marginLeft: '2px',
+                      color: 'var(--ink)'
+                    }}
+                    title={t('clear_filter')}
+                  >
+                    &times;
+                  </button>
+                </span>
+              )}
+            </div>
           </div>
           <div className="browse-controls">
             <div className="tab-pair">

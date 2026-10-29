@@ -89,7 +89,7 @@ app.get('/api/health', async (req, res) => {
 // ==========================================
 app.get('/api/listings', async (req, res) => {
   try {
-    const { make, country, type, category, maxPrice, sort } = req.query;
+    const { make, country, type, category, maxPrice, sort, seller } = req.query;
 
     if (USE_MONGO) {
       const filter = { status: 'approved' };
@@ -97,6 +97,14 @@ app.get('/api/listings', async (req, res) => {
       if (country) filter.country = new RegExp(`^${country.trim()}$`, 'i');
       if (type) filter.listing_type = new RegExp(`^${type.trim()}$`, 'i');
       if (category) filter.category = new RegExp(`^${category.trim()}$`, 'i');
+      if (seller) {
+        const sRegex = new RegExp(seller.trim(), 'i');
+        filter.$or = [
+          { seller_name: sRegex },
+          { seller_email: sRegex },
+          { company_name: sRegex }
+        ];
+      }
       if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
         filter.price = { $lte: Number(maxPrice) };
       }
@@ -146,6 +154,10 @@ app.get('/api/listings', async (req, res) => {
     if (category) {
       query += ` AND LOWER(category) = LOWER(@category)`;
       request.input('category', sql.NVarChar, category);
+    }
+    if (seller) {
+      query += ` AND (LOWER(seller_name) LIKE @seller OR LOWER(seller_email) LIKE @seller)`;
+      request.input('seller', sql.NVarChar, `%${seller.trim().toLowerCase()}%`);
     }
     if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
       query += ` AND price <= @maxPrice`;
@@ -539,6 +551,43 @@ app.post(['/api/dealers/register', '/api/register'], async (req, res) => {
     });
   } catch (err) {
     console.error('Error during registration:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Public: Approved Registered Sellers / Dealers
+// ==========================================
+app.get(['/api/dealers', '/api/dealers/public', '/api/sellers'], async (req, res) => {
+  try {
+    if (USE_MONGO) {
+      const allUsers = await mongoDB.findUsers();
+      const approvedDealers = allUsers
+        .filter(u =>
+          u.user_type !== 'admin' &&
+          u.email !== 'almajid@test.com' &&
+          u.email !== 'contact@desertstarauto.ae' &&
+          (u.status === 'approved' || u.status === 'verified' || Boolean(u.is_verified_seller))
+        )
+        .map(u => ({
+          id: u.id || u._id,
+          name: u.name,
+          company_name: u.company_name || u.name,
+          country: u.country
+        }));
+      return res.json({ success: true, count: approvedDealers.length, dealers: approvedDealers });
+    }
+
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT id, name, company_name, country
+      FROM users
+      WHERE user_type != 'admin' AND (status = 'approved' OR status = 'verified' OR is_verified_seller = 1)
+      ORDER BY name ASC
+    `);
+    res.json({ success: true, count: result.recordset.length, dealers: result.recordset });
+  } catch (err) {
+    console.error('Error fetching registered dealers:', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

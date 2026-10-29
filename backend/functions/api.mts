@@ -308,6 +308,17 @@ export default async (request: Request) => {
       const category = url.searchParams.get('category');
       if (category) filtered = filtered.filter(l => l.category.toLowerCase() === category.toLowerCase());
 
+      const seller = url.searchParams.get('seller');
+      if (seller) {
+        const s = seller.trim().toLowerCase();
+        filtered = filtered.filter(l =>
+          (l.seller_name || '').toLowerCase() === s ||
+          (l.seller_name || '').toLowerCase().includes(s) ||
+          (l.seller_email || '').toLowerCase() === s ||
+          s.includes((l.seller_name || '').toLowerCase())
+        );
+      }
+
       const maxPrice = url.searchParams.get('maxPrice');
       if (maxPrice && Number.isFinite(Number(maxPrice))) {
         filtered = filtered.filter(l => Number(l.price) <= Number(maxPrice));
@@ -318,6 +329,25 @@ export default async (request: Request) => {
       else if (sort === 'high') filtered.sort((a, b) => Number(b.price) - Number(a.price));
 
       return reply({ success: true, count: filtered.length, listings: filtered });
+    }
+
+    // ----------------------------------------------------
+    // Public: Registered Sellers / Dealers List
+    // ----------------------------------------------------
+    if ((path === '/api/dealers' || path === '/api/dealers/public' || path === '/api/sellers') && method === 'GET') {
+      const currentUsers = await loadUsers();
+      const approvedDealers = currentUsers.filter(u =>
+        u.user_type !== 'admin' &&
+        u.email !== 'almajid@test.com' &&
+        u.email !== 'contact@desertstarauto.ae' &&
+        (u.status === 'approved' || u.status === 'verified' || Boolean(u.is_verified_seller))
+      ).map(u => ({
+        id: u.id,
+        name: u.name,
+        company_name: u.company_name || u.name,
+        country: u.country
+      }));
+      return reply({ success: true, count: approvedDealers.length, dealers: approvedDealers });
     }
 
     // ----------------------------------------------------
@@ -435,38 +465,45 @@ export default async (request: Request) => {
         });
       }
 
-      // 3. Check Registered Dealers / Sellers
+      // 3. Check Registered Dealers / Sellers (Strict: Only Registered & Verified Sellers can log in)
       const currentUsers = await loadUsers();
       const matchedUser = currentUsers.find(u => (u.email || '').toLowerCase() === email);
-      if (matchedUser) {
-        if (matchedUser.password && matchedUser.password !== password) {
-          return reply({ error: 'Incorrect password. Please try again.' }, 401);
-        }
+      if (!matchedUser) {
+        return reply({ error: 'Account not found. Please register as a verified seller first.' }, 404);
+      }
+
+      if (matchedUser.password && matchedUser.password !== password) {
+        return reply({ error: 'Incorrect password. Please try again.' }, 401);
+      }
+
+      if (matchedUser.status === 'rejected') {
+        return reply({ error: 'Your seller registration was rejected by the administrator.' }, 403);
+      }
+
+      if (matchedUser.status === 'pending' || !matchedUser.status) {
         return reply({
-          success: true,
-          user: {
-            id: matchedUser.id,
-            name: matchedUser.name,
-            email: matchedUser.email,
-            user_type: matchedUser.user_type,
-            company_name: matchedUser.company_name,
-            status: matchedUser.status,
-            is_verified_seller: matchedUser.status === 'approved' || matchedUser.status === 'verified',
-            country: matchedUser.country
-          }
-        });
+          error: 'Your seller account is currently pending administrative verification. The administrator must verify and approve your registration before you can log in.'
+        }, 403);
+      }
+
+      const isVerified = matchedUser.status === 'approved' || matchedUser.status === 'verified' || Boolean(matchedUser.is_verified_seller);
+      if (!isVerified) {
+        return reply({
+          error: 'Seller Studio access is reserved for verified sellers only. Please wait for account verification.'
+        }, 403);
       }
 
       return reply({
         success: true,
         user: {
-          id: Date.now(),
-          name: email.split('@')[0],
-          email,
-          user_type: 'individual',
+          id: matchedUser.id,
+          name: matchedUser.name,
+          email: matchedUser.email,
+          user_type: matchedUser.user_type || 'company',
+          company_name: matchedUser.company_name || matchedUser.name,
           status: 'approved',
           is_verified_seller: true,
-          country: 'United Arab Emirates'
+          country: matchedUser.country
         }
       });
     }

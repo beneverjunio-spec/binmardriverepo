@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getUser, handleAuthCallback, logout, onAuthChange } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from './api/auth';
-import { fetchPublicListings } from './api/listings';
+import { fetchPublicListings, fetchRegisteredSellers } from './api/listings';
 
 // Common Components
 import Toast from './components/common/Toast';
@@ -45,7 +45,12 @@ function getInitialPage() {
 function getSavedUser() {
   try {
     const raw = localStorage.getItem('binmar_current_user');
-    if (raw) return JSON.parse(raw);
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u.user_type === 'admin') return u;
+      if (u.status === 'pending' || u.status === 'rejected') return null;
+      return u;
+    }
   } catch {}
   return null;
 }
@@ -83,6 +88,8 @@ export default function App() {
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedType, setSelectedType] = useState('');
+  const [selectedSeller, setSelectedSeller] = useState('');
+  const [registeredSellers, setRegisteredSellers] = useState([]);
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('newest');
@@ -101,6 +108,7 @@ export default function App() {
         make: selectedMake,
         country: selectedCountry,
         type: selectedType,
+        seller: selectedSeller,
         category: selectedCategory,
         maxPrice,
         sortBy
@@ -123,9 +131,26 @@ export default function App() {
     }
   };
 
+  // Load registered sellers for marketplace dropdown filter
+  useEffect(() => {
+    let active = true;
+    async function loadSellers() {
+      try {
+        const data = await fetchRegisteredSellers();
+        if (active && Array.isArray(data)) {
+          setRegisteredSellers(data);
+        }
+      } catch (err) {
+        console.warn('Could not load registered sellers:', err);
+      }
+    }
+    loadSellers();
+    return () => { active = false; };
+  }, []);
+
   useEffect(() => {
     loadListings();
-  }, [selectedMake, selectedCountry, selectedType, selectedCategory, maxPrice, sortBy]);
+  }, [selectedMake, selectedCountry, selectedType, selectedSeller, selectedCategory, maxPrice, sortBy]);
 
   // Synchronize browser URL bar and scroll position
   useEffect(() => {
@@ -265,6 +290,9 @@ export default function App() {
             setSelectedCountry={setSelectedCountry}
             selectedType={selectedType}
             setSelectedType={setSelectedType}
+            selectedSeller={selectedSeller}
+            setSelectedSeller={setSelectedSeller}
+            registeredSellers={registeredSellers}
             maxPrice={maxPrice}
             setMaxPrice={setMaxPrice}
             selectedCategory={selectedCategory}
@@ -360,7 +388,7 @@ export default function App() {
         )}
 
         {currentPage === 'seller' && (
-          currentUser && (currentUser.user_type === 'company' || currentUser.is_verified_seller || currentUser.status === 'approved') && currentUser.status !== 'pending' && currentUser.status !== 'rejected' ? (
+          currentUser && (currentUser.is_verified_seller || currentUser.status === 'approved' || currentUser.status === 'verified') && currentUser.status !== 'pending' && currentUser.status !== 'rejected' ? (
             <SellerPortalPage
               currentUser={currentUser}
               setCurrentUser={setCurrentUser}
