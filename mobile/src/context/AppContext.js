@@ -56,6 +56,16 @@ export function applyLocalFilters(allCars = [], filters = {}) {
     );
   }
 
+  // Seller filter ('All' or specific seller name / dealership)
+  if (filters.seller && filters.seller !== 'All') {
+    const s = filters.seller.trim().toLowerCase();
+    result = result.filter((c) => {
+      const sName = (c.sellerName || c.seller_name || '').toLowerCase();
+      const sEmail = (c.sellerEmail || c.seller_email || '').toLowerCase();
+      return sName === s || sName.includes(s) || s.includes(sName) || sEmail === s;
+    });
+  }
+
   // Max price filter
   if (filters.maxPrice && !isNaN(Number(filters.maxPrice)) && Number(filters.maxPrice) > 0) {
     result = result.filter((c) => Number(c.price) <= Number(filters.maxPrice));
@@ -81,6 +91,8 @@ export function AppProvider({ children }) {
   const [isCountryModalOpen, setIsCountryModalOpen] = useState(false);
   const [selectedType, setSelectedType] = useState('all'); // 'all', 'buy', 'rent'
   const [selectedBrand, setSelectedBrand] = useState('All');
+  const [selectedSeller, setSelectedSeller] = useState('All'); // 'All' or specific seller / dealership
+  const [registeredSellers, setRegisteredSellers] = useState([]);
   const [selectedStatus, setSelectedStatus] = useState('all'); // 'all', 'available', 'sold' (defaults to 'all' so sold cars are never hidden)
   const [searchQuery, setSearchQuery] = useState('');
   const [maxPrice, setMaxPrice] = useState('');
@@ -91,6 +103,41 @@ export function AppProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [apiError, setApiError] = useState(null);
+
+  // Load registered dealers and sellers from backend API
+  useEffect(() => {
+    let active = true;
+    async function loadSellers() {
+      try {
+        const sellers = await api.getSellers();
+        if (active && Array.isArray(sellers) && sellers.length > 0) {
+          setRegisteredSellers(sellers);
+        }
+      } catch (e) {
+        // Fallback handled gracefully
+      }
+    }
+    loadSellers();
+    return () => { active = false; };
+  }, []);
+
+  // Compute comprehensive list of seller options combining registered dealers & active car sellers
+  const sellerOptions = React.useMemo(() => {
+    const map = new Map();
+    (registeredSellers || []).forEach((s) => {
+      const name = (s.company_name || s.name || '').trim();
+      if (name && !map.has(name.toLowerCase())) {
+        map.set(name.toLowerCase(), { id: s.id || name, name, company_name: name });
+      }
+    });
+    (masterListings || []).forEach((l) => {
+      const name = (l.sellerName || l.seller_name || '').trim();
+      if (name && !map.has(name.toLowerCase())) {
+        map.set(name.toLowerCase(), { id: l.seller_id || name, name, company_name: name });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [registeredSellers, masterListings]);
 
   // Favorites (Saved cars) - Starts empty, never hardcodes demo car IDs
   const [favorites, setFavorites] = useState([]);
@@ -127,6 +174,7 @@ export function AppProvider({ children }) {
             country: selectedCountry,
             type: selectedType,
             make: selectedBrand,
+            seller: selectedSeller,
             status: selectedStatus,
             query: searchQuery,
             maxPrice,
@@ -150,7 +198,7 @@ export function AppProvider({ children }) {
         setIsRefreshing(false);
       }
     }
-  }, [selectedCountry, selectedType, selectedBrand, selectedStatus, searchQuery, maxPrice, masterListings.length]);
+  }, [selectedCountry, selectedType, selectedBrand, selectedSeller, selectedStatus, searchQuery, maxPrice, masterListings.length]);
 
   // Initial load on app launch
   useEffect(() => {
@@ -163,12 +211,13 @@ export function AppProvider({ children }) {
       country: selectedCountry,
       type: selectedType,
       make: selectedBrand,
+      seller: selectedSeller,
       status: selectedStatus,
       query: searchQuery,
       maxPrice,
     });
     setListings(filtered);
-  }, [selectedCountry, selectedType, selectedBrand, selectedStatus, searchQuery, maxPrice, masterListings]);
+  }, [selectedCountry, selectedType, selectedBrand, selectedSeller, selectedStatus, searchQuery, maxPrice, masterListings]);
 
   // Public refresh handler for pull-to-refresh or manual reloads
   const refreshListings = useCallback(() => {
@@ -180,6 +229,7 @@ export function AppProvider({ children }) {
     setSelectedCountry('All Middle East');
     setSelectedBrand('All');
     setSelectedType('all');
+    setSelectedSeller('All');
     setSelectedStatus('all');
     setMaxPrice('');
     setSearchQuery('');
@@ -257,6 +307,10 @@ export function AppProvider({ children }) {
         setSelectedType,
         selectedBrand,
         setSelectedBrand,
+        selectedSeller,
+        setSelectedSeller,
+        registeredSellers,
+        sellerOptions,
         selectedStatus,
         setSelectedStatus,
         maxPrice,

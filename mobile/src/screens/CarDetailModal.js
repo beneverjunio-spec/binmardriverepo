@@ -19,7 +19,15 @@ import { useApp } from '../context/AppContext';
 const { width } = Dimensions.get('window');
 
 export default function CarDetailModal() {
-  const { selectedListing, closeListingDetails, isFavorite, toggleFavorite, colors } = useApp();
+  const {
+    selectedListing,
+    closeListingDetails,
+    isFavorite,
+    toggleFavorite,
+    colors,
+    setSelectedSeller,
+    setActiveTab,
+  } = useApp();
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -321,6 +329,24 @@ export default function CarDetailModal() {
                 <Ionicons name="checkmark-circle" size={20} color={colors.verified} />
               </View>
             </View>
+
+            {Boolean(selectedListing.sellerName) && (
+              <TouchableOpacity
+                style={[styles.viewSellerBtn, { backgroundColor: colors.bgCardLight || 'rgba(200, 160, 76, 0.08)', borderColor: colors.borderLight }]}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setSelectedSeller(selectedListing.sellerName);
+                  closeListingDetails();
+                  setActiveTab('browse');
+                }}
+              >
+                <Ionicons name="storefront-outline" size={15} color={colors.primaryGold} style={{ marginRight: 8 }} />
+                <Text style={[styles.viewSellerBtnText, { color: colors.primaryGold }]}>
+                  View all cars from {selectedListing.sellerName}
+                </Text>
+                <Ionicons name="chevron-forward" size={15} color={colors.primaryGold} style={{ marginLeft: 'auto' }} />
+              </TouchableOpacity>
+            )}
           </View>
         </ScrollView>
 
@@ -738,6 +764,19 @@ const styles = StyleSheet.create({
   },
   verifiedIconWrap: {
     marginLeft: 8,
+  },
+  viewSellerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  viewSellerBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   bottomBar: {
     position: 'absolute',

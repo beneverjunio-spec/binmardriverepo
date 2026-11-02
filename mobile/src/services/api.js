@@ -162,6 +162,9 @@ export const api = {
     if (filters.category) {
       params.append('category', filters.category);
     }
+    if (filters.seller && filters.seller !== 'All') {
+      params.append('seller', filters.seller);
+    }
     if (filters.sort) {
       params.append('sort', filters.sort);
     }
@@ -190,6 +193,16 @@ export const api = {
 
       let mapped = data.listings.map(mapListing);
 
+      // Client-side seller filter fallback
+      if (filters.seller && filters.seller !== 'All') {
+        const s = filters.seller.trim().toLowerCase();
+        mapped = mapped.filter((c) => {
+          const sName = (c.sellerName || c.seller_name || '').toLowerCase();
+          const sEmail = (c.sellerEmail || c.seller_email || '').toLowerCase();
+          return sName === s || sName.includes(s) || s.includes(sName) || sEmail === s;
+        });
+      }
+
       // Client-side search query filter across title, make, model, city, country
       if (filters.query && filters.query.trim()) {
         const q = filters.query.toLowerCase().trim();
@@ -209,6 +222,25 @@ export const api = {
       console.warn('[Mobile API] Live fetch error:', err.message);
       throw err;
     }
+  },
+
+  /**
+   * Fetch registered dealers and sellers from live backend (GET /api/dealers)
+   */
+  async getSellers() {
+    const baseUrl = getBaseUrl();
+    try {
+      const res = await fetch(`${baseUrl}/dealers`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.success && Array.isArray(data.dealers)) {
+          return data.dealers;
+        }
+      }
+    } catch (err) {
+      console.warn('[Mobile API] Dealers fetch fallback:', err.message);
+    }
+    return [];
   },
 
   /**

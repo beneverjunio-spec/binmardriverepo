@@ -169,7 +169,7 @@ export default function CarCard({ listing, compact = false }) {
           </View>
         </View>
 
-        {/* Footer with Location and Time */}
+        {/* Footer with Location, Seller, and Time */}
         <View style={[styles.footerRow, { borderTopColor: colors.borderLight }]}>
           <View style={styles.locationWrap}>
             <Ionicons name="location-outline" size={12} color={colors.primaryGold} />
@@ -177,6 +177,16 @@ export default function CarCard({ listing, compact = false }) {
               {listing.city}
             </Text>
           </View>
+
+          {Boolean(listing.sellerName || listing.seller_name) && (
+            <View style={[styles.sellerChip, { backgroundColor: colors.bgCardLight || 'rgba(200, 160, 76, 0.08)' }]}>
+              <Ionicons name="business-outline" size={11} color={colors.primaryGold} style={{ marginRight: 3 }} />
+              <Text style={[styles.sellerChipText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {listing.sellerName || listing.seller_name}
+              </Text>
+            </View>
+          )}
+
           <Text style={[styles.timeText, { color: colors.textMuted }]}>{listing.postedDaysAgo || 'Recently'}</Text>
         </View>
       </View>
@@ -348,6 +358,18 @@ const styles = StyleSheet.create({
   },
   locationText: {
     fontSize: 11,
+  },
+  sellerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 6,
+    maxWidth: '45%',
+  },
+  sellerChipText: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   timeText: {
     fontSize: 10,

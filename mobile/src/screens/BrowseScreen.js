@@ -29,6 +29,8 @@ export default function BrowseScreen() {
     setSelectedBrand,
     selectedCountry,
     setSelectedCountry,
+    selectedSeller,
+    setSelectedSeller,
     selectedStatus,
     setSelectedStatus,
     maxPrice,
@@ -52,6 +54,7 @@ export default function BrowseScreen() {
   const isBrandActive = selectedBrand !== 'All';
   const isCountryActive = selectedCountry !== 'All Middle East' && selectedCountry !== 'Any country';
   const isTypeActive = selectedType !== 'all';
+  const isSellerActive = selectedSeller && selectedSeller !== 'All';
   const isStatusActive = selectedStatus !== 'all';
   const isPriceActive = Boolean(maxPrice && maxPrice.trim());
 
@@ -59,6 +62,7 @@ export default function BrowseScreen() {
     (isBrandActive ? 1 : 0) +
     (isCountryActive ? 1 : 0) +
     (isTypeActive ? 1 : 0) +
+    (isSellerActive ? 1 : 0) +
     (isStatusActive ? 1 : 0) +
     (isPriceActive ? 1 : 0);
 
@@ -158,6 +162,17 @@ export default function BrowseScreen() {
                 onPress={() => setSelectedType('all')}
               >
                 <Text style={styles.activeChipText}>Type: {selectedType === 'buy' ? 'For sale' : 'For rent'}</Text>
+                <Ionicons name="close-circle" size={14} color="#C8A04C" />
+              </TouchableOpacity>
+            )}
+
+            {isSellerActive && (
+              <TouchableOpacity
+                style={[styles.activeChip, { borderColor: colors.primaryGold }]}
+                onPress={() => setSelectedSeller('All')}
+              >
+                <Ionicons name="business" size={13} color="#C8A04C" style={{ marginRight: 4 }} />
+                <Text style={styles.activeChipText}>Seller: {selectedSeller}</Text>
                 <Ionicons name="close-circle" size={14} color="#C8A04C" />
               </TouchableOpacity>
             )}

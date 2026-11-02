@@ -22,6 +22,9 @@ export default function WebFilterCard({ onSearch, style }) {
     setSelectedCountry,
     selectedType,
     setSelectedType,
+    selectedSeller,
+    setSelectedSeller,
+    sellerOptions,
     maxPrice,
     setMaxPrice,
     setActiveTab,
@@ -31,7 +34,8 @@ export default function WebFilterCard({ onSearch, style }) {
   } = useApp();
 
   // Modal selector states
-  const [activeModal, setActiveModal] = useState(null); // 'make', 'country', 'type', null
+  const [activeModal, setActiveModal] = useState(null); // 'make', 'country', 'type', 'seller', null
+  const [sellerSearch, setSellerSearch] = useState('');
 
   const currency = getCountryCurrency(selectedCountry);
 
@@ -39,6 +43,7 @@ export default function WebFilterCard({ onSearch, style }) {
     selectedBrand !== 'All' ||
     (selectedCountry !== 'All Middle East' && selectedCountry !== 'Any country') ||
     selectedType !== 'all' ||
+    (selectedSeller && selectedSeller !== 'All') ||
     Boolean(maxPrice && maxPrice.trim());
 
   const handleSearch = () => {
@@ -69,9 +74,9 @@ export default function WebFilterCard({ onSearch, style }) {
 
   return (
     <View style={[styles.cardContainer, style]}>
-      {/* 2x2 Filter Grid */}
+      {/* Filter Grid (Make, Country, Type, Seller, Max Price) */}
       <View style={styles.grid}>
-        {/* MAKE */}
+        {/* 1. MAKE */}
         <View style={styles.fieldCol}>
           <Text style={styles.fieldLabel}>MAKE</Text>
           <TouchableOpacity
@@ -92,7 +97,7 @@ export default function WebFilterCard({ onSearch, style }) {
           </TouchableOpacity>
         </View>
 
-        {/* COUNTRY */}
+        {/* 2. COUNTRY */}
         <View style={styles.fieldCol}>
           <Text style={styles.fieldLabel}>COUNTRY</Text>
           <TouchableOpacity
@@ -113,7 +118,7 @@ export default function WebFilterCard({ onSearch, style }) {
           </TouchableOpacity>
         </View>
 
-        {/* TYPE */}
+        {/* 3. TYPE */}
         <View style={styles.fieldCol}>
           <Text style={styles.fieldLabel}>TYPE</Text>
           <TouchableOpacity
@@ -134,8 +139,32 @@ export default function WebFilterCard({ onSearch, style }) {
           </TouchableOpacity>
         </View>
 
-        {/* MAX PRICE */}
+        {/* 4. SELLER (Matches Web Marketplace Filter) */}
         <View style={styles.fieldCol}>
+          <Text style={styles.fieldLabel}>SELLER</Text>
+          <TouchableOpacity
+            style={styles.selectBox}
+            activeOpacity={0.8}
+            onPress={() => {
+              setSellerSearch('');
+              setActiveModal('seller');
+            }}
+          >
+            <Text
+              style={[
+                styles.selectBoxText,
+                selectedSeller !== 'All' && styles.selectBoxTextActive,
+              ]}
+              numberOfLines={1}
+            >
+              {selectedSeller === 'All' ? 'Any seller' : selectedSeller}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color="#7A6E5C" />
+          </TouchableOpacity>
+        </View>
+
+        {/* 5. MAX PRICE (Full Width) */}
+        <View style={styles.fieldColFull}>
           <Text style={styles.fieldLabel} numberOfLines={1}>
             MAX PRICE {selectedCountry && selectedCountry !== 'All Middle East' ? `(${currency})` : ''}
           </Text>
@@ -413,6 +442,139 @@ export default function WebFilterCard({ onSearch, style }) {
           </View>
         </View>
       </Modal>
+      {/* 4. SELLER SELECTOR MODAL */}
+      <Modal
+        visible={activeModal === 'seller'}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { backgroundColor: colors.bgSurface, borderTopColor: colors.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.borderLight }]}>
+              <View>
+                <Text style={[styles.modalTitle, { color: colors.textPrimary }]}>Select Seller</Text>
+                <Text style={[styles.modalSubtitle, { color: colors.textMuted }]}>Browse by verified dealers & private sellers</Text>
+              </View>
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, { backgroundColor: colors.bgCard }]}
+                onPress={() => setActiveModal(null)}
+              >
+                <Ionicons name="close" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Quick search inside seller modal */}
+            {sellerOptions && sellerOptions.length > 3 && (
+              <View style={[styles.modalSearchBox, { backgroundColor: colors.bgCard, borderColor: colors.borderLight }]}>
+                <Ionicons name="search" size={16} color={colors.textMuted} style={{ marginRight: 6 }} />
+                <TextInput
+                  style={[styles.modalSearchInput, { color: colors.textPrimary }]}
+                  placeholder="Search seller or dealership..."
+                  placeholderTextColor={colors.textMuted}
+                  value={sellerSearch}
+                  onChangeText={setSellerSearch}
+                />
+                {Boolean(sellerSearch) && (
+                  <TouchableOpacity onPress={() => setSellerSearch('')}>
+                    <Ionicons name="close-circle" size={16} color={colors.textMuted} />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
+
+            <ScrollView contentContainerStyle={styles.modalList}>
+              {/* Option: Any seller */}
+              <TouchableOpacity
+                style={[
+                  styles.modalItem,
+                  { backgroundColor: colors.bgCard, borderColor: colors.borderLight },
+                  selectedSeller === 'All' && { borderColor: colors.primaryGold, backgroundColor: 'rgba(200, 160, 76, 0.12)' },
+                ]}
+                onPress={() => {
+                  setSelectedSeller('All');
+                  setActiveModal(null);
+                }}
+              >
+                <View style={styles.sellerModalRow}>
+                  <View style={[styles.sellerIconBox, { backgroundColor: 'rgba(200, 160, 76, 0.15)' }]}>
+                    <Ionicons name="people-outline" size={18} color={colors.primaryGold} />
+                  </View>
+                  <View>
+                    <Text
+                      style={[
+                        styles.modalItemText,
+                        { color: colors.textPrimary },
+                        selectedSeller === 'All' && { color: colors.primaryGold, fontWeight: '800' },
+                      ]}
+                    >
+                      Any seller
+                    </Text>
+                    <Text style={[styles.modalDescText, { color: colors.textMuted }]}>
+                      All registered dealers & private sellers
+                    </Text>
+                  </View>
+                </View>
+                {selectedSeller === 'All' && (
+                  <Ionicons name="checkmark-circle" size={20} color={colors.primaryGold} />
+                )}
+              </TouchableOpacity>
+
+              {/* Specific registered sellers & listing sellers */}
+              {(sellerOptions || [])
+                .filter((s) => {
+                  if (!sellerSearch.trim()) return true;
+                  const q = sellerSearch.toLowerCase().trim();
+                  return (
+                    (s.name && s.name.toLowerCase().includes(q)) ||
+                    (s.company_name && s.company_name.toLowerCase().includes(q))
+                  );
+                })
+                .map((seller) => {
+                  const sellerVal = seller.company_name || seller.name;
+                  const isSelected = selectedSeller.toLowerCase() === sellerVal.toLowerCase();
+                  return (
+                    <TouchableOpacity
+                      key={seller.id || sellerVal}
+                      style={[
+                        styles.modalItem,
+                        { backgroundColor: colors.bgCard, borderColor: colors.borderLight },
+                        isSelected && { borderColor: colors.primaryGold, backgroundColor: 'rgba(200, 160, 76, 0.12)' },
+                      ]}
+                      onPress={() => {
+                        setSelectedSeller(sellerVal);
+                        setActiveModal(null);
+                      }}
+                    >
+                      <View style={styles.sellerModalRow}>
+                        <View style={[styles.sellerIconBox, { backgroundColor: 'rgba(200, 160, 76, 0.15)' }]}>
+                          <Ionicons name="business-outline" size={18} color={colors.primaryGold} />
+                        </View>
+                        <View>
+                          <Text
+                            style={[
+                              styles.modalItemText,
+                              { color: colors.textPrimary },
+                              isSelected && { color: colors.primaryGold, fontWeight: '800' },
+                            ]}
+                          >
+                            {sellerVal}
+                          </Text>
+                          <Text style={[styles.modalDescText, { color: colors.textMuted }]}>
+                            Verified Partner Dealership
+                          </Text>
+                        </View>
+                      </View>
+                      {isSelected && (
+                        <Ionicons name="checkmark-circle" size={20} color={colors.primaryGold} />
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -438,6 +600,10 @@ const styles = StyleSheet.create({
   },
   fieldCol: {
     width: '48.5%',
+    marginBottom: 12,
+  },
+  fieldColFull: {
+    width: '100%',
     marginBottom: 12,
   },
   fieldLabel: {
@@ -566,6 +732,23 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  modalSearchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    height: 40,
+    marginHorizontal: 16,
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  modalSearchInput: {
+    flex: 1,
+    fontSize: 13,
+    padding: 0,
+    margin: 0,
+  },
   modalList: {
     paddingHorizontal: 16,
     paddingVertical: 12,
@@ -582,6 +765,19 @@ const styles = StyleSheet.create({
   countryModalRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  sellerModalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  sellerIconBox: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
   modalFlag: {
     fontSize: 20,
