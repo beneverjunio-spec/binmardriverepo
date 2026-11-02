@@ -44,42 +44,19 @@ function sanitizeListing(item) {
   };
 }
 
-const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
-
 export function isTestData(item) {
   if (!item) return false;
-  const idStr = String(item.id);
-  if (TEST_ITEM_IDS.includes(idStr)) return true;
-  if (item.title && (
-    item.title === '2024 Toyota Land Cruiser' ||
-    item.title === '2024 Toyota Land Cruiser GR-Sport' ||
-    item.title === '2023 Mercedes-Benz G63 AMG' ||
-    item.title === '2022 Mercedes-Benz G63 AMG' ||
-    item.title === '2025 Porsche 911 GT3 RS' ||
-    item.title === '2024 Nissan Patrol NISMO 5.6L' ||
-    item.title === '2023 Nissan Patrol' ||
-    item.title === '2025 Lexus LX 600' ||
-    item.title === '2024 Lexus LX 600 VIP Edition' ||
-    item.title === '2024 Ford F-150 Raptor R 5.2L V8' ||
-    item.title === '2024 Land Rover Defender 110 V8' ||
-    item.title === '2023 BMW M4 Competition Coupe' ||
-    item.title === '2024 Chevrolet Corvette Z06 3LZ'
-  )) {
-    return true;
-  }
   const title = (item.title || '').toLowerCase();
   if (
     title.includes('toyota bmd') ||
+    title.includes('test car') ||
+    title.includes('dummy') ||
     title.includes('toyota 2002') ||
     title.includes('toyota 2000') ||
     title.includes('bmw 2000') ||
     title.includes('nissan 2000')
   ) {
     return true;
-  }
-  const sName = (item.seller_name || '').toUpperCase();
-  if (sName === 'MR. ALI' || sName.includes('DESERT STAR') || sName.includes('AL FUTTAIM') || sName.includes('AL TAYER PRESTIGE') || sName.includes('BINMAR ROYAL') || sName.includes('ABDUL LATIF JAMEEL')) {
-    if (['1', '2', '3', '4', '5', '6', '101', '102', '103', '104'].includes(idStr)) return true;
   }
   return false;
 }
@@ -117,7 +94,7 @@ export async function fetchPublicListings(filters = {}) {
     const res = await fetch(`/api/listings?${queryParams.toString()}`);
     if (res.ok) {
       const data = await res.json();
-      if (data && data.success && Array.isArray(data.listings)) {
+      if (data && data.success && Array.isArray(data.listings) && data.listings.length > 0) {
         serverListings = data.listings.filter(l => !isTestData(l)).map(sanitizeListing);
       }
     }
@@ -127,7 +104,9 @@ export async function fetchPublicListings(filters = {}) {
 
   const approvedCustom = localCustom.filter(item => item.status === 'approved' && !deletedListingIds.includes(String(item.id)));
   
-  let baseListings = serverListings !== null ? [...serverListings] : [];
+  let baseListings = (serverListings !== null && serverListings.length > 0)
+    ? [...serverListings]
+    : DEFAULT_LISTINGS.map(sanitizeListing);
 
   const existingIds = new Set(baseListings.map(b => String(b.id)));
   for (const c of approvedCustom) {

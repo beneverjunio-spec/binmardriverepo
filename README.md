@@ -1,111 +1,97 @@
-# 🚗 BinmarDrive — GCC Vehicle Marketplace
+# 🚗 BinmarDrive — Middle East Vehicle Marketplace
 
-A full-stack, serverless automotive marketplace and rental platform built for the GCC region (*United Arab Emirates, Saudi Arabia, Qatar, Oman, Kuwait, and Bahrain*).
+A full-stack automotive marketplace and rental ecosystem built for the GCC region (*United Arab Emirates, Saudi Arabia, Qatar, Oman, Kuwait, and Bahrain*), featuring a **Web App**, **Mobile App (iOS & Android)**, and **REST API Backend**.
 
----
-
-## 🌟 Key Features
-
-- **Public Vehicle Marketplace**: Filter vehicles by Make, Country, Category (SUV, Sedan, Pickup, Luxury), Listing Type (Buy/Rent), and Price.
-- **Listing Creation Wizard**: Multi-step vehicle submission workflow with image upload support.
-- **Commercial Dealer Verification**: Business verification system with trade license review.
-- **Administrative Portal**: Complete management portal with real-time statistics, listing moderation queue, dealer approval workflow, and live inventory management.
-- **Regional Support**: Built-in support for GCC currencies (AED, SAR, QAR, KWD, BHD, OMR) and phone formatting.
+🌐 **Live Website & API:** [https://binmardrive.binmargroup.com](https://binmardrive.binmargroup.com)
 
 ---
 
-## 🏗️ Architecture & Technology Stack
-
-| Component | Technology | Description |
-| :--- | :--- | :--- |
-| **Frontend** | React 18, Vite, Lucide Icons | Modular Single Page Application (SPA) with clean component hierarchy |
-| **Backend / API** | Node.js Express & Serverless REST API | REST API endpoints for listings, moderation, dealers, and notifications |
-| **Database** | Microsoft SQL Server (MSSQL) & Drizzle ORM | High-performance relational database with users, listings, notifications |
-| **Authentication** | Netlify Identity | Role-based authorization (`individual`, `company`, `admin`) |
-| **Storage** | Netlify Blobs | Cloud blob storage for vehicle imagery |
-
----
-
-## 📁 Project Structure
+## 📁 Clean Architecture & Folder Layout
 
 ```text
-binmardriverepo/
-├── frontend/                   # 🌐 Dedicated Frontend Application
-│   ├── src/
-│   │   ├── api/                # API client & domain service modules
-│   │   │   ├── admin.js        # Moderation and admin operations API
-│   │   │   ├── auth.js         # Authentication profile & error handlers
-│   │   │   ├── client.js       # Base HTTP client
-│   │   │   └── listings.js     # Public listings and photo uploads
-│   │   ├── components/         # Reusable UI components
-│   │   │   ├── admin/          # Admin portal components & tabs
-│   │   │   ├── common/         # Navbar, Footer, Toast
-│   │   │   └── marketplace/    # Cards, detail modals, category chips
-│   │   ├── constants/          # GCC regional data & application constants
-│   │   ├── pages/              # Clean routed page views
-│   │   ├── App.jsx             # Main application orchestrator
-│   │   ├── index.css           # Design system and stylesheets
-│   │   └── main.jsx            # Application entry point
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.js
+binmar-rent-car/
 │
-├── backend/                    # ⚙️ Dedicated Backend Application
-│   ├── db/                     # Database schema & ORM client
-│   │   ├── index.ts            # Database connection helper
-│   │   └── schema.ts           # Drizzle ORM PostgreSQL schema
-│   ├── functions/              # Serverless API functions
-│   │   ├── api.mts             # Primary REST API handler
-│   │   └── photos.mts          # Photo upload and blob storage handler
-│   ├── drizzle.config.ts       # Database migration configuration
-│   ├── package.json            # Backend dependencies & scripts
-│   └── tsconfig.json           # Backend TypeScript configuration
+├── binmardriverepo/
+│   ├── frontend/             # 🌐 Web Application (React 18 + Vite)
+│   │   ├── src/              # Pages, Components, Marketplace, Admin UI
+│   │   ├── .env              # Frontend environment config (VITE_*)
+│   │   ├── .env.example      # Environment template
+│   │   └── package.json
+│   │
+│   ├── backend/              # ⚙️ REST API & Database (Node.js Express + MSSQL)
+│   │   ├── config/           # Database & MSSQL pool connection
+│   │   ├── routes/           # Auth, Admin, and Listings endpoints
+│   │   ├── server.js         # Core Express server (Port 5005)
+│   │   ├── .env              # Backend environment config (DB & Ports)
+│   │   ├── .env.example      # Environment template
+│   │   └── package.json
+│   │
+│   ├── mobile/               # 📱 Mobile Application (React Native + Expo SDK 58)
+│   │   ├── src/              # Screens (Home, Buy/Browse, Sell, Saved, Profile)
+│   │   ├── src/services/     # Live API client with unified HTTPS endpoints
+│   │   ├── .env              # Mobile environment config (EXPO_PUBLIC_*)
+│   │   ├── .env.example      # Environment template
+│   │   └── package.json
+│   │
+│   ├── scripts/              # 🛠️ Build and deployment scripts
+│   ├── netlify.toml          # Netlify cloud deployment configuration
+│   └── package.json          # Root workspace scripts
 │
-├── netlify.toml                # Netlify deployment and routing configuration
-├── package.json                # Root workspace configuration and scripts
-└── README.md
+└── package.json              # Top-level workspace runner
 ```
 
 ---
 
-## ⚡ Quick Start
+## 🚀 Quick Start (Running Locally)
 
-### 1. Install Dependencies
+### 1. Backend Server (Node.js API)
 ```bash
-npm install --include=dev
-npm --prefix frontend install --include=dev
-npm --prefix backend install --include=dev
+cd binmardriverepo
+npm run start:backend
+# API starts on http://127.0.0.1:5005
 ```
 
-### 2. Run Local Development Server
-Use Netlify Dev so that frontend, backend serverless functions, identity, and database run together:
+### 2. Frontend (Web App)
 ```bash
-npx netlify dev --port 8889
+cd binmardriverepo
+npm run dev:frontend
+# Web app runs on http://127.0.0.1:5173
 ```
 
-Open [http://localhost:8889](http://localhost:8889) in your browser.
+### 3. Mobile App (Expo / React Native)
+```bash
+cd binmardriverepo/mobile
+npx expo start -c
+# Scan the QR code with Expo Go on your physical Android or iPhone
+```
 
 ---
 
-## 🛡️ Authentication & Administration
+## 🔗 Shared API Endpoints (Web & Mobile Synchronized)
 
-1. **User Accounts**: Users can register as an *Individual Owner* or *Commercial Dealer*.
-2. **Staff / Admin Access**:
-   - Invite staff members through the **Netlify Identity** dashboard.
-   - Assign the `admin` role to the account.
-   - Staff members accept the invite, set a password, and log in via the **Admin Portal**.
-   - Role-based authorization is enforced at both the API layer and the UI layer.
+Both Web and Mobile talk to the same live API: `https://binmardrive.binmargroup.com/api`
+
+| Endpoint | Method | Purpose |
+| :--- | :--- | :--- |
+| `/api/listings` | `GET` | Fetch all active vehicle listings with filters |
+| `/api/listings` | `POST` | Submit a new vehicle listing |
+| `/api/auth/register` | `POST` | Register a new user or commercial dealer |
+| `/api/auth/login` | `POST` | User & dealer authentication |
+| `/api/admin/access` | `POST` | Super Admin portal login |
+| `/api/admin/stats` | `GET` | Live marketplace statistics |
+| `/api/admin/listings` | `GET` | Manage all listings (approved & pending) |
+| `/api/admin/moderation` | `GET` | Vehicle inspection & moderation queue |
+| `/api/admin/dealers` | `GET` | Commercial dealer approval queue |
+| `/api/admin/moderation/:id/resolve` | `POST` | Approve or reject submitted vehicles |
+| `/api/admin/dealers/:id/resolve` | `POST` | Approve or reject dealer applications |
+| `/api/admin/listings/:id` | `DELETE` | Remove a listing |
+| `/api/notifications` | `GET` | System alert & lead notifications |
 
 ---
 
-## 📜 Available Scripts
+## 🔐 Environment Variables Summary
 
-- `npm run dev`: Starts the unified local dev environment on port 8889.
-- `npm run dev:frontend`: Runs the Vite frontend development server independently.
-- `npm run build`: Compiles the frontend for production distribution.
-- `npm run typecheck`: Runs TypeScript checks across backend functions and database schemas.
-- `npm run db:generate`: Generates new Drizzle schema migrations.
-
----
-
-*Last build trigger: 2026-10-17 14:41 UTC*
+Each workspace folder has its own clean `.env` file:
+- **`mobile/.env`**: Uses `EXPO_PUBLIC_API_URL` to point to the live API.
+- **`frontend/.env`**: Uses `VITE_API_URL` to point to the live API.
+- **`backend/.env`**: Configures port, MSSQL connection, and admin credentials.

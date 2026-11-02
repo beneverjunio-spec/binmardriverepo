@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Binmar Drive",
+    "slug": "binmar-drive",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/logo.png",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#15110A",
+    "primaryColor": "#C8A04C",
+    "splash": {
+      "image": "./assets/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D3829"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.binmar.drive"
+    },
+    "android": {
+      "package": "com.binmar.drive",
+      "versionCode": 1,
+      "permissions": [
+        "INTERNET"
+      ],
+      "adaptiveIcon": {
+        "backgroundColor": "#0D3829",
+        "foregroundImage": "./assets/logo.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/logo.png"
+    },
+    "plugins": [
+      "expo-status-bar",
+      "expo-font"
+    ]
+  }
+}
