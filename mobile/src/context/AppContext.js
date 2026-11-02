@@ -75,8 +75,8 @@ export function applyLocalFilters(allCars = [], filters = {}) {
 }
 
 export function AppProvider({ children }) {
-  // Theme state
-  const [themeMode, setThemeMode] = useState('dark');
+  // Theme state: defaults to 'light' on app open, switches to 'dark' when user clicks
+  const [themeMode, setThemeMode] = useState('light');
   const colors = themeMode === 'dark' ? DARK_THEME : LIGHT_THEME;
 
   const toggleTheme = () => {

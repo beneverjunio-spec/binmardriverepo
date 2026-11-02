@@ -58,4 +58,4 @@ export const LIGHT_THEME = {
   statusBar: 'dark',
 };
 
-export const COLORS = DARK_THEME;
+export const COLORS = LIGHT_THEME;
