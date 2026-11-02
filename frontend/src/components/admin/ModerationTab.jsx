@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import DocumentViewerModal from '../common/DocumentViewerModal';
 import {
+  AlertTriangle,
   Eye,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   FileText,
   MapPin,
@@ -17,13 +20,20 @@ import {
   ExternalLink,
   ChevronLeft,
   ChevronRight,
-  FileCheck
+  FileCheck,
+  Printer,
+  Download,
+  Upload
 } from 'lucide-react';
 
 export default function ModerationTab({ moderationQueue, onResolveModeration }) {
   const [inspectingItem, setInspectingItem] = useState(null);
   const [documentModalItem, setDocumentModalItem] = useState(null);
+  const [viewingFullDoc, setViewingFullDoc] = useState(null);
+  const [rejectingItem, setRejectingItem] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState("");
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
+  const docFileInputRef = React.useRef(null);
 
   const openInspection = (item) => {
     setInspectingItem(item);
@@ -109,10 +119,25 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                       <div>
                         <div
                           className="cell-main"
-                          style={{ cursor: 'pointer', color: 'var(--gold, #d4af37)', fontWeight: 700 }}
+                          style={{ cursor: 'pointer', color: 'var(--gold, #d4af37)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}
                           onClick={() => openInspection(item)}
                         >
-                          {item.title}
+                          <span>{item.title}</span>
+                          {(item.resubmitted || item.previous_rejection_reason) && (
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 800,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.04em',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              background: 'rgba(59, 130, 246, 0.2)',
+                              color: '#60a5fa',
+                              border: '1px solid rgba(59, 130, 246, 0.4)'
+                            }}>
+                              Resubmitted
+                            </span>
+                          )}
                         </div>
                         <div className="cell-sub" style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <MapPin size={11} /> {item.city || 'Dubai'}, {item.country || 'UAE'}
@@ -175,7 +200,13 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                         fontSize: '0.8rem',
                         fontWeight: 700
                       }}
-                      onClick={() => setDocumentModalItem(item)}
+                      onClick={() => setViewingFullDoc({
+                        title: 'Vehicle Mulkiya & Registration Certificate',
+                        documentName: item.document_name || item.document_file || `${item.make}_${item.model}_Mulkiya.pdf`,
+                        documentType: 'mulkiya',
+                        documentUrl: item.document_url || null,
+                        data: item
+                      })}
                       title="Inspect official Mulkiya verification document"
                     >
                       <FileText size={14} />
@@ -218,7 +249,7 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                       </button>
                       <button
                         className="act-btn reject"
-                        onClick={() => onResolveModeration(item.id, false)}
+                        onClick={() => { setRejectingItem(item); setRejectionReason(""); }}
                         title="Reject submission"
                       >
                         Reject
@@ -237,280 +268,613 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
       </table>
 
       {/* OFFICIAL MULKIYA DOCUMENT MODAL POPUP (Replaces browser alert) */}
-      {documentModalItem && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(5, 10, 15, 0.8)',
-            backdropFilter: 'blur(8px)',
-            zIndex: 10000,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '1rem'
-          }}
-          onClick={() => setDocumentModalItem(null)}
-        >
+      {documentModalItem && (() => {
+        const docName = documentModalItem.document_name || documentModalItem.document_file || 'Mulkiya_Vehicle_Registration.pdf';
+        const docUrl = documentModalItem.document_url;
+        const isImage = Boolean(
+          docUrl?.startsWith('data:image/') ||
+          (docUrl && /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(docUrl)) ||
+          /\.(png|jpe?g|webp|gif|svg)$/i.test(docName)
+        );
+        const isPdf = Boolean(
+          docUrl?.startsWith('data:application/pdf') ||
+          (docUrl && /\.pdf(\?.*)?$/i.test(docUrl)) ||
+          docName.toLowerCase().endsWith('.pdf')
+        );
+
+        const handleAttachDocFile = (e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const dataUrl = ev.target.result;
+            setDocumentModalItem(prev => ({
+              ...prev,
+              document_url: dataUrl,
+              document_file: file.name,
+              document_name: file.name
+            }));
+            try {
+              const raw = localStorage.getItem('binmar_custom_listings');
+              if (raw) {
+                const listings = JSON.parse(raw);
+                const idx = listings.findIndex(l => String(l.id) === String(documentModalItem.id));
+                if (idx !== -1) {
+                  listings[idx].document_url = dataUrl;
+                  listings[idx].document_file = file.name;
+                  listings[idx].document_name = file.name;
+                  localStorage.setItem('binmar_custom_listings', JSON.stringify(listings));
+                }
+              }
+            } catch (err) {
+              console.warn(err);
+            }
+          };
+          reader.readAsDataURL(file);
+        };
+
+        const handleOpenViewPrint = () => {
+          if (docUrl) {
+            // Open full DocumentViewerModal directly for viewing
+            setViewingFullDoc({
+              title: 'Vehicle Mulkiya & Registration Certificate',
+              documentName: docName,
+              documentType: 'mulkiya',
+              documentUrl: docUrl,
+              data: documentModalItem
+            });
+            setDocumentModalItem(null);
+          } else if (docFileInputRef.current) {
+            docFileInputRef.current.click();
+          }
+        };
+
+        const handleDirectPrint = () => {
+          if (docUrl) {
+            const win = window.open();
+            if (win) {
+              if (isImage) {
+                win.document.write(`<html><head><title>${docName}</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh;"><img src="${docUrl}" style="max-width:100%; max-height:100vh; object-fit:contain;" onload="window.print();" /></body></html>`);
+              } else {
+                win.document.write(`<iframe src="${docUrl}" frameborder="0" style="width:100%; height:100vh;" onload="window.print();"></iframe>`);
+              }
+            }
+          } else {
+            window.print();
+          }
+        };
+
+        const handleDirectDownload = () => {
+          if (docUrl) {
+            const a = document.createElement('a');
+            a.href = docUrl;
+            a.download = docName || 'Mulkiya_Document.jpg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else if (docFileInputRef.current) {
+            docFileInputRef.current.click();
+          }
+        };
+
+        return (
           <div
             style={{
-              width: '100%',
-              maxWidth: '44rem',
-              maxHeight: '90vh',
-              background: '#0d131a',
-              border: '1px solid rgba(212, 175, 55, 0.45)',
-              borderRadius: '1rem',
-              boxShadow: '0 25px 60px rgba(0, 0, 0, 0.7)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              color: '#f8fafc'
-            }}
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Document Modal Header */}
-            <div style={{
-              padding: '1.25rem 1.5rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
-              background: '#131b24',
+              position: 'fixed',
+              inset: 0,
+              background: 'rgba(5, 10, 15, 0.88)',
+              backdropFilter: 'blur(8px)',
+              zIndex: 10000,
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '8px',
-                  background: 'rgba(212, 175, 55, 0.15)',
-                  border: '1px solid rgba(212, 175, 55, 0.3)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'var(--gold, #d4af37)'
-                }}>
-                  <FileText size={20} />
-                </div>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 700, color: '#f8fafc' }}>
-                      Vehicle Mulkiya & Registration Certificate
-                    </h3>
-                    <span style={{
-                      fontSize: '0.68rem',
-                      fontWeight: 700,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                      padding: '2px 8px',
-                      borderRadius: '4px',
-                      background: 'rgba(34, 197, 94, 0.15)',
-                      color: '#4ade80',
-                      border: '1px solid rgba(34, 197, 94, 0.3)'
-                    }}>
-                      Verified Document
-                    </span>
+              justifyContent: 'center',
+              padding: '1rem'
+            }}
+            onClick={() => setDocumentModalItem(null)}
+          >
+            {/* Hidden File Picker */}
+            <input
+              type="file"
+              ref={docFileInputRef}
+              accept=".pdf,image/*"
+              style={{ display: 'none' }}
+              onChange={handleAttachDocFile}
+            />
+
+            <div
+              style={{
+                width: '100%',
+                maxWidth: '52rem',
+                maxHeight: '94vh',
+                background: '#0d131a',
+                border: '1.5px solid rgba(212, 175, 55, 0.5)',
+                borderRadius: '1rem',
+                boxShadow: '0 30px 80px rgba(0, 0, 0, 0.85)',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                color: '#f8fafc'
+              }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Document Modal Header */}
+              <div style={{
+                padding: '1.1rem 1.5rem',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+                background: '#131b24',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{
+                    width: '38px',
+                    height: '38px',
+                    borderRadius: '8px',
+                    background: 'rgba(212, 175, 55, 0.15)',
+                    border: '1px solid rgba(212, 175, 55, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--gold, #d4af37)'
+                  }}>
+                    <FileText size={20} />
                   </div>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
-                    Official technical ownership & roadworthiness registration review
-                  </p>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800, color: '#f8fafc' }}>
+                        Vehicle Mulkiya & Registration Certificate
+                      </h3>
+                      <span style={{
+                        fontSize: '0.68rem',
+                        fontWeight: 800,
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        padding: '2px 8px',
+                        borderRadius: '4px',
+                        background: docUrl ? 'rgba(34, 197, 94, 0.15)' : 'rgba(212, 175, 55, 0.15)',
+                        color: docUrl ? '#4ade80' : 'var(--gold, #d4af37)',
+                        border: docUrl ? '1px solid rgba(34, 197, 94, 0.3)' : '1px solid rgba(212, 175, 55, 0.3)'
+                      }}>
+                        {docUrl ? 'Document Attached & Loaded' : 'Verified Document Record'}
+                      </span>
+                    </div>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                      Official technical ownership & roadworthiness registration review
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleDirectPrint}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      padding: '6px 12px',
+                      background: 'rgba(255, 255, 255, 0.08)',
+                      border: '1px solid rgba(255, 255, 255, 0.15)',
+                      borderRadius: '6px',
+                      color: '#cbd5e1',
+                      fontSize: '0.78rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                    title="Print document"
+                  >
+                    <Printer size={13} /> Print
+                  </button>
+
+                  <button
+                    onClick={() => setDocumentModalItem(null)}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#94a3b8',
+                      cursor: 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center'
+                    }}
+                    title="Close"
+                  >
+                    <X size={22} />
+                  </button>
                 </div>
               </div>
-              <button
-                onClick={() => setDocumentModalItem(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: '#94a3b8',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                <X size={22} />
-              </button>
-            </div>
 
-            {/* Document Body */}
-            <div style={{ padding: '1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              {/* Certificate Card Container */}
-              <div style={{
-                background: 'linear-gradient(145deg, #101721 0%, #172230 100%)',
-                border: '1px solid rgba(212, 175, 55, 0.35)',
-                borderRadius: '12px',
-                padding: '1.5rem',
-                position: 'relative',
-                boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)'
-              }}>
-                {/* Top Seal Header */}
+              {/* Document Body */}
+              <div style={{ padding: '1.25rem 1.5rem', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {/* Certificate Card Container */}
                 <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderBottom: '1px dashed rgba(212, 175, 55, 0.3)',
-                  paddingBottom: '1rem',
-                  marginBottom: '1.25rem'
+                  background: 'linear-gradient(145deg, #101721 0%, #172230 100%)',
+                  border: '1px solid rgba(212, 175, 55, 0.35)',
+                  borderRadius: '12px',
+                  padding: '1.25rem',
+                  position: 'relative',
+                  boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.05)'
                 }}>
-                  <div>
-                    <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gold, #d4af37)', fontWeight: 700 }}>
-                      MINISTRY OF TRANSPORT & VEHICLE REGISTRATION
-                    </p>
-                    <h4 style={{ margin: '2px 0 0 0', fontSize: '1.1rem', fontWeight: 800, color: '#f8fafc' }}>
-                      Electronic Vehicle Mulkiya (Official Government Verified)
-                    </h4>
-                  </div>
+                  {/* Top Seal Header */}
                   <div style={{
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    background: 'rgba(212, 175, 55, 0.1)',
-                    padding: '6px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(212, 175, 55, 0.3)',
-                    color: 'var(--gold, #d4af37)',
-                    fontSize: '0.78rem',
-                    fontWeight: 700
+                    justifyContent: 'space-between',
+                    borderBottom: '1px dashed rgba(212, 175, 55, 0.3)',
+                    paddingBottom: '0.9rem',
+                    marginBottom: '1rem',
+                    flexWrap: 'wrap',
+                    gap: '8px'
                   }}>
-                    <ShieldCheck size={16} /> Certified
-                  </div>
-                </div>
-
-                {/* Certificate Data Grid */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '12px',
-                  fontSize: '0.85rem'
-                }}>
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Registered Vehicle</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{documentModalItem.title}</p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Owner / Seller Name</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>{documentModalItem.seller_name || 'Registered Owner'}</p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Registration Number / Plate</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: 'var(--gold, #d4af37)' }}>
-                      {documentModalItem.city || 'Dubai'} &bull; {10000 + (documentModalItem.id % 89999)}
-                    </p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Chassis / VIN Code</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc', letterSpacing: '0.04em' }}>
-                      GCC-784{String(documentModalItem.id).slice(-4)}829104
-                    </p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Country & Jurisdiction</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>
-                      {documentModalItem.city || 'Dubai'}, {documentModalItem.country || 'United Arab Emirates'}
-                    </p>
-                  </div>
-
-                  <div style={{ background: 'rgba(0,0,0,0.25)', padding: '10px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
-                    <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Technical Inspection Status</span>
-                    <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#4ade80' }}>
-                      &bull; Passed & Roadworthy
-                    </p>
-                  </div>
-                </div>
-
-                {/* Attached Document File Box */}
-                <div style={{
-                  marginTop: '1rem',
-                  padding: '10px 14px',
-                  background: 'rgba(212, 175, 55, 0.08)',
-                  border: '1px solid rgba(212, 175, 55, 0.25)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <FileText size={22} style={{ color: 'var(--gold, #d4af37)' }} />
                     <div>
-                      <p style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem', color: '#f8fafc' }}>
-                        {documentModalItem.document_name || documentModalItem.document_file || 'Mulkiya_Vehicle_Registration.pdf'}
+                      <p style={{ margin: 0, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gold, #d4af37)', fontWeight: 800 }}>
+                        MINISTRY OF TRANSPORT & VEHICLE REGISTRATION
                       </p>
-                      <p style={{ margin: '2px 0 0 0', fontSize: '0.75rem', color: '#94a3b8' }}>
-                        Uploaded by seller &bull; Verified Digital Copy attached
+                      <h4 style={{ margin: '2px 0 0 0', fontSize: '1.05rem', fontWeight: 800, color: '#f8fafc' }}>
+                        Electronic Vehicle Mulkiya (Official Government Verified)
+                      </h4>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      background: 'rgba(212, 175, 55, 0.1)',
+                      padding: '5px 10px',
+                      borderRadius: '6px',
+                      border: '1px solid rgba(212, 175, 55, 0.3)',
+                      color: 'var(--gold, #d4af37)',
+                      fontSize: '0.75rem',
+                      fontWeight: 700
+                    }}>
+                      <ShieldCheck size={15} /> Certified
+                    </div>
+                  </div>
+
+                  {/* Certificate Data Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(2, 1fr)',
+                    gap: '10px',
+                    fontSize: '0.84rem'
+                  }}>
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Registered Vehicle</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 800, color: '#f8fafc' }}>{documentModalItem.title}</p>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Owner / Seller Name</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 800, color: '#f8fafc' }}>{documentModalItem.seller_name || 'Registered Owner'}</p>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Registration Number / Plate</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 800, color: 'var(--gold, #d4af37)' }}>
+                        {documentModalItem.city || 'Dubai'} &bull; {10000 + (documentModalItem.id % 89999)}
+                      </p>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Chassis / VIN Code</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.04em' }}>
+                        GCC-784{String(documentModalItem.id).slice(-4)}829104
+                      </p>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Country & Jurisdiction</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#f8fafc' }}>
+                        {documentModalItem.city || 'Dubai'}, {documentModalItem.country || 'United Arab Emirates'}
+                      </p>
+                    </div>
+
+                    <div style={{ background: 'rgba(0,0,0,0.25)', padding: '9px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.04)' }}>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8', textTransform: 'uppercase' }}>Technical Inspection Status</span>
+                      <p style={{ margin: '2px 0 0 0', fontWeight: 700, color: '#4ade80' }}>
+                        &bull; Passed & Roadworthy
                       </p>
                     </div>
                   </div>
-                  <span style={{
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    background: 'rgba(34, 197, 94, 0.15)',
-                    color: '#4ade80',
-                    border: '1px solid rgba(34, 197, 94, 0.3)'
-                  }}>
-                    PDF Document
-                  </span>
+
+                  {/* CLICKABLE Attached Document File Box */}
+                  <div
+                    onClick={handleOpenViewPrint}
+                    style={{
+                      marginTop: '1.1rem',
+                      padding: '12px 16px',
+                      background: 'rgba(212, 175, 55, 0.12)',
+                      border: '1.5px solid rgba(212, 175, 55, 0.45)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+                    }}
+                    title="Click to view and inspect this official document"
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '38px',
+                        height: '38px',
+                        borderRadius: '6px',
+                        background: 'rgba(212, 175, 55, 0.2)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: 'var(--gold, #d4af37)'
+                      }}>
+                        <FileText size={22} />
+                      </div>
+                      <div>
+                        <p style={{ margin: 0, fontWeight: 800, fontSize: '0.92rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span>{docName}</span>
+                          <Eye size={14} style={{ color: 'var(--gold, #d4af37)' }} />
+                          {docUrl && <CheckCircle2 size={14} style={{ color: '#4ade80' }} />}
+                        </p>
+                        <p style={{ margin: '2px 0 0 0', fontSize: '0.78rem', color: '#94a3b8' }}>
+                          Official Mulkiya Document &bull; <span style={{ color: 'var(--gold, #d4af37)', fontWeight: 700 }}>Click to View & Print</span>
+                        </p>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '0.76rem',
+                        fontWeight: 800,
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        background: 'rgba(34, 197, 94, 0.2)',
+                        color: '#4ade80',
+                        border: '1px solid rgba(34, 197, 94, 0.4)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px'
+                      }}>
+                        <ExternalLink size={13} /> View Document
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* DIRECT INLINE DOCUMENT VIEWER (If document is loaded) */}
+                  {docUrl && isImage && (
+                    <div style={{
+                      marginTop: '1.25rem',
+                      border: '1.5px solid rgba(212, 175, 55, 0.4)',
+                      borderRadius: '8px',
+                      background: '#070b10',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        padding: '8px 14px',
+                        background: '#131b24',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        flexWrap: 'wrap',
+                        gap: '8px'
+                      }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckCircle2 size={15} style={{ color: '#4ade80' }} />
+                          Attached Document: <strong style={{ color: 'var(--gold, #d4af37)' }}>{docName}</strong>
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleDirectPrint}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 11px',
+                              borderRadius: '5px',
+                              background: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              color: '#cbd5e1',
+                              fontSize: '0.76rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Printer size={13} /> Print
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDirectDownload}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 11px',
+                              borderRadius: '5px',
+                              background: 'rgba(212, 175, 55, 0.15)',
+                              border: '1px solid rgba(212, 175, 55, 0.4)',
+                              color: 'var(--gold, #d4af37)',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Download size={13} /> Download
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ padding: '10px', display: 'flex', justifyContent: 'center', alignItems: 'center', maxHeight: '45vh', overflow: 'auto' }}>
+                        <img src={docUrl} alt={docName} style={{ maxWidth: '100%', maxHeight: '42vh', borderRadius: '4px', objectFit: 'contain' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {docUrl && isPdf && (
+                    <div style={{
+                      marginTop: '1.25rem',
+                      border: '1.5px solid rgba(212, 175, 55, 0.4)',
+                      borderRadius: '8px',
+                      background: '#070b10',
+                      overflow: 'hidden'
+                    }}>
+                      <div style={{
+                        padding: '8px 14px',
+                        background: '#131b24',
+                        borderBottom: '1px solid rgba(255,255,255,0.08)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}>
+                        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <CheckCircle2 size={15} style={{ color: '#4ade80' }} />
+                          PDF Document: <strong style={{ color: 'var(--gold, #d4af37)' }}>{docName}</strong>
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleDirectPrint}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 11px',
+                              borderRadius: '5px',
+                              background: 'rgba(255,255,255,0.08)',
+                              border: '1px solid rgba(255,255,255,0.2)',
+                              color: '#cbd5e1',
+                              fontSize: '0.76rem',
+                              fontWeight: 600,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Printer size={13} /> Print
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDirectDownload}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              padding: '5px 11px',
+                              borderRadius: '5px',
+                              background: 'rgba(212, 175, 55, 0.15)',
+                              border: '1px solid rgba(212, 175, 55, 0.4)',
+                              color: 'var(--gold, #d4af37)',
+                              fontSize: '0.76rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            <Download size={13} /> Download
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ height: '45vh' }}>
+                        <iframe src={docUrl} title={docName} style={{ width: '100%', height: '100%', border: 'none' }} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* PROMPT TO ATTACH/LOAD IF MISSING DATAURL */}
+                  {!docUrl && (
+                    <div style={{
+                      marginTop: '1rem',
+                      padding: '10px 14px',
+                      background: 'rgba(212, 175, 55, 0.08)',
+                      border: '1px dashed rgba(212, 175, 55, 0.4)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '10px'
+                    }}>
+                      <div style={{ fontSize: '0.8rem', color: '#cbd5e1' }}>
+                        Attached file: <strong style={{ color: 'var(--gold, #d4af37)' }}>{docName}</strong> (Click to select from computer to view and print immediately)
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => docFileInputRef.current?.click()}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 14px',
+                          background: 'var(--gold, #d4af37)',
+                          color: '#0a0f16',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '0.78rem',
+                          fontWeight: 800,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <Upload size={14} /> Attach / Select '{docName}'
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Document Modal Footer */}
+              <div style={{
+                padding: '1rem 1.5rem',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                background: '#131b24',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '10px'
+              }}>
+                <button
+                  type="button"
+                  onClick={() => setDocumentModalItem(null)}
+                  style={{
+                    padding: '8px 18px',
+                    borderRadius: '6px',
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    color: '#cbd5e1',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Close Document
+                </button>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    className="act-btn reject"
+                    style={{ padding: '8px 18px' }}
+                    onClick={() => {
+                      setRejectingItem(documentModalItem);
+                      setRejectionReason("");
+                      setDocumentModalItem(null);
+                    }}
+                  >
+                    Reject Listing
+                  </button>
+                  <button
+                    type="button"
+                    className="act-btn approve"
+                    style={{ padding: '8px 22px' }}
+                    onClick={() => {
+                      onResolveModeration(documentModalItem.id, true);
+                      setDocumentModalItem(null);
+                      if (inspectingItem?.id === documentModalItem.id) setInspectingItem(null);
+                    }}
+                  >
+                    Approve & Publish to Marketplace
+                  </button>
                 </div>
               </div>
             </div>
-
-            {/* Document Modal Footer */}
-            <div style={{
-              padding: '1rem 1.5rem',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-              background: '#131b24',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <button
-                type="button"
-                onClick={() => setDocumentModalItem(null)}
-                style={{
-                  padding: '8px 18px',
-                  borderRadius: '6px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#cbd5e1',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Close Document
-              </button>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  type="button"
-                  className="act-btn reject"
-                  style={{ padding: '8px 18px' }}
-                  onClick={() => {
-                    onResolveModeration(documentModalItem.id, false);
-                    setDocumentModalItem(null);
-                    if (inspectingItem?.id === documentModalItem.id) setInspectingItem(null);
-                  }}
-                >
-                  Reject Listing
-                </button>
-                <button
-                  type="button"
-                  className="act-btn approve"
-                  style={{ padding: '8px 22px' }}
-                  onClick={() => {
-                    onResolveModeration(documentModalItem.id, true);
-                    setDocumentModalItem(null);
-                    if (inspectingItem?.id === documentModalItem.id) setInspectingItem(null);
-                  }}
-                >
-                  Approve & Publish to Marketplace
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* FULL VEHICLE & SPECS INSPECTION MODAL */}
       {inspectingItem && (
@@ -583,6 +947,19 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                 <h2 style={{ margin: 0, fontSize: '1.35rem', fontWeight: 700, color: '#f8fafc' }}>
                   {inspectingItem.title}
                 </h2>
+                {inspectingItem.previous_rejection_reason && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.35)',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    color: '#93c5fd'
+                  }}>
+                    <strong style={{ color: '#60a5fa' }}>Resubmitted Listing:</strong> Seller updated vehicle after previous rejection: "{inspectingItem.previous_rejection_reason}"
+                  </div>
+                )}
               </div>
               <button
                 onClick={closeInspection}
@@ -815,6 +1192,51 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                   <p style={{ margin: '0 0 8px 0', fontSize: '0.78rem', color: '#94a3b8' }}>
                     Official government ownership / technical inspection document submitted by seller.
                   </p>
+
+                  {/* Inline document preview — shows immediately if document_url is available */}
+                  {inspectingItem.document_url && (() => {
+                    const dUrl = inspectingItem.document_url;
+                    const dName = inspectingItem.document_name || inspectingItem.document_file || 'document';
+                    const dIsImage = dUrl.startsWith('data:image/') || /\.(png|jpe?g|webp|gif|svg)(\?.*)?$/i.test(dName);
+                    const dIsPdf = dUrl.startsWith('data:application/pdf') || /\.pdf(\?.*)?$/i.test(dName);
+                    return (
+                      <div style={{ marginBottom: '10px', border: '1.5px solid rgba(212,175,55,0.4)', borderRadius: '8px', overflow: 'hidden', background: '#070b10' }}>
+                        <div style={{ padding: '6px 12px', background: '#131b24', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <CheckCircle size={14} style={{ color: '#4ade80' }} /> {dName}
+                          </span>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const a = document.createElement('a');
+                                a.href = dUrl;
+                                a.download = dName;
+                                a.click();
+                              }}
+                              style={{ fontSize: '0.74rem', fontWeight: 700, padding: '3px 9px', borderRadius: '5px', background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.4)', color: 'var(--gold,#d4af37)', cursor: 'pointer' }}
+                            >↓ Download</button>
+                            <button
+                              type="button"
+                              onClick={() => { const w = window.open(); if (dIsImage) { w.document.write(`<html><body style="margin:0;background:#000;display:flex;justify-content:center;align-items:center;min-height:100vh"><img src="${dUrl}" style="max-width:100%;max-height:100vh;object-fit:contain"></body></html>`); } else { w.document.write(`<iframe src="${dUrl}" style="width:100%;height:100vh;border:none"></iframe>`); } }}
+                              style={{ fontSize: '0.74rem', fontWeight: 700, padding: '3px 9px', borderRadius: '5px', background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.3)', color: '#60a5fa', cursor: 'pointer' }}
+                            >⤢ Full View</button>
+                          </div>
+                        </div>
+                        {dIsImage && (
+                          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '8px', maxHeight: '38vh', overflow: 'auto' }}>
+                            <img src={dUrl} alt={dName} style={{ maxWidth: '100%', maxHeight: '36vh', objectFit: 'contain', borderRadius: '4px' }} />
+                          </div>
+                        )}
+                        {dIsPdf && (
+                          <div style={{ height: '38vh' }}>
+                            <iframe src={dUrl} title={dName} style={{ width: '100%', height: '100%', border: 'none' }} />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
                   <button
                     type="button"
                     style={{
@@ -827,7 +1249,13 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
-                    onClick={() => setDocumentModalItem(inspectingItem)}
+                    onClick={() => setViewingFullDoc({
+                      title: 'Vehicle Mulkiya & Registration Certificate',
+                      documentName: inspectingItem.document_name || inspectingItem.document_file || 'Mulkiya_Vehicle_Registration.pdf',
+                      documentType: 'mulkiya',
+                      documentUrl: inspectingItem.document_url || null,
+                      data: inspectingItem
+                    })}
                   >
                     Inspect Mulkiya Verification
                   </button>
@@ -875,10 +1303,7 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                   type="button"
                   className="act-btn reject"
                   style={{ padding: '8px 20px', fontSize: '0.88rem' }}
-                  onClick={() => {
-                    onResolveModeration(inspectingItem.id, false);
-                    closeInspection();
-                  }}
+                  onClick={() => { setRejectingItem(inspectingItem); setRejectionReason(""); }}
                 >
                   Reject Listing
                 </button>
@@ -894,6 +1319,151 @@ export default function ModerationTab({ moderationQueue, onResolveModeration }) 
                   Approve & Publish to Marketplace
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* FULL DOCUMENT VIEWER MODAL */}
+      <DocumentViewerModal
+        isOpen={Boolean(viewingFullDoc)}
+        onClose={() => setViewingFullDoc(null)}
+        title={viewingFullDoc?.title}
+        documentName={viewingFullDoc?.documentName}
+        documentType={viewingFullDoc?.documentType}
+        documentUrl={viewingFullDoc?.documentUrl}
+        data={viewingFullDoc?.data}
+        onSaveDocument={(fileUrl, fileName) => {
+          if (!viewingFullDoc?.data?.id) return;
+          try {
+            const raw = localStorage.getItem('binmar_custom_listings');
+            if (raw) {
+              const listings = JSON.parse(raw);
+              const idx = listings.findIndex(l => String(l.id) === String(viewingFullDoc.data.id));
+              if (idx !== -1) {
+                listings[idx].document_url = fileUrl;
+                if (fileName) listings[idx].document_file = fileName;
+                localStorage.setItem('binmar_custom_listings', JSON.stringify(listings));
+              }
+            }
+          } catch (e) {
+            console.warn(e);
+          }
+        }}
+      />
+
+      {/* REJECTION REASON MODAL POPUP */}
+      {rejectingItem && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          zIndex: 10005,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '1.25rem'
+        }}>
+          <div style={{
+            width: '100%',
+            maxWidth: '32rem',
+            background: '#0d131a',
+            border: '1.5px solid rgba(239, 68, 68, 0.5)',
+            borderRadius: '12px',
+            padding: '1.5rem',
+            color: '#f8fafc',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.8)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', color: '#f87171', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <AlertTriangle size={20} /> Reject Listing
+              </h3>
+              <button onClick={() => setRejectingItem(null)} style={{ background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ fontSize: '0.85rem', color: '#cbd5e1', marginBottom: '1rem' }}>
+              Specify why <strong>{rejectingItem.title}</strong> is being rejected. This remark will be sent to the seller in their portal so they can correct it.
+            </p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '1rem' }}>
+              {[
+                'Blurry or unreadable Mulkiya document',
+                'Incorrect vehicle details or VIN mismatch',
+                'Missing required official documents',
+                'Pricing does not reflect GCC market standards',
+                'Low quality vehicle photos'
+              ].map((chip) => (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => setRejectionReason(chip)}
+                  style={{
+                    fontSize: '0.75rem',
+                    padding: '4px 10px',
+                    borderRadius: '16px',
+                    background: rejectionReason === chip ? 'rgba(239, 68, 68, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+                    border: rejectionReason === chip ? '1px solid #f87171' : '1px solid rgba(255, 255, 255, 0.1)',
+                    color: rejectionReason === chip ? '#fca5a5' : '#94a3b8',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {chip}
+                </button>
+              ))}
+            </div>
+            <textarea
+              rows={3}
+              placeholder="Type specific remarks or instructions for the seller..."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '6px',
+                background: '#131b24',
+                border: '1px solid rgba(255, 255, 255, 0.15)',
+                color: '#f8fafc',
+                fontSize: '0.85rem',
+                marginBottom: '1.25rem',
+                outline: 'none',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+              <button
+                type="button"
+                onClick={() => setRejectingItem(null)}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#cbd5e1',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onResolveModeration(rejectingItem.id, false, rejectionReason || 'Listing rejected during administrative audit.');
+                  setRejectingItem(null);
+                  setDocumentModalItem(null);
+                  if (inspectingItem?.id === rejectingItem.id) setInspectingItem(null);
+                }}
+                style={{
+                  padding: '8px 20px',
+                  borderRadius: '6px',
+                  background: '#ef4444',
+                  border: 'none',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                Confirm Rejection
+              </button>
             </div>
           </div>
         </div>

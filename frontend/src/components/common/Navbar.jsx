@@ -1,5 +1,7 @@
 import React from 'react';
 import { Car, Building2, User, Store } from 'lucide-react';
+import LanguageSwitcher from './LanguageSwitcher';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Navbar({
   currentPage,
@@ -10,10 +12,13 @@ export default function Navbar({
   onLogout,
   onPostListingClick
 }) {
+  const { t, isRTL } = useLanguage();
+
   return (
     <div className="topnav">
       <div className="nav-mark" onClick={() => setCurrentPage('marketplace')}>
-        BINMAR<b>DRIVE</b>
+        <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+        <span>BINMAR<b>DRIVE</b></span>
       </div>
 
       <div className="nav-links">
@@ -24,7 +29,7 @@ export default function Navbar({
             setSelectedType('sale');
           }}
         >
-          Buy
+          {t('nav_buy')}
         </a>
         <a
           className={selectedType === 'rent' && currentPage === 'marketplace' ? 'active' : ''}
@@ -33,25 +38,25 @@ export default function Navbar({
             setSelectedType('rent');
           }}
         >
-          Rent
+          {t('nav_rent')}
         </a>
         <a
           className={currentPage === 'about' ? 'active' : ''}
           onClick={() => setCurrentPage('about')}
         >
-          About
+          {t('nav_about')}
         </a>
         <a
           className={currentPage === 'how-it-works' ? 'active' : ''}
           onClick={() => setCurrentPage('how-it-works')}
         >
-          How it works
+          {t('nav_how_it_works')}
         </a>
         <a
           className={currentPage === 'contact' ? 'active' : ''}
           onClick={() => setCurrentPage('contact')}
         >
-          Contact
+          {t('nav_contact')}
         </a>
         {currentUser && (
           <a
@@ -59,12 +64,15 @@ export default function Navbar({
             onClick={() => setCurrentPage('seller')}
             style={{ color: '#E4C374' }}
           >
-            Seller Studio
+            {t('nav_seller_studio')}
           </a>
         )}
       </div>
 
       <div className="nav-actions">
+        {/* Language Selection Switcher */}
+        <LanguageSwitcher />
+
         {currentUser ? (
           <>
             <div
@@ -74,9 +82,9 @@ export default function Navbar({
               style={{ cursor: 'pointer' }}
             >
               {currentUser.user_type === 'company' ? (
-                <Building2 size={13} style={{ display: 'inline', marginRight: 4 }} />
+                <Building2 size={13} style={{ display: 'inline', marginRight: isRTL ? 0 : 4, marginLeft: isRTL ? 4 : 0 }} />
               ) : (
-                <User size={13} style={{ display: 'inline', marginRight: 4 }} />
+                <User size={13} style={{ display: 'inline', marginRight: isRTL ? 0 : 4, marginLeft: isRTL ? 4 : 0 }} />
               )}
               {currentUser.name}
             </div>
@@ -87,22 +95,22 @@ export default function Navbar({
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
             >
               <Store size={14} />
-              {currentPage === 'seller' ? 'Marketplace' : 'Seller Studio'}
+              {currentPage === 'seller' ? t('nav_marketplace') : t('nav_seller_studio')}
             </button>
 
             <button className="btn-outline-gold" onClick={onLogout}>
-              Sign out
+              {t('nav_sign_out')}
             </button>
           </>
         ) : (
           <button className="btn-outline-gold" onClick={() => setCurrentPage('user-login')}>
-            Sign in
+            {t('nav_sign_in')}
           </button>
         )}
 
         <button className="btn-gold" onClick={onPostListingClick}>
           <Car size={16} />
-          Post a listing &mdash; free
+          {t('nav_post_listing')}
         </button>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getUser, handleAuthCallback, logout, onAuthChange } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from './api/auth';
-import { fetchPublicListings } from './api/listings';
+import { fetchPublicListings, fetchRegisteredSellers } from './api/listings';
 
 // Common Components
 import Toast from './components/common/Toast';
@@ -21,6 +21,8 @@ import AboutPage from './pages/AboutPage';
 import HowItWorksPage from './pages/HowItWorksPage';
 import ContactPage from './pages/ContactPage';
 import SellerPortalPage from './pages/SellerPortalPage';
+import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import TermsOfUsePage from './pages/TermsOfUsePage';
 
 function getInitialPage() {
   try {
@@ -34,8 +36,23 @@ function getInitialPage() {
     if (path.includes('about')) return 'about';
     if (path.includes('how-it-works')) return 'how-it-works';
     if (path.includes('contact')) return 'contact';
+    if (path.includes('privacy-policy')) return 'privacy-policy';
+    if (path.includes('terms-of-use')) return 'terms-of-use';
   } catch {}
   return 'marketplace';
+}
+
+function getSavedUser() {
+  try {
+    const raw = localStorage.getItem('binmar_current_user');
+    if (raw) {
+      const u = JSON.parse(raw);
+      if (u.user_type === 'admin') return u;
+      if (u.status === 'pending' || u.status === 'rejected') return null;
+      return u;
+    }
+  } catch {}
+  return null;
 }
 
 export default function App() {
@@ -43,19 +60,36 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(getInitialPage);
   const [toast, setToast] = useState({ show: false, message: '' });
 
-  // User & Auth State
-  const [currentUser, setCurrentUser] = useState(null);
+  // User & Auth State — restored immediately from localStorage on refresh
+  const [currentUser, setCurrentUserState] = useState(getSavedUser);
   const [passwordCallback, setPasswordCallback] = useState(null);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginError, setLoginError] = useState('');
   const [regAccountType, setRegAccountType] = useState('individual');
   const authCallbackRef = useRef(null);
 
+  // Wrapper that persists user to localStorage so refresh restores session
+  const setCurrentUser = (userOrUpdater) => {
+    setCurrentUserState(prev => {
+      const next = typeof userOrUpdater === 'function' ? userOrUpdater(prev) : userOrUpdater;
+      try {
+        if (next) {
+          localStorage.setItem('binmar_current_user', JSON.stringify(next));
+        } else {
+          localStorage.removeItem('binmar_current_user');
+        }
+      } catch {}
+      return next;
+    });
+  };
+
   // Marketplace & Filter State
   const [listings, setListings] = useState([]);
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedType, setSelectedType] = useState('');
+  const [selectedSeller, setSelectedSeller] = useState('');
+  const [registeredSellers, setRegisteredSellers] = useState([]);
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('newest');
@@ -74,19 +108,49 @@ export default function App() {
         make: selectedMake,
         country: selectedCountry,
         type: selectedType,
+        seller: selectedSeller,
         category: selectedCategory,
         maxPrice,
         sortBy
       });
       setListings(data);
+
+      // If URL contains ?listing=ID or ?id=ID from social sharing, auto-open modal
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const sharedId = params.get('listing') || params.get('id');
+        if (sharedId && data && data.length > 0) {
+          const matched = data.find(item => String(item.id) === String(sharedId));
+          if (matched) {
+            setSelectedListing(matched);
+          }
+        }
+      } catch {}
     } catch (e) {
       console.warn('API error, using cached data', e);
     }
   };
 
+  // Load registered sellers for marketplace dropdown filter
+  useEffect(() => {
+    let active = true;
+    async function loadSellers() {
+      try {
+        const data = await fetchRegisteredSellers();
+        if (active && Array.isArray(data)) {
+          setRegisteredSellers(data);
+        }
+      } catch (err) {
+        console.warn('Could not load registered sellers:', err);
+      }
+    }
+    loadSellers();
+    return () => { active = false; };
+  }, []);
+
   useEffect(() => {
     loadListings();
-  }, [selectedMake, selectedCountry, selectedType, selectedCategory, maxPrice, sortBy]);
+  }, [selectedMake, selectedCountry, selectedType, selectedSeller, selectedCategory, maxPrice, sortBy]);
 
   // Synchronize browser URL bar and scroll position
   useEffect(() => {
@@ -102,7 +166,9 @@ export default function App() {
         'create-listing': '/create-listing',
         'about': '/about',
         'how-it-works': '/how-it-works',
-        'contact': '/contact'
+        'contact': '/contact',
+        'privacy-policy': '/privacy-policy',
+        'terms-of-use': '/terms-of-use'
       };
       const targetPath = pageToPath[currentPage] || '/';
       if (window.location.pathname !== targetPath) {
@@ -126,7 +192,8 @@ export default function App() {
 
     try {
       const unsubscribe = onAuthChange((event, user) => {
-        if (!user && active) {
+        // Only clear the user if Netlify fires an explicit logout/signout event
+        if (!user && active && (event === 'logout' || event === 'signout')) {
           setCurrentUser(null);
           setCurrentPage(page => (page === 'admin' ? 'admin-login' : page));
         }
@@ -146,11 +213,14 @@ export default function App() {
 
           const identity = await getUser();
           if (identity) {
+            // Netlify has a valid session — refresh profile from API
             const profile = await loadProfile();
             if (active) setCurrentUser(profile);
           }
+          // If no identity from Netlify but we have a cached user in localStorage,
+          // keep the cached session (handled by getSavedUser initializer above)
         } catch {
-          // Gracefully do nothing on initial load so marketplace remains open
+          // Gracefully do nothing — the localStorage-restored user stays in place
         }
       }
 
@@ -220,6 +290,9 @@ export default function App() {
             setSelectedCountry={setSelectedCountry}
             selectedType={selectedType}
             setSelectedType={setSelectedType}
+            selectedSeller={selectedSeller}
+            setSelectedSeller={setSelectedSeller}
+            registeredSellers={registeredSellers}
             maxPrice={maxPrice}
             setMaxPrice={setMaxPrice}
             selectedCategory={selectedCategory}
@@ -241,6 +314,14 @@ export default function App() {
 
         {currentPage === 'contact' && (
           <ContactPage onBackToMarketplace={() => setCurrentPage('marketplace')} />
+        )}
+
+        {currentPage === 'privacy-policy' && (
+          <PrivacyPolicyPage onBack={() => setCurrentPage('marketplace')} />
+        )}
+
+        {currentPage === 'terms-of-use' && (
+          <TermsOfUsePage onBack={() => setCurrentPage('marketplace')} />
         )}
 
         {currentPage === 'registration' && (
@@ -307,7 +388,7 @@ export default function App() {
         )}
 
         {currentPage === 'seller' && (
-          currentUser && (currentUser.user_type === 'company' || currentUser.is_verified_seller || currentUser.status === 'approved') && currentUser.status !== 'pending' && currentUser.status !== 'rejected' ? (
+          currentUser && (currentUser.is_verified_seller || currentUser.status === 'approved' || currentUser.status === 'verified') && currentUser.status !== 'pending' && currentUser.status !== 'rejected' ? (
             <SellerPortalPage
               currentUser={currentUser}
               setCurrentUser={setCurrentUser}

@@ -56,6 +56,20 @@ button {
   color: var(--gold-bright);
   cursor: pointer;
   letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-logo-img {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  border-radius: 50%;
+  display: block;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 1.5px rgba(198, 161, 91, 0.45);
+  background: var(--deep);
 }
 
 .nav-mark b {
@@ -210,21 +224,33 @@ button {
 
 /* Search Bar */
 .searchbar {
-  max-width: 960px;
+  max-width: 1080px;
   margin: 0 auto;
   background: #fff;
   border-radius: 14px;
   padding: 1.1rem;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr auto;
+  grid-template-columns: 1fr 1fr 1fr 1fr 1fr auto;
   gap: 12px;
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.25);
   text-align: left;
 }
 
-@media (max-width: 860px) {
+@media (max-width: 980px) {
+  .searchbar {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+}
+
+@media (max-width: 680px) {
   .searchbar {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .searchbar {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1792,6 +1818,9 @@ tr:last-child td {
   font-size: 1.2rem;
   color: var(--gold-bright);
   margin-bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .footer-mark b {
@@ -3342,6 +3371,146 @@ tr:last-child td {
   .seller-dash-grid-2 {
     grid-template-columns: 2fr 1fr;
   }
+}
+
+/* ==========================================
+   Social Media Sharing Bar (Listing Details Modal)
+   ========================================== */
+.modal-share-bar {
+  margin: 1.2rem 0;
+  padding: 0.9rem 1.1rem;
+  background: #FAF7EF;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.modal-share-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modal-share-icons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  user-select: none;
+}
+
+.share-btn:hover {
+  transform: translateY(-1px);
+}
+
+.share-btn-fb {
+  background: #1877F2;
+  color: #ffffff;
+}
+.share-btn-fb:hover {
+  background: #1464cc;
+  box-shadow: 0 4px 12px rgba(24, 119, 242, 0.25);
+}
+
+.share-btn-ig {
+  background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
+  color: #ffffff;
+}
+.share-btn-ig:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 4px 12px rgba(220, 39, 67, 0.25);
+}
+
+.share-btn-tiktok {
+  background: #000000;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.share-btn-tiktok:hover {
+  background: #1a1a1a;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.share-btn-link {
+  background: #ffffff;
+  color: var(--deep);
+  border: 1px solid var(--gold-dim);
+}
+.share-btn-link:hover {
+  background: #FAF7EF;
+  border-color: var(--gold);
+  color: var(--deep);
+}
+
+.share-btn-copied {
+  background: #15803d !important;
+  color: #ffffff !important;
+  border-color: #15803d !important;
+}
+
+/* ==========================================
+   RTL & Arabic Typography Styles
+   ========================================== */
+[dir="rtl"] {
+  font-family: 'Cairo', 'Manrope', sans-serif;
+  text-align: right;
+}
+
+[dir="rtl"] input,
+[dir="rtl"] select,
+[dir="rtl"] textarea,
+[dir="rtl"] button {
+  font-family: 'Cairo', 'Manrope', sans-serif;
+}
+
+[dir="rtl"] .modal-close {
+  right: auto;
+  left: 12px;
+}
+
+[dir="rtl"] .card-tag {
+  left: auto;
+  right: 14px;
+}
+
+[dir="rtl"] .btn-loc-maps {
+  margin-left: 0;
+  margin-right: 8px;
+}
+
+[dir="rtl"] .flow-brand {
+  border-right: none;
+  border-left: 1px solid var(--gold-dim);
+}
+
+[dir="rtl"] .admin-sidebar {
+  border-right: none;
+  border-left: 1px solid var(--gold-dim);
+}
+
+[dir="rtl"] .nav-links {
+  margin-right: 0;
 }
 
 

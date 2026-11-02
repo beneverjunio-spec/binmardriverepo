@@ -1,0 +1,116 @@
+{
+  "listings": [
+    {
+      "id": 1792580000001,
+      "title": "2024 Nissan Patrol Titanium V8",
+      "make": "Nissan",
+      "model": "Patrol",
+      "year": 2024,
+      "category": "SUV",
+      "fuel": "Petrol",
+      "mileage": "12,500 km",
+      "transmission": "Automatic",
+      "condition_type": "used",
+      "listing_type": "sale",
+      "price": 285000,
+      "currency": "AED",
+      "price_label": "AED 285,000",
+      "country": "United Arab Emirates",
+      "city": "Dubai",
+      "seller_name": "Online Motors LLC",
+      "seller_email": "onlineseller@binmardrive.com",
+      "contact_phone": "+971509998888",
+      "whatsapp_number": "+971509998888",
+      "description": "Pristine condition GCC specs with full agency warranty and service history.",
+      "images": [
+        "https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1200&q=80"
+      ],
+      "status": "approved",
+      "document_name": "Mulkiya_Registration.pdf",
+      "document_file": "Mulkiya_Registration.pdf",
+      "created_at": "2026-10-21T18:59:51.925Z"
+    }
+  ],
+  "users": [
+    {
+      "identity_id": "usr_1792583353905",
+      "name": "Online Seller",
+      "user_type": "company",
+      "phone": "+971509998888",
+      "password": "sellerpassword",
+      "company_name": "Online Motors LLC",
+      "trade_license": "CN-Pending",
+      "trade_license_file": null,
+      "trade_license_url": null,
+      "country": "United Arab Emirates",
+      "status": "approved",
+      "email": "onlineseller@binmardrive.com",
+      "_id": "usr_1792583353905",
+      "id": "usr_1792583353905",
+      "created_at": "2026-10-21T11:49:13.905Z",
+      "is_verified_seller": true
+    }
+  ],
+  "notifications": [
+    {
+      "id": 1792584604523,
+      "_id": "1792584604524",
+      "title": "New Dealer Registered",
+      "message": "Al Majid Motors registered from United Arab Emirates (almajid@test.com). Submitted for admin verification.",
+      "is_read": false,
+      "created_at": "2026-10-21T12:10:04.524Z"
+    },
+    {
+      "id": 1792583353906,
+      "_id": "1792583353906",
+      "title": "New Dealer Registered",
+      "message": "Online Seller registered from United Arab Emirates (onlineseller@binmardrive.com). Submitted for admin verification.",
+      "is_read": false,
+      "created_at": "2026-10-21T11:49:13.906Z"
+    },
+    {
+      "id": "notif_1",
+      "_id": "notif_1",
+      "title": "System Initialized",
+      "message": "BinmarDrive operational and ready.",
+      "is_read": false,
+      "created_at": "2026-10-21T11:48:51.231Z"
+    }
+  ],
+  "admins": [
+    {
+      "name": "Test Admin",
+      "email": "testadmin@binmardrive.com",
+      "password": "password123",
+      "role": "Moderator",
+      "department": "Vehicle Moderation",
+      "country": "United Arab Emirates",
+      "status": "Active",
+      "id": 1792583353899,
+      "_id": "1792583353899",
+      "created_at": "2026-10-21"
+    },
+    {
+      "id": 1,
+      "name": "Operations Director",
+      "email": "admin@binmardrive.com",
+      "password": "admin123",
+      "role": "Super Admin",
+      "department": "Operations",
+      "country": "United Arab Emirates",
+      "status": "Active",
+      "created_at": "2026-01-15"
+    },
+    {
+      "id": 2,
+      "name": "Benever Junio",
+      "email": "beneverjunio@gmail.com",
+      "password": "admin123",
+      "role": "Super Admin",
+      "department": "Operations",
+      "country": "United Arab Emirates",
+      "status": "Active",
+      "created_at": "2026-01-15"
+    }
+  ]
+}

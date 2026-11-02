@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function Footer({
   setCurrentPage,
@@ -6,23 +7,28 @@ export default function Footer({
   setRegAccountType,
   onPostListingClick
 }) {
+  const { t, tCountry } = useLanguage();
+
   return (
     <div className="footer">
       <div className="footer-grid">
         <div>
-          <div className="footer-mark">BINMAR<b>DRIVE</b></div>
-          <div>Buy, sell and rent cars across the Middle East.</div>
+          <div className="footer-mark">
+            <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+            <span>BINMAR<b>DRIVE</b></span>
+          </div>
+          <div>{t('footer_desc')}</div>
         </div>
         <div className="footer-cols">
           <div className="footer-col">
-            <h4>Marketplace</h4>
+            <h4>{t('footer_col_marketplace')}</h4>
             <a
               onClick={() => {
                 setSelectedType('sale');
                 document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth' });
               }}
             >
-              Buy a car
+              {t('footer_buy_car')}
             </a>
             <a
               onClick={() => {
@@ -30,44 +36,46 @@ export default function Footer({
                 document.getElementById('browse')?.scrollIntoView({ behavior: 'smooth' });
               }}
             >
-              Rent a car
+              {t('footer_rent_car')}
             </a>
-            <a onClick={onPostListingClick}>Sell your car</a>
+            <a onClick={onPostListingClick}>{t('footer_sell_car')}</a>
             <a
               onClick={() => {
                 setRegAccountType('company');
                 setCurrentPage('registration');
               }}
             >
-              Dealer signup
+              {t('footer_dealer_signup')}
             </a>
           </div>
           <div className="footer-col">
-            <h4>Company</h4>
-            <a onClick={() => setCurrentPage('about')}>About Binmar Drive</a>
-            <a onClick={() => setCurrentPage('how-it-works')}>How it works</a>
-            <a onClick={() => setCurrentPage('contact')}>Contact</a>
-            <a onClick={() => setCurrentPage('user-login')}>Sign in</a>
-            <a onClick={() => setCurrentPage('admin-login')}>Admin Portal</a>
+            <h4>{t('footer_col_company')}</h4>
+            <a onClick={() => setCurrentPage('about')}>{t('footer_about')}</a>
+            <a onClick={() => setCurrentPage('how-it-works')}>{t('footer_how_it_works')}</a>
+            <a onClick={() => setCurrentPage('contact')}>{t('footer_contact')}</a>
+            <a onClick={() => setCurrentPage('user-login')}>{t('nav_sign_in')}</a>
+            <a onClick={() => setCurrentPage('admin-login')}>{t('admin_tab_dashboard')}</a>
+            <a onClick={() => setCurrentPage('privacy-policy')} style={{ cursor: 'pointer' }}>{t('footer_privacy_policy')}</a>
+            <a onClick={() => setCurrentPage('terms-of-use')} style={{ cursor: 'pointer' }}>{t('footer_terms_of_use')}</a>
           </div>
           <div className="footer-col">
-            <h4>Countries</h4>
-            <a>United Arab Emirates</a>
-            <a>Saudi Arabia</a>
-            <a>Qatar</a>
-            <a>Kuwait</a>
-            <a>Bahrain</a>
-            <a>Oman</a>
+            <h4>{t('footer_col_countries')}</h4>
+            <a>{tCountry('United Arab Emirates')}</a>
+            <a>{tCountry('Saudi Arabia')}</a>
+            <a>{tCountry('Qatar')}</a>
+            <a>{tCountry('Kuwait')}</a>
+            <a>{tCountry('Bahrain')}</a>
+            <a>{tCountry('Oman')}</a>
           </div>
         </div>
       </div>
       <div className="footer-bottom">
-        <span>&copy; 2026 Binmar Drive. Free to register anywhere.</span>
+        <span>{t('footer_copyright')}</span>
         <span
           style={{ cursor: 'pointer', color: 'var(--gold-bright)' }}
           onClick={() => setCurrentPage('admin-login')}
         >
-          Staff Portal &rarr;
+          {t('footer_staff_portal')}
         </span>
       </div>
     </div>

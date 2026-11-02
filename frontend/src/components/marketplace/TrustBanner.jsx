@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { getCountryCurrency, GCC_COUNTRIES } from '../../constants';
+import { fetchAdminPortalData } from '../../api/admin';
+import { useLanguage } from '../../context/LanguageContext';
 
 export default function TrustBanner({ listings = [], listingsCount, selectedCountry }) {
+  const { t, tCountry } = useLanguage();
   const currency = getCountryCurrency(selectedCountry);
   const [verifiedDealersCount, setVerifiedDealersCount] = useState(0);
 
@@ -20,50 +23,68 @@ export default function TrustBanner({ listings = [], listingsCount, selectedCoun
     return GCC_COUNTRIES.length;
   }, [listings, selectedCountry]);
 
-  // Dynamically load verified dealers count
-  useEffect(() => {
-    let localVerified = 0;
+  // Dynamically load verified dealers count strictly from Admin Verified Dealers
+  const updateDealersCount = async () => {
+    try {
+      const data = await fetchAdminPortalData();
+      if (data && data.dealerQueue) {
+        const verifiedCount = data.dealerQueue.filter(
+          d => d.status === 'verified' || d.status === 'approved'
+        ).length;
+        setVerifiedDealersCount(verifiedCount);
+        return;
+      }
+      if (data && data.stats && typeof data.stats.verifiedDealers === 'number') {
+        setVerifiedDealersCount(data.stats.verifiedDealers);
+        return;
+      }
+    } catch {}
+
     try {
       const raw = localStorage.getItem('binmar_custom_dealers');
       if (raw) {
         const dealers = JSON.parse(raw);
-        localVerified = dealers.filter(d => d.status === 'verified' || d.status === 'approved').length;
+        const verified = dealers.filter(d => d.status === 'verified' || d.status === 'approved').length;
+        setVerifiedDealersCount(verified);
+        return;
       }
     } catch {}
 
-    fetch('/api/admin/stats')
-      .then(res => res.json())
-      .then(data => {
-        if (data.success && data.stats) {
-          setVerifiedDealersCount((data.stats.verifiedDealers || 0) + localVerified);
-        } else {
-          setVerifiedDealersCount(localVerified);
-        }
-      })
-      .catch(() => {
-        setVerifiedDealersCount(localVerified);
-      });
+    setVerifiedDealersCount(0);
+  };
+
+  useEffect(() => {
+    updateDealersCount();
+
+    const handleUpdate = () => updateDealersCount();
+    window.addEventListener('storage', handleUpdate);
+    window.addEventListener('binmar_dealers_updated', handleUpdate);
+    return () => {
+      window.removeEventListener('storage', handleUpdate);
+      window.removeEventListener('binmar_dealers_updated', handleUpdate);
+    };
   }, []);
+
+  const countryLabel = selectedCountry ? tCountry(selectedCountry) : t('trust_gcc_countries');
 
   return (
     <div className="trust">
       <div className="trust-item">
         <div className="trust-value">{activeCount}</div>
-        <div className="trust-label">Active listings</div>
+        <div className="trust-label">{t('trust_active_listings')}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">{verifiedDealersCount}</div>
-        <div className="trust-label">Verified dealers</div>
+        <div className="trust-label">{t('trust_verified_dealers')}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">{countriesCount}</div>
-        <div className="trust-label">{selectedCountry ? selectedCountry : 'GCC Countries'}</div>
+        <div className="trust-label">{countryLabel}</div>
       </div>
       <div className="trust-item">
         <div className="trust-value">0 {currency}</div>
-        <div className="trust-label">Listing fees</div>
+        <div className="trust-label">{t('trust_listing_fees')}</div>
       </div>
     </div>
   );
 }
-

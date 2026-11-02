@@ -6,11 +6,13 @@ import ModerationTab from '../components/admin/ModerationTab';
 import DealersTab from '../components/admin/DealersTab';
 import LiveListingsTab from '../components/admin/LiveListingsTab';
 import AdminsTab from '../components/admin/AdminsTab';
+import NotificationsTab from '../components/admin/NotificationsTab';
 import {
   fetchAdminPortalData,
   resolveModerationListing,
   resolveDealerApplication,
-  deleteLiveListing
+  deleteLiveListing,
+  toggleDisableLiveListing
 } from '../api/admin';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 
@@ -51,9 +53,23 @@ export default function AdminPortalPage({
 
       let storedAdmins = [];
       try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) storedAdmins = JSON.parse(local);
-      } catch {}
+        const staffRes = await fetch('/api/admin/staff');
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (staffData.success && Array.isArray(staffData.admins)) {
+            storedAdmins = staffData.admins;
+          }
+        }
+      } catch (staffErr) {
+        console.warn('API staff fetch fallback to local:', staffErr);
+      }
+
+      if (!storedAdmins.length) {
+        try {
+          const local = localStorage.getItem('binmar_custom_admins');
+          if (local) storedAdmins = JSON.parse(local);
+        } catch {}
+      }
 
       // Combine default seeded admins with any created custom staff admins
       const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
@@ -84,9 +100,23 @@ export default function AdminPortalPage({
 
       let storedAdmins = [];
       try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) storedAdmins = JSON.parse(local);
-      } catch {}
+        const staffRes = await fetch('/api/admin/staff');
+        if (staffRes.ok) {
+          const staffData = await staffRes.json();
+          if (staffData.success && Array.isArray(staffData.admins)) {
+            storedAdmins = staffData.admins;
+          }
+        }
+      } catch (staffErr) {
+        console.warn('API staff fetch fallback to local:', staffErr);
+      }
+
+      if (!storedAdmins.length) {
+        try {
+          const local = localStorage.getItem('binmar_custom_admins');
+          if (local) storedAdmins = JSON.parse(local);
+        } catch {}
+      }
       const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
       const combinedAdmins = [...storedAdmins];
       for (const da of defaultAdmins) {
@@ -121,10 +151,10 @@ export default function AdminPortalPage({
     };
   }, []);
 
-  const handleResolveModeration = async (id, approve) => {
+  const handleResolveModeration = async (id, approve, reason = '') => {
     try {
       const targetItem = moderationQueue.find(item => item.id === id);
-      const data = await resolveModerationListing(id, approve);
+      const data = await resolveModerationListing(id, approve, reason);
       notify(data.message);
       setModerationQueue(prev => prev.filter(item => item.id !== id));
       if (approve && targetItem) {
@@ -164,8 +194,56 @@ export default function AdminPortalPage({
           rejectedDealers: updated.filter(d => d.status === 'rejected').length
         };
       });
+      window.dispatchEvent(new Event('binmar_dealers_updated'));
     } catch (err) {
       notify(err.message || 'Unable to update dealer. Please try again.');
+    }
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    try {
+      await fetch('/api/notifications/mark-all-read', { method: 'POST' });
+    } catch {}
+    setNotifications(prev => {
+      const updated = prev.map(n => ({ ...n, is_read: true }));
+      try {
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+    notify('All notifications marked as read.');
+  };
+
+  const handleClearAllNotifications = async () => {
+    try {
+      await fetch('/api/notifications', { method: 'DELETE' });
+    } catch {}
+    setNotifications([]);
+    try {
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify([]));
+    } catch {}
+    notify('All notifications cleared.');
+  };
+
+  const handleToggleNotificationRead = (id) => {
+    setNotifications(prev => {
+      const updated = prev.map(n => (n.id === id ? { ...n, is_read: !n.is_read } : n));
+      try {
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+  };
+
+  const handleToggleDisableListing = async (id, shouldDisable) => {
+    try {
+      await toggleDisableLiveListing(id, shouldDisable);
+      setAdminListings(prev => prev.map(l => String(l.id) === String(id) ? { ...l, disabled: shouldDisable } : l));
+      notify(shouldDisable ? 'Listing disabled from public marketplace.' : 'Listing re-enabled on public marketplace.');
+      if (onRefreshListings) onRefreshListings();
+      window.dispatchEvent(new Event('binmar_listings_updated'));
+    } catch (e) {
+      notify(e.message || 'Unable to update listing state.');
     }
   };
 
@@ -204,7 +282,18 @@ export default function AdminPortalPage({
     }
   };
 
-  const handleAddAdmin = (newAdmin) => {
+  const handleAddAdmin = async (newAdmin) => {
+    // Save online to server database
+    try {
+      await fetch('/api/admin/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newAdmin)
+      });
+    } catch (err) {
+      console.warn('Could not post admin to server:', err);
+    }
+
     // If this admin was previously deleted, remove from deleted list
     try {
       const rawDel = localStorage.getItem('binmar_deleted_admins');
@@ -222,12 +311,19 @@ export default function AdminPortalPage({
       } catch {}
       return updated;
     });
-    notify(`Admin account for ${newAdmin.name} created! Password saved.`);
+    notify(`Admin account for ${newAdmin.name} created! Saved online to database.`);
   };
 
-  const handleRemoveAdmin = (id) => {
+  const handleRemoveAdmin = async (id) => {
     const target = admins.find(a => String(a.id) === String(id));
     if (!window.confirm(`Are you sure you want to remove admin access for ${target?.name || 'this user'}?`)) return;
+
+    // Delete online from server database
+    try {
+      await fetch(`/api/admin/staff/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.warn('Could not delete admin from server:', err);
+    }
 
     // Permanently record deletion in binmar_deleted_admins
     try {
@@ -253,10 +349,24 @@ export default function AdminPortalPage({
     notify(`Administrator "${target?.name || ''}" removed successfully.`);
   };
 
-  const handleToggleAdminStatus = (id) => {
+  const handleToggleAdminStatus = async (id) => {
+    const target = admins.find(a => String(a.id) === String(id));
+    const newStatus = target?.status === 'Active' ? 'Suspended' : 'Active';
+
+    // Patch online on server database
+    try {
+      await fetch(`/api/admin/staff/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+    } catch (err) {
+      console.warn('Could not patch admin status:', err);
+    }
+
     setAdmins(prev => {
       const updated = prev.map(a =>
-        a.id === id ? { ...a, status: a.status === 'Active' ? 'Suspended' : 'Active' } : a
+        a.id === id ? { ...a, status: newStatus } : a
       );
       try {
         localStorage.setItem('binmar_custom_admins', JSON.stringify(updated));
@@ -272,7 +382,9 @@ export default function AdminPortalPage({
         adminTab={adminTab}
         setAdminTab={setAdminTab}
         moderationCount={moderationQueue.length}
-        dealerCount={dealerQueue.filter(d => !d.status || d.status === 'pending').length}
+        dealerCount={dealerQueue.length}
+        listingsCount={adminListings.length}
+        notificationCount={notifications.filter(n => !n.is_read).length}
         adminCount={admins.length}
         onExit={onExit}
       />
@@ -287,7 +399,10 @@ export default function AdminPortalPage({
           </p>
         )}
 
-        <AdminHeader notifications={notifications} />
+        <AdminHeader
+          notifications={notifications}
+          onOpenNotifications={() => setAdminTab('notifications')}
+        />
 
         {adminTab === 'dashboard' && (
           <DashboardTab
@@ -320,7 +435,18 @@ export default function AdminPortalPage({
             adminSearch={adminSearch}
             setAdminSearch={setAdminSearch}
             onRemoveListing={handleRemoveListing}
+            onToggleDisableListing={handleToggleDisableListing}
             onRemoveAllListings={handleRemoveAllListings}
+          />
+        )}
+
+        {adminTab === 'notifications' && (
+          <NotificationsTab
+            notifications={notifications}
+            onMarkAllRead={handleMarkAllNotificationsRead}
+            onClearAll={handleClearAllNotifications}
+            onToggleRead={handleToggleNotificationRead}
+            setAdminTab={setAdminTab}
           />
         )}
 

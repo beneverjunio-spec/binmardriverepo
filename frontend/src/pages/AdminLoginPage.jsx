@@ -3,12 +3,15 @@ import { Eye, EyeOff } from 'lucide-react';
 import { login, logout } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from '../api/auth';
 import { DEFAULT_ADMIN_DATA } from '../constants';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function AdminLoginPage({
   setCurrentUser,
   setCurrentPage,
   notify
 }) {
+  const { t, isRTL } = useLanguage();
   const [adminEmail, setAdminEmail] = useState('');
   const [adminPass, setAdminPass] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +34,40 @@ export default function AdminLoginPage({
     setAuthLoading(true);
 
     try {
-      // 1. Check local custom admins & default admin records
+      // 1. Try backend API login against database
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password: pass })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && data.user) {
+            const u = data.user;
+            if (u.user_type === 'admin') {
+              setCurrentUser(u);
+              setAdminPass('');
+              notify(`Welcome, ${u.name || 'Administrator'}!`);
+              setCurrentPage('admin');
+              return;
+            } else {
+              setAdminLoginError('This account is not authorized for the admin portal. Staff role is required.');
+              return;
+            }
+          }
+        } else if (res.status === 400 || res.status === 401 || res.status === 403) {
+          const errData = await res.json().catch(() => ({}));
+          if (errData.error && !errData.error.includes('route not found')) {
+            setAdminLoginError(errData.error || 'Invalid staff email or password. Please try again.');
+            return;
+          }
+        }
+      } catch (apiErr) {
+        console.warn('Backend login fallback to local credentials check:', apiErr);
+      }
+
+      // 2. Check local custom admins & default admin records
       let storedAdmins = [];
       try {
         const local = localStorage.getItem('binmar_custom_admins');
@@ -50,7 +86,6 @@ export default function AdminLoginPage({
       if (matchedAdmin) {
         if (matchedAdmin.status === 'Suspended') {
           setAdminLoginError('This admin account has been suspended. Please contact the Operations Director.');
-          setAuthLoading(false);
           return;
         }
 
@@ -66,7 +101,6 @@ export default function AdminLoginPage({
         setAdminPass('');
         notify(`Welcome, ${staffUser.name}!`);
         setCurrentPage('admin');
-        setAuthLoading(false);
         return;
       }
 
@@ -85,11 +119,10 @@ export default function AdminLoginPage({
         setAdminPass('');
         notify(`Welcome to Admin Portal, ${staffUser.name}!`);
         setCurrentPage('admin');
-        setAuthLoading(false);
         return;
       }
 
-      // 2. Try Netlify Identity if cloud backend is available
+      // 3. Try Netlify Identity if cloud backend is available
       try {
         const identity = await login(email, pass);
         if (identity?.roles?.includes('admin')) {
@@ -108,23 +141,7 @@ export default function AdminLoginPage({
         console.warn('Cloud auth skipped, checking local credentials fallback');
       }
 
-      // If password was admin1234 or email was recognized, let them in
-      if (pass === 'admin1234') {
-        const staffUser = {
-          name: email.split('@')[0] || 'Staff Admin',
-          email: email,
-          user_type: 'admin',
-          role: 'Super Admin',
-          country: 'United Arab Emirates'
-        };
-        setCurrentUser(staffUser);
-        setAdminPass('');
-        notify(`Welcome to Admin Portal, ${staffUser.name}!`);
-        setCurrentPage('admin');
-        return;
-      }
-
-      setAdminLoginError('Invalid staff email or password. Use: admin@binmardrive.com / admin1234');
+      setAdminLoginError('Invalid staff email or password. Please try again.');
     } finally {
       setAuthLoading(false);
     }
@@ -134,7 +151,8 @@ export default function AdminLoginPage({
     <div className="flow-wrap">
       <div className="flow-brand">
         <div className="nav-mark" onClick={() => setCurrentPage('marketplace')}>
-          BINMAR<b>DRIVE</b>
+          <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="brand-logo-img" />
+          <span>BINMAR<b>DRIVE</b></span>
         </div>
         <div>
           <div className="flow-hero">Admin <em>portal</em> access.</div>
@@ -148,22 +166,25 @@ export default function AdminLoginPage({
       </div>
 
       <div className="flow-formside">
+        <div style={{ display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end', width: '100%', maxWidth: '440px', marginBottom: '1rem' }}>
+          <LanguageSwitcher />
+        </div>
         <form className="flow-card" onSubmit={handleAdminLogin}>
-          <h1 className="step-title">Admin log in</h1>
-          <p className="step-desc">Enter staff credentials to access moderation and verification queues.</p>
+          <h1 className="step-title">{t('admin_login_title')}</h1>
+          <p className="step-desc">{t('admin_login_sub')}</p>
 
-          <label htmlFor="admin-email">Admin email</label>
+          <label htmlFor="admin-email">{t('admin_email_label')}</label>
           <input
             id="admin-email"
             type="email"
             autoComplete="email"
-            placeholder="admin@binmardrive.com"
+            placeholder="staff@binmardrive.com"
             required
             value={adminEmail}
             onChange={e => setAdminEmail(e.target.value)}
           />
 
-          <label htmlFor="admin-password">Password</label>
+          <label htmlFor="admin-password">{t('admin_password_label')}</label>
           <div className="password-input-wrap">
             <input
               id="admin-password"
@@ -187,7 +208,7 @@ export default function AdminLoginPage({
           {adminLoginError && <p className="err" role="alert">{adminLoginError}</p>}
 
           <button className="btn-primary" type="submit" disabled={authLoading}>
-            {authLoading ? 'Signing in…' : 'Log in to Admin Portal'}
+            {authLoading ? 'Signing in…' : t('admin_login_btn')}
           </button>
 
           <button
@@ -196,7 +217,7 @@ export default function AdminLoginPage({
             style={{ marginTop: '1rem' }}
             onClick={() => setCurrentPage('marketplace')}
           >
-            Back to Marketplace
+            {t('admin_exit_marketplace')}
           </button>
         </form>
       </div>

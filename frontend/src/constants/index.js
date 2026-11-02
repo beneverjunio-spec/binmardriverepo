@@ -329,28 +329,7 @@ export const DEFAULT_ADMIN_DATA = {
       country: 'United Arab Emirates',
       status: 'Active',
       created_at: '2026-01-15'
-    },
-    {
-      id: 2,
-      name: 'Tariq Mansoor',
-      email: 'tariq@binmardrive.com',
-      role: 'Listing Moderator',
-      department: 'Vehicle Moderation',
-      country: 'United Arab Emirates',
-      status: 'Active',
-      created_at: '2026-02-10'
-    },
-    {
-      id: 3,
-      name: 'Faisal Al-Otaibi',
-      email: 'faisal@binmardrive.com',
-      role: 'Dealer Auditor',
-      department: 'Compliance',
-      country: 'Saudi Arabia',
-      status: 'Active',
-      created_at: '2026-03-01'
     }
   ],
   notifications: []
 };
-

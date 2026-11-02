@@ -1,58 +1,61 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function HowItWorksPage({ onPostListingClick }) {
+  const { t } = useLanguage();
+
   return (
     <div>
       <div className="info-hero">
-        <h1>How <em>Binmar Drive</em> works.</h1>
-        <p>From registering to a listing going live &mdash; here is the full journey.</p>
+        <h1>{t('how_hero_title')}</h1>
+        <p>{t('how_hero_sub')}</p>
       </div>
       <div className="info-section">
-        <h2>For Sellers and Dealers</h2>
+        <h2>{t('how_for_sellers')}</h2>
         <div className="steps4">
           <div className="step-card">
             <div className="step-num">1</div>
-            <h3>Register Free</h3>
-            <p>Sign up as an individual or company &mdash; commercial dealers attach a trade license.</p>
+            <h3>{t('how_s1_title')}</h3>
+            <p>{t('how_s1_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">2</div>
-            <h3>Post Your Vehicle</h3>
-            <p>Add vehicle details, upload high-res photos, set price and location in a few steps.</p>
+            <h3>{t('how_s2_title')}</h3>
+            <p>{t('how_s2_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">3</div>
-            <h3>Admin Review</h3>
-            <p>New listings enter the admin moderation queue to guarantee marketplace quality.</p>
+            <h3>{t('how_s3_title')}</h3>
+            <p>{t('how_s3_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">4</div>
-            <h3>Connect & Sell</h3>
-            <p>Buyers contact you directly via WhatsApp or call &mdash; zero commission on sale, ever.</p>
+            <h3>{t('how_s4_title')}</h3>
+            <p>{t('how_s4_desc')}</p>
           </div>
         </div>
 
-        <h2>For Buyers</h2>
+        <h2>{t('how_for_buyers')}</h2>
         <div className="steps4">
           <div className="step-card">
             <div className="step-num">1</div>
-            <h3>Search & Filter</h3>
-            <p>Filter by make, country, price, fuel type, and for sale or rent.</p>
+            <h3>{t('how_b1_title')}</h3>
+            <p>{t('how_b1_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">2</div>
-            <h3>View Specs</h3>
-            <p>Open full vehicle specifications, condition details, and photo gallery.</p>
+            <h3>{t('how_b2_title')}</h3>
+            <p>{t('how_b2_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">3</div>
-            <h3>Direct Contact</h3>
-            <p>Reach out directly to the owner or verified dealer with no middlemen.</p>
+            <h3>{t('how_b3_title')}</h3>
+            <p>{t('how_b3_desc')}</p>
           </div>
           <div className="step-card">
             <div className="step-num">4</div>
-            <h3>Inspect & Drive</h3>
-            <p>Arrange vehicle viewing and complete the deal directly.</p>
+            <h3>{t('how_b4_title')}</h3>
+            <p>{t('how_b4_desc')}</p>
           </div>
         </div>
 
@@ -61,7 +64,7 @@ export default function HowItWorksPage({ onPostListingClick }) {
           style={{ marginTop: '1.5rem' }}
           onClick={onPostListingClick}
         >
-          Post a Listing Now &mdash; Free
+          {t('how_post_btn')}
         </button>
       </div>
     </div>

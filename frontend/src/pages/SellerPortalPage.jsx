@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
+  AlertTriangle,
   Store,
   Car,
   LayoutDashboard,
@@ -46,6 +47,92 @@ import {
 } from '../constants';
 import { uploadListingPhotos, isTestData } from '../api/listings';
 import { apiRequest } from '../api/client';
+import LanguageSwitcher from '../components/common/LanguageSwitcher';
+import { useLanguage } from '../context/LanguageContext';
+
+// Helper to compress images on the client side to keep uploads fast and avoid localStorage quota errors
+function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
+  return new Promise((resolve) => {
+    if (!file) return resolve(null);
+    if (file.type === 'application/pdf') {
+      const reader = new FileReader();
+      reader.onload = (e) => resolve(e.target.result);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Resilient localStorage saver that automatically handles quota limits
+function safeSaveListings(newItems) {
+  try {
+    localStorage.setItem('binmar_custom_listings', JSON.stringify(newItems));
+    return true;
+  } catch (err) {
+    console.warn('[Storage] Quota limit encountered. Compacting older entries...', err);
+    try {
+      const optimized = newItems.slice(0, 15).map((item, idx) => {
+        if (idx < 2) return item;
+        return {
+          ...item,
+          images: Array.isArray(item.images)
+            ? item.images.map(img => (typeof img === 'string' && img.startsWith('data:')) ? 'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&auto=format&fit=crop' : img)
+            : [],
+          document_url: null
+        };
+      });
+      localStorage.setItem('binmar_custom_listings', JSON.stringify(optimized));
+      return true;
+    } catch (e2) {
+      console.warn('[Storage] Trimming to minimal entries...', e2);
+      try {
+        const minimal = newItems.slice(0, 5).map(item => ({
+          ...item,
+          images: [],
+          document_url: null
+        }));
+        localStorage.setItem('binmar_custom_listings', JSON.stringify(minimal));
+        return true;
+      } catch (e3) {
+        console.error('[Storage] Local storage full:', e3);
+        return false;
+      }
+    }
+  }
+}
 
 export default function SellerPortalPage({
   currentUser,
@@ -55,6 +142,7 @@ export default function SellerPortalPage({
   onRefreshListings,
   onOpenCreateListing
 }) {
+  const { t, isRTL } = useLanguage();
   // Navigation tabs
   const [activeTab, setActiveTab] = useState('listings'); // 'listings', 'dashboard', 'profile', 'analytics', 'inquiries', 'wallet', 'settings'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'published', 'pending', 'drafts', 'expired'
@@ -70,6 +158,7 @@ export default function SellerPortalPage({
   const [editingListing, setEditingListing] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editWasRejected, setEditWasRejected] = useState(false);
   const [editImageInput, setEditImageInput] = useState('');
   const [isUploadingEditPhoto, setIsUploadingEditPhoto] = useState(false);
   const editFileInputRef = useRef(null);
@@ -99,19 +188,22 @@ export default function SellerPortalPage({
     document_file: ''
   });
 
-  const handleAddPhotos = (e) => {
+  const handleAddPhotos = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
-    files.forEach(file => {
-      const reader = new FileReader();
-      reader.onload = (uploadEvent) => {
-        setAddForm(prev => ({
-          ...prev,
-          images: [...prev.images, uploadEvent.target.result]
-        }));
-      };
-      reader.readAsDataURL(file);
-    });
+    for (const file of files) {
+      try {
+        const compressedUrl = await compressImage(file, 1200, 1200, 0.8);
+        if (compressedUrl) {
+          setAddForm(prev => ({
+            ...prev,
+            images: [...prev.images, compressedUrl]
+          }));
+        }
+      } catch (err) {
+        console.warn('Could not compress photo:', err);
+      }
+    }
     notify(`${files.length} photo(s) attached!`);
   };
 
@@ -122,15 +214,21 @@ export default function SellerPortalPage({
     }));
   };
 
-  const handleAddDoc = (e) => {
+  const handleAddDoc = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setAddForm(prev => ({
-      ...prev,
-      document_name: file.name,
-      document_file: file.name
-    }));
-    notify(`Document attached: ${file.name}`);
+    try {
+      const docUrl = await compressImage(file, 1600, 1600, 0.85);
+      setAddForm(prev => ({
+        ...prev,
+        document_name: file.name,
+        document_file: file.name,
+        document_url: docUrl
+      }));
+      notify(`Document attached: ${file.name}`);
+    } catch (err) {
+      console.warn('Could not read document:', err);
+    }
   };
 
   // Profile edit state
@@ -146,17 +244,86 @@ export default function SellerPortalPage({
   });
 
   // Load listings belonging to this seller/dealer
-  const loadSellerData = () => {
+  const loadSellerData = async () => {
     let allCustom = [];
+    const currentUserName = (currentUser?.name || '').toLowerCase();
+    const currentUserCompany = (currentUser?.company_name || '').toLowerCase();
+    const currentUserEmail = (currentUser?.email || '').toLowerCase();
+    const sellerParam = currentUserEmail || currentUserCompany || currentUserName;
+
+    // 1. Fetch online seller listings from server database (primary source - works across all devices)
+    try {
+      if (currentUserEmail) {
+        // Query by email first (most reliable identifier)
+        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(currentUserEmail)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.listings)) {
+            allCustom = data.listings.filter(item => !isTestData(item));
+          }
+        }
+      }
+
+      // Also try querying by seller name / company name if email gave no results
+      if (allCustom.length === 0 && (currentUserName || currentUserCompany)) {
+        const nameParam = currentUserCompany || currentUserName;
+        const res = await fetch(`/api/seller/listings?seller=${encodeURIComponent(nameParam)}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.success && Array.isArray(data.listings)) {
+            const byName = data.listings.filter(item => !isTestData(item));
+            for (const item of byName) {
+              if (!allCustom.some(c => String(c.id) === String(item.id))) {
+                allCustom.push(item);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('API seller listings fetch note:', e.message);
+    }
+
+    // 2. Merge with local custom listings (covers offline/pending submissions on this device)
     try {
       const raw = localStorage.getItem('binmar_custom_listings');
       if (raw) {
         const parsed = JSON.parse(raw);
-        allCustom = parsed.filter(item => !isTestData(item));
-        localStorage.setItem('binmar_custom_listings', JSON.stringify(allCustom));
+        const localItems = parsed.filter(item => {
+          if (isTestData(item)) return false;
+          const sName = (item.seller_name || '').toLowerCase();
+          const sEmail = (item.seller_email || '').toLowerCase();
+          return (
+            !sellerParam ||
+            sName === currentUserName ||
+            (currentUserCompany && sName === currentUserCompany) ||
+            (currentUserEmail && sEmail === currentUserEmail)
+          );
+        });
+        localItems.forEach(item => {
+          const matchIdx = allCustom.findIndex(c =>
+            String(c.id) === String(item.id) ||
+            ((c.title || '').trim().toLowerCase() === (item.title || '').trim().toLowerCase() &&
+             Number(c.price) === Number(item.price))
+          );
+          if (matchIdx !== -1) {
+            // Prefer server data from database, preserving any local document attachments and status
+            allCustom[matchIdx] = {
+              ...item,
+              ...allCustom[matchIdx],
+              sale_status: allCustom[matchIdx].sale_status || item.sale_status || 'available',
+              sold_at: allCustom[matchIdx].sold_at || item.sold_at || null,
+              disabled: allCustom[matchIdx].disabled !== undefined ? allCustom[matchIdx].disabled : item.disabled,
+              document_url: allCustom[matchIdx].document_url || item.document_url || null,
+              document_file: allCustom[matchIdx].document_file || item.document_file || null
+            };
+          } else {
+            allCustom.push(item);
+          }
+        });
       }
     } catch {
-      allCustom = [];
+      if (!allCustom.length) allCustom = [];
     }
 
     let deletedIds = [];
@@ -165,21 +332,10 @@ export default function SellerPortalPage({
       if (rawDel) deletedIds = JSON.parse(rawDel);
     } catch {}
 
-    const currentUserName = (currentUser?.name || '').toLowerCase();
-    const currentUserCompany = (currentUser?.company_name || '').toLowerCase();
-    const currentUserEmail = (currentUser?.email || '').toLowerCase();
-
-    // Find custom listings added by this user
     const matchedListings = allCustom.filter(item => {
       if (deletedIds.includes(String(item.id))) return false;
       if (isTestData(item)) return false;
-      const sName = (item.seller_name || '').toLowerCase();
-      const sEmail = (item.seller_email || '').toLowerCase();
-      return (
-        sName === currentUserName ||
-        (currentUserCompany && sName === currentUserCompany) ||
-        (currentUserEmail && sEmail === currentUserEmail)
-      );
+      return true;
     });
 
     setSellerListings(matchedListings);
@@ -241,6 +397,7 @@ export default function SellerPortalPage({
   const pendingCount = sellerListings.filter(l => l.status === 'pending').length;
   const draftsCount = sellerListings.filter(l => l.status === 'draft').length;
   const expiredCount = sellerListings.filter(l => l.status === 'expired').length;
+  const rejectedCount = sellerListings.filter(l => l.status === 'rejected').length;
 
   const totalViews = sellerListings.reduce((sum, l) => sum + (Number(l.views) || 240), 0);
   const totalInquiries = sellerListings.reduce((sum, l) => sum + (Number(l.inquiries) || 12), 0);
@@ -249,6 +406,7 @@ export default function SellerPortalPage({
   const handleStartEdit = (listing, e) => {
     if (e) e.stopPropagation();
     setEditingListing(listing);
+    setEditWasRejected(listing.status === 'rejected');
     setEditForm({
       ...listing,
       price: listing.price || '',
@@ -257,7 +415,7 @@ export default function SellerPortalPage({
     });
   };
 
-  const handleSaveListingEdit = () => {
+  const handleSaveListingEdit = async () => {
     if (!editForm.model || !editForm.price) {
       notify('Please enter both vehicle model and price.');
       return;
@@ -265,15 +423,32 @@ export default function SellerPortalPage({
     setIsSavingEdit(true);
 
     try {
+      const wasRejected = editWasRejected || editingListing?.status === 'rejected';
       const updatedItem = {
         ...editingListing,
         ...editForm,
         title: `${editForm.year} ${editForm.make} ${editForm.model}`,
         price: Number(editForm.price),
-        mileage: editForm.mileage ? `${editForm.mileage} km` : '0 km',
+        mileage: editForm.mileage ? (String(editForm.mileage).includes('km') ? editForm.mileage : `${editForm.mileage} km`) : '0 km',
         location: `${editForm.city || 'Dubai'}, ${editForm.country || 'United Arab Emirates'}`,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        // All resubmitted or edited listings MUST enter Admin Moderation Queue first
+        status: 'pending',
+        resubmitted: true,
+        resubmitted_at: new Date().toISOString(),
+        previous_rejection_reason: editingListing.rejection_reason || editingListing.previous_rejection_reason || null,
+        rejection_reason: null
       };
+
+      // Remove from resolved moderation list so admin moderation queue displays it immediately
+      try {
+        const rawRes = localStorage.getItem('binmar_resolved_moderation');
+        if (rawRes) {
+          const resList = JSON.parse(rawRes);
+          const filteredRes = resList.filter(rid => String(rid) !== String(editingListing.id));
+          localStorage.setItem('binmar_resolved_moderation', JSON.stringify(filteredRes));
+        }
+      } catch {}
 
       // Update local storage
       const raw = localStorage.getItem('binmar_custom_listings');
@@ -287,11 +462,37 @@ export default function SellerPortalPage({
       }
       localStorage.setItem('binmar_custom_listings', JSON.stringify(customList));
 
+      // Send admin notification
+      try {
+        const notifRaw = localStorage.getItem('binmar_admin_notifications');
+        const notifs = notifRaw ? JSON.parse(notifRaw) : [];
+        notifs.unshift({
+          id: Date.now(),
+          title: wasRejected ? 'Listing Resubmitted for Moderation' : 'Listing Updated - Pending Moderation',
+          message: `"${updatedItem.title}" has been updated by ${updatedItem.seller_name || 'Seller'} and submitted to the Moderation Queue for admin approval before publishing.`,
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+        localStorage.setItem('binmar_admin_notifications', JSON.stringify(notifs));
+      } catch {}
+
+      // Synchronize with backend API
+      try {
+        await apiRequest(`/api/listings/${editingListing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedItem)
+        });
+      } catch (err) {
+        console.warn('Backend update sync note:', err.message);
+      }
+
       // Update state
       setSellerListings(prev => prev.map(l => (String(l.id) === String(editingListing.id) ? updatedItem : l)));
       setEditingListing(null);
       setEditForm(null);
-      notify(`Updated "${updatedItem.title}" successfully!`);
+      setEditWasRejected(false);
+      notify(`"${updatedItem.title}" submitted to Admin Moderation Queue! Admin approval is required before it goes live.`);
       if (onRefreshListings) onRefreshListings();
     } catch {
       notify('Failed to save listing changes. Please try again.');
@@ -300,12 +501,98 @@ export default function SellerPortalPage({
     }
   };
 
-  const handleDeleteListing = (id, e) => {
+  // Toggle Sold / Rented Status
+  const handleToggleSoldStatus = async (listing, e) => {
+    if (e) e.stopPropagation();
+    const isRent = (listing.listing_type || listing.type) === 'rent';
+    const isCurrentlySoldOrRented = listing.sale_status === 'sold' || listing.sale_status === 'rented';
+    const targetStatus = isCurrentlySoldOrRented ? 'available' : (isRent ? 'rented' : 'sold');
+    const label = targetStatus === 'available' ? 'Available' : (isRent ? 'Rented' : 'Sold');
+
+    try {
+      const updatedItem = {
+        ...listing,
+        sale_status: targetStatus,
+        sold_at: targetStatus !== 'available' ? new Date().toISOString() : null
+      };
+
+      // 1. Sync directly to backend API & cloud database
+      try {
+        await apiRequest(`/api/listings/${listing.id}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sale_status: targetStatus,
+            sold_at: updatedItem.sold_at
+          })
+        });
+      } catch (apiErr) {
+        console.warn('API listing status update note:', apiErr);
+      }
+
+      // 2. Post notification directly to online database for Admin Portal
+      if (targetStatus !== 'available') {
+        const notifTitle = isRent ? 'Vehicle Marked as Rented' : 'Vehicle Marked as Sold';
+        const notifMsg = `${listing.title || 'Vehicle'} has been marked as ${targetStatus.toUpperCase()} by seller ${sellerDisplayName} (${listing.city || 'Dubai'}, ${listing.country || 'UAE'}).`;
+        try {
+          await apiRequest('/api/notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              title: notifTitle,
+              message: notifMsg
+            })
+          });
+        } catch (nErr) {
+          console.warn('API notification note:', nErr);
+        }
+
+        // Also update local notifications cache
+        try {
+          const notifRaw = localStorage.getItem('binmar_admin_notifications');
+          const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
+          const newNotif = {
+            id: Date.now(),
+            title: notifTitle,
+            message: notifMsg,
+            is_read: false,
+            created_at: new Date().toISOString()
+          };
+          localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs.slice(0, 30)]));
+        } catch {}
+      }
+
+      // 3. Update in local storage cache
+      const raw = localStorage.getItem('binmar_custom_listings');
+      if (raw) {
+        const items = JSON.parse(raw);
+        const updated = items.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l);
+        safeSaveListings(updated);
+      }
+
+      // 4. Update UI state immediately
+      setSellerListings(prev => prev.map(l => String(l.id) === String(listing.id) ? { ...l, ...updatedItem } : l));
+      notify(`Listing marked as ${label}! Admin notified.`);
+      if (onRefreshListings) onRefreshListings();
+      window.dispatchEvent(new Event('binmar_listings_updated'));
+    } catch (err) {
+      notify(err.message || 'Unable to update status.');
+    }
+  };
+
+  const handleDeleteListing = async (id, e) => {
     if (e) e.stopPropagation();
     if (!window.confirm('Are you sure you want to delete this listing from your studio?')) return;
 
     try {
-      // Add to deleted IDs
+      // 1. Delete from online database via API
+      try {
+        await apiRequest(`/api/listings/${id}`, { method: 'DELETE' });
+      } catch (apiErr) {
+        console.warn('API delete listing note:', apiErr);
+      }
+
+      // 2. Add to local deleted IDs cache
       let deleted = [];
       const rawDel = localStorage.getItem('binmar_deleted_listings');
       if (rawDel) deleted = JSON.parse(rawDel);
@@ -314,7 +601,7 @@ export default function SellerPortalPage({
         localStorage.setItem('binmar_deleted_listings', JSON.stringify(deleted));
       }
 
-      // Remove from custom listings
+      // 3. Remove from custom listings cache
       const raw = localStorage.getItem('binmar_custom_listings');
       if (raw) {
         const items = JSON.parse(raw);
@@ -401,18 +688,39 @@ export default function SellerPortalPage({
       ],
       document_name: addForm.document_name || 'Mulkiya_Vehicle_Registration.pdf',
       document_file: addForm.document_file || 'Mulkiya_Vehicle_Registration.pdf',
+      document_url: addForm.document_url || null,
       views: 0,
       inquiries: 0,
       status: 'pending', // PENDING: All seller listings must be approved by admin!
       created_at: new Date().toISOString()
     };
 
+    // 1. Submit to backend API
+    try {
+      const res = await apiRequest('/api/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newVehicle)
+      });
+      if (res && res.id) {
+        newVehicle.id = res.id;
+      }
+    } catch (apiErr) {
+      console.warn('[API] Queued vehicle locally for admin moderation:', apiErr);
+    }
+
+    // 2. Persist in local storage safely without quota crashes
     try {
       const raw = localStorage.getItem('binmar_custom_listings');
       const existing = raw ? JSON.parse(raw) : [];
-      localStorage.setItem('binmar_custom_listings', JSON.stringify([newVehicle, ...existing]));
+      const filtered = existing.filter(l => String(l.id) !== String(newVehicle.id));
+      safeSaveListings([newVehicle, ...filtered]);
+    } catch (storageErr) {
+      console.warn('[Storage] Could not write to local storage:', storageErr);
+    }
 
-      // Send high-priority notification to Admin Portal
+    // 3. Notify Admin Portal
+    try {
       const notifRaw = localStorage.getItem('binmar_admin_notifications');
       const existingNotifs = notifRaw ? JSON.parse(notifRaw) : [];
       const newNotif = {
@@ -422,48 +730,39 @@ export default function SellerPortalPage({
         is_read: false,
         created_at: new Date().toISOString()
       };
-      localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs]));
-
-      // Also submit to backend API
-      try {
-        await apiRequest('/api/listings', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newVehicle)
-        });
-      } catch (err) {
-        console.warn('Backend queued locally for admin moderation', err);
-      }
-
-      setSellerListings(prev => [newVehicle, ...prev]);
-      setStatusFilter('pending'); // Auto switch to Pending tab so seller sees their submission
-      setShowAddModal(false);
-      setAddForm({
-        make: 'Toyota',
-        model: '',
-        year: '2025',
-        category: 'SUV',
-        fuel: 'Petrol',
-        transmission: 'Automatic',
-        mileage: '',
-        condition_type: 'used',
-        listing_type: 'sale',
-        price: '',
-        currency: 'AED',
-        country: currentUser?.country || 'United Arab Emirates',
-        city: 'Dubai',
-        whatsapp_number: currentUser?.phone || '+971 50 123 4567',
-        description: '',
-        images: [],
-        document_name: '',
-        document_file: ''
-      });
-
-      notify(`Listing "${newVehicle.title}" submitted to Admin Moderation! Once verified & approved, it will be published live.`);
-      if (onRefreshListings) onRefreshListings();
-    } catch {
-      notify('Failed to submit listing. Please try again.');
+      localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...existingNotifs.slice(0, 30)]));
+    } catch (notifErr) {
+      console.warn('[Notifications] Could not save admin notification:', notifErr);
     }
+
+    // 4. Update UI state immediately
+    setSellerListings(prev => [newVehicle, ...prev.filter(l => String(l.id) !== String(newVehicle.id))]);
+    setStatusFilter('pending'); // Auto switch to Pending tab so seller sees their submission
+    setShowAddModal(false);
+    setAddForm({
+      make: 'Toyota',
+      model: '',
+      year: '2025',
+      category: 'SUV',
+      fuel: 'Petrol',
+      transmission: 'Automatic',
+      mileage: '',
+      condition_type: 'used',
+      listing_type: 'sale',
+      price: '',
+      currency: 'AED',
+      country: currentUser?.country || 'United Arab Emirates',
+      city: 'Dubai',
+      whatsapp_number: currentUser?.phone || '+971 50 123 4567',
+      description: '',
+      images: [],
+      document_name: '',
+      document_file: '',
+      document_url: null
+    });
+
+    notify(`Listing "${newVehicle.title}" submitted to Admin Moderation! Once verified & approved, it will be published live.`);
+    if (onRefreshListings) onRefreshListings();
   };
 
   const sellerDisplayName = currentUser?.company_name || currentUser?.name || 'Verified Dealer';
@@ -484,7 +783,7 @@ export default function SellerPortalPage({
             <Store className="w-5 h-5 text-white" />
           </div>
           <div className="seller-brand-text">
-            <span className="seller-brand-title">Motors ME</span>
+            <span className="seller-brand-title">{sellerDisplayName}</span>
             <span className="seller-brand-subtitle">SELLER STUDIO</span>
           </div>
           {mobileMenuOpen && (
@@ -499,7 +798,7 @@ export default function SellerPortalPage({
 
         {/* Navigation Items */}
         <nav className="seller-nav-wrap">
-          <p className="seller-nav-section-title">Main</p>
+          <p className="seller-nav-section-title">{isRTL ? 'الرئيسية' : 'Main'}</p>
           <ul className="seller-nav-list">
             <li>
               <button
@@ -507,7 +806,7 @@ export default function SellerPortalPage({
                 onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
               >
                 <LayoutDashboard size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Dashboard</span>
+                <span className="seller-nav-label">{t('admin_tab_dashboard')}</span>
               </button>
             </li>
             <li>
@@ -517,7 +816,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'listings' && <span className="seller-active-indicator" />}
                 <Car size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">My Listings</span>
+                <span className="seller-nav-label">{t('studio_my_listings')}</span>
                 <span className="seller-nav-badge">{publishedCount + pendingCount}</span>
               </button>
             </li>
@@ -527,7 +826,7 @@ export default function SellerPortalPage({
                 onClick={() => { setShowAddModal(true); setMobileMenuOpen(false); }}
               >
                 <PlusCircle size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Add Listing</span>
+                <span className="seller-nav-label">{t('studio_add_listing')}</span>
               </button>
             </li>
             <li>
@@ -537,7 +836,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'orders' && <span className="seller-active-indicator" />}
                 <Tag size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Orders</span>
+                <span className="seller-nav-label">{t('studio_orders')}</span>
                 <span className="seller-nav-badge">0</span>
               </button>
             </li>
@@ -548,7 +847,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'messages' && <span className="seller-active-indicator" />}
                 <MessageSquare size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Messages</span>
+                <span className="seller-nav-label">{t('studio_messages')}</span>
                 <span className="seller-nav-badge">5</span>
               </button>
             </li>
@@ -558,12 +857,12 @@ export default function SellerPortalPage({
                 onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }}
               >
                 <BarChart3 size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Analytics</span>
+                <span className="seller-nav-label">{t('studio_analytics')}</span>
               </button>
             </li>
           </ul>
 
-          <p className="seller-nav-section-title mt-6">Account</p>
+          <p className="seller-nav-section-title mt-6">{isRTL ? 'الحساب' : 'Account'}</p>
           <ul className="seller-nav-list">
             <li>
               <button
@@ -572,7 +871,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'profile' && <span className="seller-active-indicator" />}
                 <User size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Profile</span>
+                <span className="seller-nav-label">{t('studio_profile')}</span>
               </button>
             </li>
             <li>
@@ -582,7 +881,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'wallet' && <span className="seller-active-indicator" />}
                 <Wallet size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Wallet</span>
+                <span className="seller-nav-label">{t('studio_wallet')}</span>
               </button>
             </li>
             <li>
@@ -592,7 +891,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'settings' && <span className="seller-active-indicator" />}
                 <Settings size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Settings</span>
+                <span className="seller-nav-label">{t('studio_settings')}</span>
               </button>
             </li>
             <li>
@@ -602,7 +901,7 @@ export default function SellerPortalPage({
               >
                 {activeTab === 'help' && <span className="seller-active-indicator" />}
                 <HelpCircle size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">Help Center</span>
+                <span className="seller-nav-label">{t('studio_help')}</span>
               </button>
             </li>
           </ul>
@@ -612,14 +911,14 @@ export default function SellerPortalPage({
         <div className="seller-upgrade-card">
           <div className="seller-card-dec1" />
           <div className="seller-card-dec2" />
-          <p className="seller-card-tag">PREMIUM</p>
-          <p className="seller-card-title">Boost your listings</p>
-          <p className="seller-card-desc">Get up to 5x more buyer inquiries.</p>
+          <p className="seller-card-tag">{t('studio_premium_tag')}</p>
+          <p className="seller-card-title">{t('studio_premium_title')}</p>
+          <p className="seller-card-desc">{t('studio_premium_desc')}</p>
           <button
             className="seller-upgrade-btn"
             onClick={() => notify('Premium dealer boost feature active for verified accounts.')}
           >
-            Upgrade Now <ChevronRight size={14} />
+            {t('studio_upgrade_btn')} <ChevronRight size={14} />
           </button>
         </div>
 
@@ -632,7 +931,7 @@ export default function SellerPortalPage({
             <p className="seller-user-name" title={sellerDisplayName}>{sellerDisplayName}</p>
             <p className="seller-user-badge">
               <ShieldCheck size={12} className="inline text-emerald-500 mr-1" />
-              Verified Seller
+              {t('studio_verified_seller')}
             </p>
           </div>
           <button
@@ -664,16 +963,14 @@ export default function SellerPortalPage({
             </svg>
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-gold to-gold-deep flex items-center justify-center">
-              <Store className="w-4 h-4 text-white" />
-            </div>
+            <img src="/binmardrive-logo-transparent.png" alt="Binmar Drive Logo" className="w-8 h-8 rounded-full object-contain bg-emerald-950 border border-gold/40" />
             <span className="font-bold text-ink">BINMAR <b>STUDIO</b></span>
           </div>
           <button
             className="text-xs font-semibold text-gold-deep px-2.5 py-1 rounded-md bg-cream-deep border border-tan/60"
             onClick={() => setCurrentPage('marketplace')}
           >
-            Marketplace
+            {t('studio_mobile_marketplace')}
           </button>
         </div>
 
@@ -682,21 +979,21 @@ export default function SellerPortalPage({
           <header className="seller-top-header">
           <div className="seller-header-inner">
             <div>
-              <p className="seller-header-kicker">SELLER STUDIO</p>
+              <p className="seller-header-kicker">{t('studio_header_kicker')}</p>
               <h1 className="seller-header-title">
-                {activeTab === 'listings' && 'My Listings'}
-                {activeTab === 'dashboard' && 'Studio Dashboard'}
-                {activeTab === 'profile' && 'Seller Profile & Commercial Verification'}
-                {activeTab === 'analytics' && 'Performance Analytics'}
-                {activeTab === 'inquiries' && 'Buyer Leads & Inquiries'}
-                {activeTab === 'wallet' && 'Seller Wallet & Transactions'}
-                {activeTab === 'settings' && 'Studio Settings'}
-                {activeTab === 'help' && 'Seller Support & Knowledge Base'}
+                {activeTab === 'listings' && t('studio_tab_listings_title')}
+                {activeTab === 'dashboard' && t('studio_tab_dashboard_title')}
+                {activeTab === 'profile' && t('studio_tab_profile_title')}
+                {activeTab === 'analytics' && t('studio_tab_analytics_title')}
+                {activeTab === 'inquiries' && t('studio_tab_inquiries_title')}
+                {activeTab === 'wallet' && t('studio_tab_wallet_title')}
+                {activeTab === 'settings' && t('studio_tab_settings_title')}
+                {activeTab === 'help' && t('studio_tab_help_title')}
               </h1>
               <p className="seller-header-subtitle">
                 {activeTab === 'listings'
-                  ? 'Edit any published listing in place — vehicle details, photos, price & location.'
-                  : `Manage your dealer operations, verification credentials, and buyer requests.`}
+                  ? t('studio_listings_subtitle')
+                  : t('studio_manage_subtitle')}
               </p>
             </div>
 
@@ -706,7 +1003,7 @@ export default function SellerPortalPage({
                   <Search size={16} className="seller-search-icon" />
                   <input
                     type="text"
-                    placeholder="Search make, model, city…"
+                    placeholder={t('studio_search_placeholder')}
                     value={searchQuery}
                     onChange={e => setSearchQuery(e.target.value)}
                     className="seller-search-input"
@@ -722,11 +1019,13 @@ export default function SellerPortalPage({
                 </div>
               )}
 
+              <LanguageSwitcher />
+
               <button
                 className="seller-new-listing-btn"
                 onClick={() => setShowAddModal(true)}
               >
-                <Plus size={16} /> New Listing
+                <Plus size={16} /> {t('studio_add_listing')}
               </button>
 
               <button
@@ -735,7 +1034,7 @@ export default function SellerPortalPage({
                 title="View live website"
               >
                 <ExternalLink size={15} />
-                <span className="hidden sm:inline">Marketplace</span>
+                <span className="hidden sm:inline">{t('nav_marketplace')}</span>
               </button>
             </div>
           </div>
@@ -754,9 +1053,9 @@ export default function SellerPortalPage({
                     <CheckCircle2 size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Published</p>
+                    <p className="seller-stat-label">{t('studio_published_label')}</p>
                     <p className="seller-stat-value">{publishedCount}</p>
-                    <p className="seller-stat-sub">active listings</p>
+                    <p className="seller-stat-sub">{t('studio_active_label')}</p>
                   </div>
                 </div>
 
@@ -765,9 +1064,9 @@ export default function SellerPortalPage({
                     <Eye size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Total views</p>
+                    <p className="seller-stat-label">{t('studio_views_label')}</p>
                     <p className="seller-stat-value">{totalViews.toLocaleString()}</p>
-                    <p className="seller-stat-sub">last 30 days</p>
+                    <p className="seller-stat-sub">{t('studio_views_sub')}</p>
                   </div>
                 </div>
 
@@ -776,9 +1075,9 @@ export default function SellerPortalPage({
                     <MessageSquare size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Inquiries</p>
+                    <p className="seller-stat-label">{t('studio_inquiries_label')}</p>
                     <p className="seller-stat-value">{totalInquiries}</p>
-                    <p className="seller-stat-sub">buyer messages</p>
+                    <p className="seller-stat-sub">{t('studio_inquiries_sub')}</p>
                   </div>
                 </div>
               </div>
@@ -790,31 +1089,31 @@ export default function SellerPortalPage({
                     className={`seller-pill ${statusFilter === 'all' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('all')}
                   >
-                    All <span className="seller-pill-badge">{sellerListings.length}</span>
+                    {t('studio_tab_all')} <span className="seller-pill-badge">{sellerListings.length}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'published' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('published')}
                   >
-                    Published <span className="seller-pill-badge">{publishedCount}</span>
+                    {t('studio_tab_published')} <span className="seller-pill-badge">{publishedCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'pending' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('pending')}
                   >
-                    Pending <span className="seller-pill-badge">{pendingCount}</span>
+                    {t('studio_tab_pending')} <span className="seller-pill-badge">{pendingCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'drafts' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('drafts')}
                   >
-                    Drafts <span className="seller-pill-badge">{draftsCount}</span>
+                    {t('studio_tab_drafts')} <span className="seller-pill-badge">{draftsCount}</span>
                   </button>
                   <button
                     className={`seller-pill ${statusFilter === 'expired' ? 'active' : ''}`}
                     onClick={() => setStatusFilter('expired')}
                   >
-                    Expired <span className="seller-pill-badge">{expiredCount}</span>
+                    {t('studio_tab_expired')} <span className="seller-pill-badge">{expiredCount}</span>
                   </button>
                 </div>
 
@@ -825,9 +1124,9 @@ export default function SellerPortalPage({
                     onChange={e => setSortBy(e.target.value)}
                     className="seller-sorter-select"
                   >
-                    <option value="recent">Sort by recent</option>
-                    <option value="price_desc">Price: High to Low</option>
-                    <option value="price_asc">Price: Low to High</option>
+                    <option value="recent">{t('studio_sort_recent')}</option>
+                    <option value="price_desc">{t('studio_sort_price_high')}</option>
+                    <option value="price_asc">{t('studio_sort_price_low')}</option>
                   </select>
                 </div>
               </div>
@@ -836,17 +1135,17 @@ export default function SellerPortalPage({
               {filteredListings.length === 0 ? (
                 <div className="seller-empty-state">
                   <Car size={48} className="text-gold-dim mx-auto mb-3" />
-                  <h3 className="text-xl font-bold font-serif-display text-ink">No vehicle listings found</h3>
+                  <h3 className="text-xl font-bold font-serif-display text-ink">{t('studio_no_listings')}</h3>
                   <p className="text-ink-soft text-sm max-w-md mx-auto mt-1 mb-5">
                     {searchQuery
-                      ? `No vehicles matched "${searchQuery}". Clear your search query to see all vehicles.`
-                      : 'You do not have any listings in this status tab yet. Post your first vehicle to get started!'}
+                      ? t('studio_no_search_result', { query: searchQuery })
+                      : t('studio_no_listings_sub')}
                   </p>
                   <button
                     className="seller-new-listing-btn mx-auto"
                     onClick={() => setShowAddModal(true)}
                   >
-                    <Plus size={16} /> Add Your First Listing
+                    <Plus size={16} /> {t('studio_add_first_btn')}
                   </button>
                 </div>
               ) : (
@@ -860,6 +1159,9 @@ export default function SellerPortalPage({
                     const isForRent = (listing.listing_type || listing.type) === 'rent';
                     const isPublished = listing.status === 'approved' || listing.status === 'published' || !listing.status;
                     const isPending = listing.status === 'pending';
+                    const isRejected = listing.status === 'rejected';
+                    const isSold = listing.sale_status === 'sold';
+                    const isRented = listing.sale_status === 'rented';
 
                     return (
                       <article key={listing.id} className="seller-vehicle-card">
@@ -875,16 +1177,40 @@ export default function SellerPortalPage({
                           {/* Status Badge */}
                           <div className="seller-badge-status">
                             <span
-                              className={`seller-dot ${isPublished ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : 'bg-gray-400'}`}
+                              className={`seller-dot ${isSold || isRented ? 'bg-red-500' : isPublished ? 'bg-emerald-500' : isPending ? 'bg-amber-500' : isRejected ? 'bg-red-500' : 'bg-gray-400'}`}
                             />
                             <span className="text-xs font-semibold text-ink">
-                              {isPublished ? 'Published' : isPending ? 'Pending Review' : 'Draft'}
+                              {isSold ? t('status_sold') : isRented ? t('status_rented') : isPublished ? t('studio_status_published') : isPending ? t('studio_status_pending') : isRejected ? t('studio_status_rejected') : t('studio_status_draft')}
                             </span>
                           </div>
 
+                          {/* Sold / Rented Banner Overlay on Image */}
+                          {(isSold || isRented) && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '50%',
+                              left: '50%',
+                              transform: 'translate(-50%, -50%) rotate(-12deg)',
+                              background: isSold ? 'rgba(220, 38, 38, 0.95)' : 'rgba(124, 58, 237, 0.95)',
+                              color: '#fff',
+                              padding: '6px 20px',
+                              borderRadius: '8px',
+                              fontWeight: 900,
+                              fontSize: '1.05rem',
+                              letterSpacing: '0.08em',
+                              boxShadow: '0 4px 15px rgba(0,0,0,0.4)',
+                              zIndex: 10,
+                              textTransform: 'uppercase',
+                              border: '2px solid #fff',
+                              pointerEvents: 'none'
+                            }}>
+                              {isSold ? t('marketplace_badge_sold') : t('marketplace_badge_rented')}
+                            </div>
+                          )}
+
                           {/* Sale/Rent Pill */}
                           <div className={`seller-badge-type ${isForRent ? 'rent' : 'sale'}`}>
-                            {isForRent ? 'For Rent' : 'For Sale'}
+                            {isForRent ? t('studio_status_for_rent') : t('studio_status_for_sale')}
                           </div>
 
                           {/* Photo Count */}
@@ -943,13 +1269,92 @@ export default function SellerPortalPage({
                           </div>
 
                           {/* Action Buttons: Edit Listing & Dropdown */}
+                          {/* Rejection Remarks Banner */}
+                          {isRejected && (
+                            <div style={{
+                              margin: '10px 0 8px',
+                              padding: '12px 14px',
+                              background: 'rgba(239, 68, 68, 0.08)',
+                              border: '1.5px solid rgba(239, 68, 68, 0.45)',
+                              borderRadius: '10px',
+                              textAlign: 'left'
+                            }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontWeight: 800, fontSize: '0.82rem', marginBottom: '4px' }}>
+                                <AlertTriangle size={15} /> {t('studio_rejection_title')}
+                              </div>
+                              <p style={{ margin: '0 0 8px', color: '#991b1b', fontSize: '0.82rem', lineHeight: '1.4', fontWeight: 600, fontStyle: 'italic' }}>
+                                "{listing.rejection_reason || 'Verification requirements not met. Please review your Mulkiya document and specs.'}"
+                              </p>
+                              <div style={{ fontSize: '0.74rem', color: '#b91c1c', marginBottom: '10px' }}>
+                                {t('studio_rejection_note')}
+                              </div>
+                              <button
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '7px 14px',
+                                  background: '#dc2626',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 800,
+                                  cursor: 'pointer',
+                                  width: '100%',
+                                  justifyContent: 'center'
+                                }}
+                                onClick={(e) => { e.stopPropagation(); handleStartEdit(listing, e); }}
+                              >
+                                <Edit size={14} /> {t('studio_edit_resubmit')}
+                              </button>
+                            </div>
+                          )}
                           <div className="seller-card-actions-row">
                             <button
                               className="seller-edit-btn"
                               onClick={(e) => handleStartEdit(listing, e)}
                             >
-                              <Edit size={14} /> Edit Listing
+                              <Edit size={14} /> {t('studio_edit_btn')}
                             </button>
+
+                            {/* Mark as Sold / Rented button */}
+                            {isPublished && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleToggleSoldStatus(listing, e)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  padding: '7px 11px',
+                                  borderRadius: '8px',
+                                  fontSize: '0.78rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  border: isSold || isRented
+                                    ? '1.5px solid #16a34a'
+                                    : '1.5px solid #dc2626',
+                                  background: isSold || isRented
+                                    ? 'rgba(22, 163, 74, 0.08)'
+                                    : 'rgba(220, 38, 38, 0.08)',
+                                  color: isSold || isRented ? '#15803d' : '#b91c1c',
+                                  transition: 'all 0.2s ease',
+                                  whiteSpace: 'nowrap'
+                                }}
+                                title={isSold || isRented ? 'Re-activate this listing on the marketplace' : `Mark as ${isForRent ? 'Rented' : 'Sold'} and notify admin`}
+                              >
+                                {isSold || isRented ? (
+                                  <>
+                                    <CheckCircle2 size={13} /> {t('action_mark_active')}
+                                  </>
+                                ) : (
+                                  <>
+                                    <Tag size={13} /> {isForRent ? t('action_mark_rented') : t('action_mark_sold')}
+                                  </>
+                                )}
+                              </button>
+                            )}
 
                             <div className="relative">
                               <button
@@ -976,7 +1381,16 @@ export default function SellerPortalPage({
                                       handleStartEdit(listing);
                                     }}
                                   >
-                                    <Edit size={14} /> Edit Details & Photos
+                                    <Edit size={14} /> {isRejected ? t('studio_edit_resubmit') : t('studio_edit_details')}
+                                  </button>
+                                  <button
+                                    className="seller-dropdown-item"
+                                    onClick={(e) => {
+                                      setActiveMenuId(null);
+                                      handleToggleSoldStatus(listing, e);
+                                    }}
+                                  >
+                                    <Tag size={14} /> {isSold || isRented ? t('action_mark_active') : (isForRent ? t('action_mark_rented') : t('action_mark_sold'))}
                                   </button>
                                   <button
                                     className="seller-dropdown-item"
@@ -985,7 +1399,7 @@ export default function SellerPortalPage({
                                       if (setCurrentPage) setCurrentPage('marketplace');
                                     }}
                                   >
-                                    <ExternalLink size={14} /> View on Public Site
+                                    <ExternalLink size={14} /> {t('studio_view_public')}
                                   </button>
                                   <button
                                     className="seller-dropdown-item text-red-600 hover:bg-red-50"
@@ -994,7 +1408,7 @@ export default function SellerPortalPage({
                                       handleDeleteListing(listing.id, e);
                                     }}
                                   >
-                                    <Trash2 size={14} /> Delete Listing
+                                    <Trash2 size={14} /> {t('studio_delete_listing')}
                                   </button>
                                 </div>
                               )}
@@ -1015,21 +1429,21 @@ export default function SellerPortalPage({
               <div className="seller-profile-card">
                 <div className="flex items-center justify-between pb-4 border-b border-tan/40">
                   <div>
-                    <h2 className="text-xl font-bold font-serif-display text-ink">Dealer & Seller Credentials</h2>
+                    <h2 className="text-xl font-bold font-serif-display text-ink">{t('profile_credentials_title')}</h2>
                     <p className="text-sm text-ink-soft mt-0.5">
-                      Verified commercial credentials allow direct vehicle posting and buyer WhatsApp lead generation.
+                      {t('profile_credentials_sub')}
                     </p>
                   </div>
                   <span className="seller-verified-badge-lg">
                     <ShieldCheck size={16} className="text-emerald-600" />
-                    Verified by Admin
+                    {t('profile_verified_badge')}
                   </span>
                 </div>
 
                 <form onSubmit={handleSaveProfile} className="mt-6 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className="seller-form-label">Dealer / Business Name</label>
+                      <label className="seller-form-label">{t('profile_dealer_name')}</label>
                       <input
                         type="text"
                         required
@@ -1040,7 +1454,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Primary Contact Person</label>
+                      <label className="seller-form-label">{t('profile_contact_person')}</label>
                       <input
                         type="text"
                         required
@@ -1051,7 +1465,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Contact Email</label>
+                      <label className="seller-form-label">{t('profile_contact_email')}</label>
                       <input
                         type="email"
                         required
@@ -1062,7 +1476,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">WhatsApp / Contact Phone</label>
+                      <label className="seller-form-label">{t('profile_whatsapp')}</label>
                       <input
                         type="text"
                         required
@@ -1073,7 +1487,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Commercial Trade License Number</label>
+                      <label className="seller-form-label">{t('profile_license_num')}</label>
                       <input
                         type="text"
                         value={profileForm.trade_license}
@@ -1083,7 +1497,7 @@ export default function SellerPortalPage({
                     </div>
 
                     <div>
-                      <label className="seller-form-label">Country & Headquarters</label>
+                      <label className="seller-form-label">{t('profile_country_hq')}</label>
                       <select
                         value={profileForm.country}
                         onChange={e => setProfileForm({ ...profileForm, country: e.target.value })}
@@ -1097,7 +1511,7 @@ export default function SellerPortalPage({
                   </div>
 
                   <div>
-                    <label className="seller-form-label">Showroom Location / City</label>
+                    <label className="seller-form-label">{t('profile_showroom_city')}</label>
                     <input
                       type="text"
                       value={profileForm.city}
@@ -1108,7 +1522,7 @@ export default function SellerPortalPage({
                   </div>
 
                   <div>
-                    <label className="seller-form-label">About Dealership / Bio</label>
+                    <label className="seller-form-label">{t('profile_about_dealer')}</label>
                     <textarea
                       rows={3}
                       value={profileForm.bio}
@@ -1122,7 +1536,7 @@ export default function SellerPortalPage({
                       type="submit"
                       className="seller-primary-save-btn"
                     >
-                      <Check size={16} /> Save Profile Changes
+                      <Check size={16} /> {t('profile_save_btn')}
                     </button>
                   </div>
                 </form>
@@ -1140,9 +1554,9 @@ export default function SellerPortalPage({
                     <CheckCircle2 size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Active Listings</p>
+                    <p className="seller-stat-label">{t('dash_active_listings')}</p>
                     <p className="seller-stat-value">{publishedCount}</p>
-                    <p className="seller-stat-sub">Live on GCC Marketplace</p>
+                    <p className="seller-stat-sub">{t('dash_active_sub')}</p>
                   </div>
                 </div>
 
@@ -1151,9 +1565,9 @@ export default function SellerPortalPage({
                     <Eye size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">30-Day Impressions</p>
+                    <p className="seller-stat-label">{t('dash_impressions')}</p>
                     <p className="seller-stat-value">{totalViews.toLocaleString()}</p>
-                    <p className="seller-stat-sub">+18.4% this week</p>
+                    <p className="seller-stat-sub">{t('dash_impressions_sub')}</p>
                   </div>
                 </div>
 
@@ -1162,9 +1576,9 @@ export default function SellerPortalPage({
                     <MessageSquare size={22} />
                   </div>
                   <div>
-                    <p className="seller-stat-label">Direct Leads</p>
+                    <p className="seller-stat-label">{t('dash_direct_leads')}</p>
                     <p className="seller-stat-value">{totalInquiries}</p>
-                    <p className="seller-stat-sub">via WhatsApp / Phone</p>
+                    <p className="seller-stat-sub">{t('dash_leads_sub')}</p>
                   </div>
                 </div>
               </div>
@@ -1175,21 +1589,21 @@ export default function SellerPortalPage({
                 <div className="seller-dashboard-card">
                   <div className="seller-dashboard-header">
                     <div>
-                      <h3 className="seller-dashboard-card-title">Recent Studio Listings</h3>
-                      <p className="text-xs text-ink-soft mt-0.5">Quickly edit or view your latest inventory.</p>
+                      <h3 className="seller-dashboard-card-title">{t('dash_recent_listings')}</h3>
+                      <p className="text-xs text-ink-soft mt-0.5">{t('dash_recent_sub')}</p>
                     </div>
                     <button
                       className="seller-dashboard-link-btn"
                       onClick={() => setActiveTab('listings')}
                     >
-                      View All Listings &rarr;
+                      {t('dash_view_all')}
                     </button>
                   </div>
 
                   <div className="seller-dash-table-wrap">
                     {sellerListings.length === 0 ? (
                       <div className="p-8 text-center text-sm text-ink-soft">
-                        No studio listings yet. Click "New Listing" to add your first vehicle.
+                        {t('dash_no_listings')}
                       </div>
                     ) : (
                       sellerListings.slice(0, 5).map(l => {
@@ -1213,7 +1627,7 @@ export default function SellerPortalPage({
                                 <span>&bull;</span>
                                 <span>{l.city || 'Dubai'}</span>
                                 <span>&bull;</span>
-                                <span>{l.views || 0} views</span>
+                                <span>{l.views || 0} {t('dash_views_label')}</span>
                               </div>
                             </div>
                           </div>
@@ -1227,7 +1641,7 @@ export default function SellerPortalPage({
                               className="seller-dash-action-btn"
                               onClick={() => handleStartEdit(l)}
                             >
-                              <Edit size={13} /> Edit
+                              <Edit size={13} /> {t('dash_edit_btn')}
                             </button>
                           </div>
                         </div>
@@ -1239,7 +1653,7 @@ export default function SellerPortalPage({
                 {/* Quick Showroom Overview Panel */}
                 <div className="seller-dashboard-card space-y-4">
                   <div className="seller-dashboard-header">
-                    <h3 className="seller-dashboard-card-title">Showroom Status</h3>
+                    <h3 className="seller-dashboard-card-title">{t('dash_showroom_status')}</h3>
                   </div>
 
                   <div className="p-3.5 rounded-xl bg-emerald-50/70 border border-emerald-100 flex items-center gap-3">
@@ -1364,7 +1778,7 @@ export default function SellerPortalPage({
               <p className="text-sm text-ink-soft mt-1 mb-6">
                 {activeTab === 'wallet' && 'Zero commission policy. All buyer deals and payments are settled directly between you and the buyer.'}
                 {activeTab === 'settings' && 'Configure your dealer notification preferences and showroom branding.'}
-                {activeTab === 'help' && 'Need help publishing or managing vehicles? Contact our 24/7 dealer concierges at support@binmardrive.com.'}
+                {activeTab === 'help' && 'Need help publishing or managing vehicles? Contact our 24/7 dealer concierges at Info@binmargroup.com.'}
               </p>
               <div className="p-4 rounded-xl bg-cream border border-tan/40 text-sm">
                 <p className="font-semibold text-ink">Account Status: Active Verified Partner</p>
@@ -1402,6 +1816,26 @@ export default function SellerPortalPage({
 
             {/* Modal Form */}
             <div className="seller-modal-body space-y-4">
+              {/* Notice if editing a rejected listing */}
+              {(editWasRejected || editingListing?.status === 'rejected') && (
+                <div style={{
+                  padding: '12px 16px',
+                  background: 'rgba(239, 68, 68, 0.08)',
+                  border: '1.5px solid rgba(239, 68, 68, 0.4)',
+                  borderRadius: '10px',
+                  marginBottom: '8px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontWeight: 800, fontSize: '0.85rem', marginBottom: '3px' }}>
+                    <AlertTriangle size={16} /> Rejection Remarks from Admin:
+                  </div>
+                  <p style={{ margin: '0 0 6px', color: '#991b1b', fontSize: '0.84rem', fontWeight: 600, fontStyle: 'italic' }}>
+                    "{editingListing?.rejection_reason || editingListing?.previous_rejection_reason || 'Verification requirements not met.'}"
+                  </p>
+                  <p style={{ margin: 0, fontSize: '0.74rem', color: '#b91c1c' }}>
+                    Please update the vehicle information or attach a clear Mulkiya document below. When saved, it will be automatically resubmitted to the Admin team for approval.
+                  </p>
+                </div>
+              )}
               {/* Photo Manager */}
               <div>
                 <label className="seller-form-label mb-2 flex items-center justify-between">
@@ -1495,6 +1929,84 @@ export default function SellerPortalPage({
                   >
                     <Upload size={13} /> {isUploadingEditPhoto ? 'Uploading...' : 'Upload File'}
                   </button>
+                </div>
+              </div>
+
+              {/* Mulkiya / Vehicle Registration Document Field */}
+              <div>
+                <label className="seller-form-label mb-1.5 flex items-center justify-between">
+                  <span>Vehicle Registration / Mulkiya Document</span>
+                  <span className="text-xs text-ink-soft">Required for Admin verification</span>
+                </label>
+                <div style={{
+                  border: '1.5px dashed rgba(212, 175, 55, 0.4)',
+                  borderRadius: '10px',
+                  padding: '12px 16px',
+                  background: 'rgba(212, 175, 55, 0.05)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '8px',
+                      background: 'rgba(212, 175, 55, 0.15)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'var(--gold, #d4af37)'
+                    }}>
+                      <FileText size={18} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0f172a', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>{editForm.document_file || editForm.document_name || 'No Mulkiya attached'}</span>
+                        {editForm.document_url && <CheckCircle2 size={15} style={{ color: '#16a34a' }} />}
+                      </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                        PDF or image scan of official Mulkiya / Istimara card
+                      </div>
+                    </div>
+                  </div>
+
+                  <label style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '7px 14px',
+                    background: 'var(--gold, #d4af37)',
+                    color: '#0f172a',
+                    borderRadius: '6px',
+                    fontSize: '0.78rem',
+                    fontWeight: 700,
+                    cursor: 'pointer'
+                  }}>
+                    <Upload size={13} /> {editForm.document_url ? 'Replace Document' : 'Attach Document'}
+                    <input
+                      type="file"
+                      accept=".pdf,image/*"
+                      style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = (ev) => {
+                          setEditForm(prev => ({
+                            ...prev,
+                            document_name: file.name,
+                            document_file: file.name,
+                            document_url: ev.target.result
+                          }));
+                          notify(`Attached updated Mulkiya: ${file.name}`);
+                        };
+                        reader.readAsDataURL(file);
+                      }}
+                    />
+                  </label>
                 </div>
               </div>
 
@@ -1670,16 +2182,22 @@ export default function SellerPortalPage({
                 </div>
 
                 <div>
-                  <label className="seller-form-label">Status</label>
-                  <select
-                    value={editForm.status || 'approved'}
-                    onChange={e => setEditForm({ ...editForm, status: e.target.value })}
-                    className="seller-form-input"
-                  >
-                    <option value="approved">Published (Live)</option>
-                    <option value="pending">Pending Admin Review</option>
-                    <option value="draft">Draft (Private)</option>
-                  </select>
+                  <label className="seller-form-label">Moderation & Approval</label>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 12px',
+                    background: '#fffbeb',
+                    border: '1.5px solid #fde68a',
+                    borderRadius: '8px',
+                    color: '#92400e',
+                    fontSize: '0.82rem',
+                    fontWeight: 600
+                  }}>
+                    <Clock size={16} color="#d97706" />
+                    <span>Goes to Admin Moderation Queue for Approval</span>
+                  </div>
                 </div>
               </div>
 
@@ -1710,7 +2228,7 @@ export default function SellerPortalPage({
                 className="seller-modal-save-btn"
                 onClick={handleSaveListingEdit}
               >
-                {isSavingEdit ? 'Saving...' : 'Save Changes'}
+                {isSavingEdit ? 'Saving & Submitting...' : 'Save & Submit for Admin Approval'}
               </button>
             </div>
           </div>

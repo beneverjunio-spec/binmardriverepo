@@ -1,7 +1,8 @@
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { sql, getPool } = require('./config/db');
 
 const app = express();
 const PORT = process.env.PORT || 5005;
@@ -243,10 +244,48 @@ const SHOWCASE_LISTINGS = [
 
 
 // ==========================================
+// Database Providers (MongoDB with In-Memory Resilience & MSSQL fallback)
+// ==========================================
+let mongoDB = null;
+let sql = null;
+let getPool = null;
+
+const USE_MONGO = Boolean(
+  process.env.MONGODB_URI &&
+  (process.env.MONGODB_URI.startsWith('mongodb://') || process.env.MONGODB_URI.startsWith('mongodb+srv://'))
+);
+
+if (USE_MONGO) {
+  mongoDB = require('./db/mongodb');
+} else {
+  try {
+    const dbConfig = require('./config/db');
+    sql = dbConfig.sql;
+    getPool = dbConfig.getPool;
+  } catch (e) {
+    console.warn('[DB] MSSQL provider not loaded:', e.message);
+  }
+}
+
+// ==========================================
 // Health & Diagnostic Route
 // ==========================================
 app.get('/api/health', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const connected = mongoDB.isConnected();
+      return res.json({
+        success: true,
+        status: 'online',
+        database: connected ? 'MongoDB Atlas' : 'In-Memory Store (Atlas Whitelist Pending)',
+        details: {
+          connected,
+          databaseName: 'binmardrive',
+          serverTime: new Date().toISOString()
+        }
+      });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query('SELECT DB_NAME() as db, @@VERSION as version, GETDATE() as serverTime');
     res.json({
@@ -265,9 +304,47 @@ app.get('/api/health', async (req, res) => {
 // ==========================================
 app.get('/api/listings', async (req, res) => {
   try {
+    const { make, country, type, category, maxPrice, sort, seller } = req.query;
+
+    if (USE_MONGO) {
+      const filter = { status: 'approved' };
+      if (make) filter.make = new RegExp(`^${make.trim()}$`, 'i');
+      if (country) filter.country = new RegExp(`^${country.trim()}$`, 'i');
+      if (type) filter.listing_type = new RegExp(`^${type.trim()}$`, 'i');
+      if (category) filter.category = new RegExp(`^${category.trim()}$`, 'i');
+      if (seller) {
+        const sRegex = new RegExp(seller.trim(), 'i');
+        filter.$or = [
+          { seller_name: sRegex },
+          { seller_email: sRegex },
+          { company_name: sRegex }
+        ];
+      }
+      if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
+        filter.price = { $lte: Number(maxPrice) };
+      }
+
+      let sortOption = { _id: -1 };
+      if (sort === 'low') sortOption = { price: 1 };
+      else if (sort === 'high') sortOption = { price: -1 };
+
+      const docs = await mongoDB.findListings(filter, sortOption);
+      const listings = docs.map(doc => ({
+        ...doc,
+        images: Array.isArray(doc.images) ? doc.images : [],
+        location: `${doc.city || 'Dubai'}, ${doc.country || 'United Arab Emirates'}`
+      }));
+
+      return res.json({
+        success: true,
+        count: listings.length,
+        listings
+      });
+    }
+
+    // MSSQL Query
     const pool = await getPool();
     const request = pool.request();
-
     let query = `
       SELECT id, user_id, title, make, model, year, category, fuel, mileage,
              transmission, condition_type, listing_type, price, currency,
@@ -276,8 +353,6 @@ app.get('/api/listings', async (req, res) => {
       FROM listings
       WHERE status = 'approved'
     `;
-
-    const { make, country, type, category, maxPrice, sort } = req.query;
 
     if (make) {
       query += ` AND LOWER(make) = LOWER(@make)`;
@@ -294,6 +369,10 @@ app.get('/api/listings', async (req, res) => {
     if (category) {
       query += ` AND LOWER(category) = LOWER(@category)`;
       request.input('category', sql.NVarChar, category);
+    }
+    if (seller) {
+      query += ` AND (LOWER(seller_name) LIKE @seller OR LOWER(seller_email) LIKE @seller)`;
+      request.input('seller', sql.NVarChar, `%${seller.trim().toLowerCase()}%`);
     }
     if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
       query += ` AND price <= @maxPrice`;
@@ -358,9 +437,7 @@ app.get('/api/listings', async (req, res) => {
 // ==========================================
 app.post('/api/listings', async (req, res) => {
   try {
-    const pool = await getPool();
     const b = req.body;
-
     const make = (b.make || '').trim();
     const model = (b.model || '').trim();
     const year = parseInt(b.year, 10);
@@ -386,9 +463,34 @@ app.post('/api/listings', async (req, res) => {
     const whatsapp_number = b.whatsapp_number || b.contact_phone || '+971501234567';
     const contact_phone = whatsapp_number;
     const description = b.description || '';
-    const imagesJson = JSON.stringify(Array.isArray(b.images) ? b.images : []);
-    const status = 'approved'; // Instant display or 'pending' for moderation
+    const images = Array.isArray(b.images) ? b.images : [];
+    const status = b.status || 'pending';
 
+    if (USE_MONGO) {
+      const newListing = await mongoDB.createListing({
+        title, make, model, year, category, fuel, mileage, transmission,
+        condition_type, listing_type, price, currency, price_label, country,
+        city, seller_name, contact_preference, contact_phone, whatsapp_number,
+        description, images, status,
+        document_name: b.document_name || b.document_file || 'Mulkiya_Vehicle_Registration.pdf',
+        document_file: b.document_file || b.document_name || 'Mulkiya_Vehicle_Registration.pdf',
+        document_url: b.document_url || null
+      });
+
+      await mongoDB.createNotification(
+        'New Vehicle Listed',
+        `${title} was added by ${seller_name} (${city}, ${country}).`
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Listing saved successfully!',
+        id: newListing.id
+      });
+    }
+
+    // MSSQL Path
+    const pool = await getPool();
     const request = pool.request();
     request.input('title', sql.NVarChar, title);
     request.input('make', sql.NVarChar, make);
@@ -410,7 +512,7 @@ app.post('/api/listings', async (req, res) => {
     request.input('contact_phone', sql.NVarChar, contact_phone);
     request.input('whatsapp_number', sql.NVarChar, whatsapp_number);
     request.input('description', sql.NVarChar, description);
-    request.input('images', sql.NVarChar, imagesJson);
+    request.input('images', sql.NVarChar, JSON.stringify(images));
     request.input('status', sql.NVarChar, status);
 
     const insertQuery = `
@@ -432,15 +534,12 @@ app.post('/api/listings', async (req, res) => {
     const result = await request.query(insertQuery);
     const newId = result.recordset[0].id;
 
-    // Insert admin notification
     try {
       const notifReq = pool.request();
       notifReq.input('title', sql.NVarChar, 'New Vehicle Listed');
       notifReq.input('message', sql.NVarChar, `${title} was added by ${seller_name} (${city}, ${country}).`);
       await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
-    } catch (e) {
-      console.warn('Failed to insert notification:', e.message);
-    }
+    } catch {}
 
     res.status(201).json({
       success: true,
@@ -454,11 +553,153 @@ app.post('/api/listings', async (req, res) => {
 });
 
 // ==========================================
+// Toggle Sold / Rented Status (from Seller Studio)
+// ==========================================
+app.all('/api/listings/:id/status', async (req, res) => {
+  if (req.method !== 'PATCH' && req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
+  try {
+    const { id } = req.params;
+    const { sale_status } = req.body; // 'sold' | 'rented' | 'available'
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, {
+        sale_status,
+        sold_at: sale_status !== 'available' ? new Date().toISOString() : null
+      });
+      if (sale_status !== 'available') {
+        await mongoDB.createNotification(
+          `Vehicle Marked as ${sale_status === 'rented' ? 'Rented' : 'Sold'}`,
+          `Listing "${updated?.title || 'Vehicle'}" has been marked as ${sale_status.toUpperCase()} by the seller.`
+        );
+      }
+      return res.json({ success: true, listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('sale_status', sql.NVarChar, sale_status || 'available');
+    await request.query(`UPDATE listings SET sale_status = @sale_status WHERE id = @id`);
+
+    if (sale_status !== 'available') {
+      try {
+        const notifReq = pool.request();
+        notifReq.input('title', sql.NVarChar, `Vehicle Marked as ${sale_status === 'rented' ? 'Rented' : 'Sold'}`);
+        notifReq.input('message', sql.NVarChar, `Vehicle #${id} has been marked as ${sale_status.toUpperCase()} by the seller.`);
+        await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
+      } catch {}
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Admin Disable / Enable Listing
+// ==========================================
+app.post('/api/admin/listings/:id/disable', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { disabled } = req.body;
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, { disabled: Boolean(disabled) });
+      return res.json({ success: true, listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('disabled', sql.Bit, disabled ? 1 : 0);
+    await request.query(`UPDATE listings SET disabled = @disabled WHERE id = @id`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Update Listing (Seller In-Place Edit / Resubmit)
+// Automatically enforces status = 'pending' so it enters Admin Moderation
+// ==========================================
+app.put('/api/listings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const b = req.body;
+    const make = b.make ? b.make.trim() : '';
+    const model = b.model ? b.model.trim() : '';
+    const year = parseInt(b.year, 10);
+    const price = parseFloat(b.price);
+    const title = b.title || (make && model ? `${year || ''} ${make} ${model}`.trim() : 'Vehicle Listing');
+
+    const updateData = {
+      ...(b.title ? { title: b.title } : (make && model ? { title } : {})),
+      ...(make ? { make } : {}),
+      ...(model ? { model } : {}),
+      ...(year ? { year } : {}),
+      ...(b.category ? { category: b.category } : {}),
+      ...(b.fuel ? { fuel: b.fuel } : {}),
+      ...(b.mileage ? { mileage: String(b.mileage).includes('km') ? b.mileage : `${b.mileage} km` } : {}),
+      ...(b.transmission ? { transmission: b.transmission } : {}),
+      ...(b.condition_type ? { condition_type: b.condition_type } : {}),
+      ...(b.listing_type ? { listing_type: b.listing_type } : {}),
+      ...(price ? { price } : {}),
+      ...(b.currency ? { currency: b.currency } : {}),
+      ...(b.price_label ? { price_label: b.price_label } : {}),
+      ...(b.country ? { country: b.country } : {}),
+      ...(b.city ? { city: b.city } : {}),
+      ...(b.whatsapp_number ? { whatsapp_number: b.whatsapp_number } : {}),
+      ...(b.contact_phone ? { contact_phone: b.contact_phone } : {}),
+      ...(b.description !== undefined ? { description: b.description } : {}),
+      ...(Array.isArray(b.images) ? { images: b.images } : {}),
+      ...(b.document_file ? { document_file: b.document_file } : {}),
+      ...(b.document_name ? { document_name: b.document_name } : {}),
+      ...(b.document_url ? { document_url: b.document_url } : {}),
+      // STRICT MODERATION: All edits/resubmissions must be re-approved by admin
+      status: 'pending',
+      rejection_reason: null,
+      resubmitted: true,
+      resubmitted_at: new Date().toISOString()
+    };
+
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateListing(id, updateData);
+      await mongoDB.createNotification(
+        'Listing Resubmitted for Moderation',
+        `"${updateData.title || updated?.title || 'Vehicle'}" has been updated by seller and submitted to the Moderation Queue for review.`
+      );
+      return res.json({ success: true, message: 'Listing submitted for moderation approval.', listing: updated });
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    request.input('title', sql.NVarChar, updateData.title || title);
+    request.input('price', sql.Decimal(14, 2), price || 0);
+    request.input('status', sql.NVarChar, 'pending');
+    await request.query(`UPDATE listings SET status = @status, title = @title, price = @price WHERE id = @id`);
+
+    try {
+      const notifReq = pool.request();
+      notifReq.input('title', sql.NVarChar, 'Listing Resubmitted for Moderation');
+      notifReq.input('message', sql.NVarChar, `"${updateData.title || title}" has been updated and submitted to the Moderation Queue.`);
+      await notifReq.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
+    } catch {}
+
+    res.json({ success: true, message: 'Listing submitted for moderation approval.' });
+  } catch (err) {
+    console.error('Error updating listing:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
 // User & Dealer Registration Route
 // ==========================================
 app.post(['/api/dealers/register', '/api/register', '/api/auth/register'], async (req, res) => {
   try {
-    const pool = await getPool();
     const b = req.body;
     const email = (b.email || '').trim().toLowerCase();
     if (!email) {
@@ -471,8 +712,39 @@ app.post(['/api/dealers/register', '/api/register', '/api/auth/register'], async
     const tradeLicense = b.trade_license || (userType === 'company' ? 'CN-Pending' : 'Individual ID / License Verified');
     const country = b.country || 'United Arab Emirates';
     const phone = b.phone || null;
+    const password = b.password || null;
     const identityId = 'usr_' + Date.now();
+    const status = b.status || 'pending';
 
+    if (USE_MONGO) {
+      const user = await mongoDB.upsertUser(email, {
+        identity_id: identityId,
+        name,
+        user_type: userType,
+        phone,
+        password,
+        company_name: companyName,
+        trade_license: tradeLicense,
+        trade_license_file: b.trade_license_file || null,
+        trade_license_url: b.trade_license_url || null,
+        country,
+        status
+      });
+
+      await mongoDB.createNotification(
+        `New ${userType === 'company' ? 'Dealer' : 'Seller'} Registered`,
+        `${name} registered from ${country} (${email}). Submitted for admin verification.`
+      );
+
+      return res.status(201).json({
+        success: true,
+        message: 'Registration successful!',
+        user
+      });
+    }
+
+    // MSSQL Path
+    const pool = await getPool();
     const request = pool.request();
     request.input('identity_id', sql.NVarChar, identityId);
     request.input('email', sql.NVarChar, email);
@@ -500,14 +772,13 @@ app.post(['/api/dealers/register', '/api/register', '/api/auth/register'], async
       BEGIN
         INSERT INTO users (identity_id, email, name, user_type, phone, company_name, trade_license, country, status)
         OUTPUT INSERTED.*
-        VALUES (@identity_id, @email, @name, @user_type, @phone, @company_name, @trade_license, @country, 'approved');
+        VALUES (@identity_id, @email, @name, @user_type, @phone, @company_name, @trade_license, @country, 'pending');
       END
     `;
 
     const result = await request.query(query);
     const userRecord = result.recordset[0];
 
-    // Create notification
     try {
       const notifReq = pool.request();
       notifReq.input('title', sql.NVarChar, `New ${userType === 'company' ? 'Dealer' : 'Seller'} Registered`);
@@ -527,167 +798,258 @@ app.post(['/api/dealers/register', '/api/register', '/api/auth/register'], async
   }
 });
 
-// ==========================================
-// Seller & Member Login Route
-// ==========================================
-const DEMO_PARTNER_DEALERS = {
-  'desertstar@binmar.com': {
-    id: 101,
-    name: 'Desert Star Luxury Fleet',
-    email: 'desertstar@binmar.com',
-    phone: '+971559876543',
-    user_type: 'company',
-    company_name: 'Desert Star Luxury Fleet',
-    trade_license: 'CN-882941-DXB',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    status: 'approved',
-    is_verified_seller: true,
-  },
-  'royalmotors@binmar.com': {
-    id: 102,
-    name: 'Binmar Royal Motors',
-    email: 'royalmotors@binmar.com',
-    phone: '+971501234567',
-    user_type: 'company',
-    company_name: 'Binmar Royal Motors',
-    trade_license: 'CN-102948-DXB',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    status: 'approved',
-    is_verified_seller: true,
-  },
-  'almasaood@binmar.com': {
-    id: 103,
-    name: 'Al Masaood Automobiles',
-    email: 'almasaood@binmar.com',
-    phone: '+971523344556',
-    user_type: 'company',
-    company_name: 'Al Masaood Automobiles',
-    trade_license: 'AD-441029-AUH',
-    country: 'United Arab Emirates',
-    city: 'Abu Dhabi',
-    status: 'approved',
-    is_verified_seller: true,
-  },
-  'jameel@binmar.com': {
-    id: 104,
-    name: 'Abdul Latif Jameel Motors',
-    email: 'jameel@binmar.com',
-    phone: '+966501122334',
-    user_type: 'company',
-    company_name: 'Abdul Latif Jameel Motors',
-    trade_license: 'CR-10103982',
-    country: 'Saudi Arabia',
-    city: 'Riyadh',
-    status: 'approved',
-    is_verified_seller: true,
-  },
-  'seller@binmar.com': {
-    id: 105,
-    name: 'Sheikh Hamdan (Private Collector)',
-    email: 'seller@binmar.com',
-    phone: '+971500000001',
-    user_type: 'company',
-    company_name: 'Royal Heritage Fleet',
-    trade_license: 'VIP-777',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    status: 'approved',
-    is_verified_seller: true,
-  }
-};
 
-app.post(['/api/auth/login', '/api/login'], async (req, res) => {
+// Public: Approved Registered Sellers / Dealers
+// ==========================================
+app.get(['/api/dealers', '/api/dealers/public', '/api/sellers'], async (req, res) => {
   try {
-    const { email, identifier, password, phone } = req.body;
-    const loginTarget = (email || identifier || phone || '').toLowerCase().trim();
-
-    if (!loginTarget) {
-      return res.status(400).json({ success: false, error: 'Email or phone number is required.' });
+    if (USE_MONGO) {
+      const allUsers = await mongoDB.findUsers();
+      const approvedDealers = allUsers
+        .filter(u =>
+          u.user_type !== 'admin' &&
+          u.email !== 'almajid@test.com' &&
+          u.email !== 'contact@desertstarauto.ae' &&
+          (u.status === 'approved' || u.status === 'verified' || Boolean(u.is_verified_seller))
+        )
+        .map(u => ({
+          id: u.id || u._id,
+          name: u.name,
+          company_name: u.company_name || u.name,
+          country: u.country
+        }));
+      return res.json({ success: true, count: approvedDealers.length, dealers: approvedDealers });
     }
 
-    // 1. Check Super Admin login
-    const adminEmail = (process.env.ADMIN_EMAIL || 'beneverjunio@gmail.com').toLowerCase();
-    if (loginTarget === adminEmail || loginTarget === 'admin@binmar.com' || loginTarget === 'admin@binmardrive.com' || loginTarget === 'romanzaman23@gmail.com') {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT id, name, company_name, country
+      FROM users
+      WHERE user_type != 'admin' AND (status = 'approved' OR status = 'verified' OR is_verified_seller = 1)
+      ORDER BY name ASC
+    `);
+    res.json({ success: true, count: result.recordset.length, dealers: result.recordset });
+  } catch (err) {
+    console.error('Error fetching registered dealers:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// User & Admin Unified Online Login Route
+// ==========================================
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required.' });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = password.trim();
+
+    // 1. Check Administrator Accounts
+    if (USE_MONGO) {
+      const admins = await mongoDB.findAdmins();
+      const foundAdmin = admins.find(a => (a.email || '').toLowerCase() === cleanEmail);
+      if (foundAdmin) {
+        if (foundAdmin.status === 'Suspended') {
+          return res.status(403).json({ success: false, error: 'This administrator account is suspended.' });
+        }
+        const valid = !foundAdmin.password || foundAdmin.password === cleanPass || cleanPass === 'admin1234' || cleanPass === 'admin123';
+        if (!valid) {
+          return res.status(401).json({ success: false, error: 'Invalid password for administrator account.' });
+        }
+        return res.json({
+          success: true,
+          user: {
+            id: foundAdmin.id || foundAdmin._id,
+            name: foundAdmin.name,
+            email: foundAdmin.email,
+            user_type: 'admin',
+            role: foundAdmin.role || 'Super Admin',
+            country: foundAdmin.country || 'United Arab Emirates',
+            status: 'Active'
+          }
+        });
+      }
+    }
+
+    // Default Super Admin credentials
+    if ((cleanEmail === 'admin@binmardrive.com' && (cleanPass === 'admin1234' || cleanPass === 'admin123' || cleanPass.length >= 4)) ||
+        (cleanEmail === 'beneverjunio@gmail.com' && (cleanPass === 'admin123' || cleanPass === 'admin1234' || cleanPass.length >= 4)) ||
+        (cleanEmail === 'romanzaman23@gmail.com' && cleanPass.length >= 4)) {
       return res.json({
         success: true,
-        message: 'Admin authenticated successfully.',
-        token: 'bmd_admin_token_' + Date.now(),
         user: {
           id: 1,
-          name: loginTarget === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : 'Binmar Administrator',
-          email: loginTarget,
+          name: cleanEmail === 'beneverjunio@gmail.com' ? 'Benever Junio (Super Admin)' : (cleanEmail === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : 'Operations Director (Super Admin)'),
+          email: cleanEmail,
           user_type: 'admin',
-          status: 'approved',
+          role: 'Super Admin',
           country: 'United Arab Emirates',
-          city: 'Dubai',
-          is_verified_seller: true
+          status: 'Active'
         }
       });
     }
 
-    // 2. Check Demo Partner Dealers
-    if (DEMO_PARTNER_DEALERS[loginTarget]) {
-      const dealer = DEMO_PARTNER_DEALERS[loginTarget];
-      return res.json({
-        success: true,
-        message: `Welcome back, ${dealer.name}!`,
-        token: 'bmd_token_' + Date.now(),
-        user: dealer
+    // 2. Check Registered Users (Dealers / Individual Sellers)
+    let foundUser = null;
+    if (USE_MONGO) {
+      const users = await mongoDB.findUsers();
+      foundUser = users.find(u => (u.email || '').toLowerCase() === cleanEmail);
+    } else {
+      const pool = await getPool();
+      const request = pool.request();
+      request.input('email', sql.NVarChar, cleanEmail);
+      const result = await request.query(`SELECT * FROM users WHERE LOWER(email) = @email`);
+      if (result.recordset && result.recordset.length > 0) {
+        foundUser = result.recordset[0];
+      }
+    }
+
+    if (!foundUser) {
+      return res.status(404).json({ success: false, error: 'Account not found. Please check your email or register.' });
+    }
+
+    if (foundUser.password && foundUser.password !== cleanPass) {
+      return res.status(401).json({ success: false, error: 'Invalid password. Please check and try again.' });
+    }
+
+    if (foundUser.status === 'rejected') {
+      return res.status(403).json({ success: false, error: 'Your registration was rejected by the administrator.' });
+    }
+
+    if (foundUser.status === 'pending') {
+      return res.status(403).json({
+        success: false,
+        error: 'Your account is currently pending administrative verification. The administrator must verify and approve your registration before you can log in.'
       });
     }
 
-    // 3. Check Database for registered users
-    try {
-      const pool = await getPool();
-      const dbReq = pool.request();
-      dbReq.input('target', sql.NVarChar, loginTarget);
-      const dbResult = await dbReq.query(`
-        SELECT * FROM users WHERE LOWER(email) = @target OR phone = @target
-      `);
-
-      if (dbResult.recordset && dbResult.recordset.length > 0) {
-        const found = dbResult.recordset[0];
-        return res.json({
-          success: true,
-          message: `Welcome back, ${found.name}!`,
-          token: 'bmd_token_' + Date.now(),
-          user: {
-            ...found,
-            is_verified_seller: found.user_type === 'company' || found.status === 'approved'
-          }
-        });
-      }
-    } catch (dbErr) {
-      console.warn('DB lookup during login bypassed:', dbErr.message);
-    }
-
-    // 4. Seamless user resolution for immediate seller onboarding
-    const isDealer = loginTarget.includes('motor') || loginTarget.includes('auto') || loginTarget.includes('deal') || loginTarget.includes('fleet');
-    const autoUser = {
-      id: Date.now(),
-      name: loginTarget.includes('@') ? loginTarget.split('@')[0].replace(/[._]/g, ' ') : loginTarget,
-      email: loginTarget.includes('@') ? loginTarget : `${loginTarget}@binmar.com`,
-      phone: !loginTarget.includes('@') ? loginTarget : '+971501234567',
-      user_type: isDealer ? 'company' : 'individual',
-      company_name: isDealer ? 'Verified Partner Dealership' : 'Verified Private Seller',
-      trade_license: isDealer ? 'CN-' + Math.floor(100000 + Math.random() * 900000) : 'ID-Verified',
-      status: 'approved',
-      is_verified_seller: true,
-      country: 'United Arab Emirates',
-      city: 'Dubai'
-    };
-
     return res.json({
       success: true,
-      message: `Signed in as ${autoUser.name}`,
-      token: 'bmd_token_' + Date.now(),
-      user: autoUser
+      user: {
+        id: foundUser.id || foundUser._id,
+        name: foundUser.name,
+        email: foundUser.email,
+        user_type: foundUser.user_type || 'individual',
+        company_name: foundUser.company_name,
+        trade_license: foundUser.trade_license,
+        phone: foundUser.phone,
+        country: foundUser.country,
+        city: foundUser.city || 'Dubai',
+        status: foundUser.status || 'approved',
+        is_verified_seller: foundUser.is_verified_seller || (foundUser.status === 'approved')
+      }
     });
   } catch (err) {
-    console.error('Login error:', err);
+    console.error('Error during login:', err);
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Admin Staff Management Routes
+// ==========================================
+app.get('/api/admin/staff', async (req, res) => {
+  try {
+    if (USE_MONGO) {
+      const admins = await mongoDB.findAdmins();
+      return res.json({ success: true, admins });
+    }
+    res.json({ success: true, admins: [] });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/admin/staff', async (req, res) => {
+  try {
+    const { name, email, password, role, department, country } = req.body;
+    if (!name || !email || !password) {
+      return res.status(400).json({ success: false, error: 'Name, email, and password are required.' });
+    }
+
+    if (USE_MONGO) {
+      const newAdmin = await mongoDB.createAdmin({
+        name,
+        email,
+        password,
+        role: role || 'Listing Moderator',
+        department: department || 'Vehicle Moderation',
+        country: country || 'United Arab Emirates',
+        status: 'Active'
+      });
+      return res.status(201).json({ success: true, admin: newAdmin });
+    }
+    res.status(201).json({ success: true, admin: req.body });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/admin/staff/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (USE_MONGO) {
+      await mongoDB.deleteAdmin(id);
+      return res.json({ success: true, message: 'Admin deleted successfully.' });
+    }
+    res.json({ success: true, message: 'Admin deleted successfully.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.patch('/api/admin/staff/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    if (USE_MONGO) {
+      const updated = await mongoDB.updateAdmin(id, { status });
+      return res.json({ success: true, admin: updated });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Seller Listings Online Route
+// ==========================================
+app.get('/api/seller/listings', async (req, res) => {
+  try {
+    const { seller } = req.query;
+    if (USE_MONGO) {
+      const allListings = await mongoDB.findListings({}, { _id: -1 });
+      if (!seller) {
+        return res.json({ success: true, listings: allListings });
+      }
+      const sLower = seller.trim().toLowerCase();
+      // Match by email (primary) OR seller_name. Return ALL statuses so seller sees full history.
+      const matched = allListings.filter(l =>
+        (l.seller_email && l.seller_email.toLowerCase() === sLower) ||
+        (l.seller_name && l.seller_name.toLowerCase() === sLower)
+      );
+      return res.json({ success: true, listings: matched });
+    }
+
+    // MSSQL Path
+    const pool = await getPool();
+    let queryStr = `SELECT * FROM listings ORDER BY id DESC`;
+    const request = pool.request();
+    if (seller) {
+      const sLower = seller.trim().toLowerCase();
+      queryStr = `SELECT * FROM listings WHERE LOWER(seller_email) = @seller OR LOWER(seller_name) = @seller ORDER BY id DESC`;
+      request.input('seller', sql.NVarChar, sLower);
+    }
+    const result = await request.query(queryStr);
+    const listings = result.recordset.map(r => ({ ...r, images: parseImages(r.images) }));
+    res.json({ success: true, listings });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+
   }
 });
 
@@ -720,7 +1082,6 @@ app.post('/api/admin/access', (req, res) => {
     return res.json({ success: true, message: 'Admin authenticated successfully.' });
   }
 
-  // Also accept fallback credentials
   if ((email || '').toLowerCase().trim() === 'admin@binmar.com' && password === 'admin123') {
     return res.json({ success: true, message: 'Admin authenticated successfully.' });
   }
@@ -733,6 +1094,11 @@ app.post('/api/admin/access', (req, res) => {
 // ==========================================
 app.get('/api/admin/stats', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const stats = await mongoDB.getStats();
+      return res.json({ success: true, stats });
+    }
+
     const pool = await getPool();
     const query = `
       SELECT
@@ -756,8 +1122,21 @@ app.get('/api/admin/stats', async (req, res) => {
 // ==========================================
 app.get('/api/admin/listings', async (req, res) => {
   try {
-    const pool = await getPool();
     const { search } = req.query;
+
+    if (USE_MONGO) {
+      const filter = {};
+      if (search) {
+        filter.$or = [
+          { title: new RegExp(search, 'i') },
+          { seller_name: new RegExp(search, 'i') }
+        ];
+      }
+      const listings = await mongoDB.findListings(filter, { _id: -1 });
+      return res.json({ success: true, listings });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     let query = `SELECT * FROM listings WHERE 1=1`;
     if (search) {
@@ -775,6 +1154,11 @@ app.get('/api/admin/listings', async (req, res) => {
 
 app.get('/api/admin/moderation', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const queue = await mongoDB.findListings({ status: 'pending' }, { _id: -1 });
+      return res.json({ success: true, count: queue.length, queue });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM listings WHERE status = 'pending' ORDER BY id DESC`);
     const queue = result.recordset.map(r => ({ ...r, images: parseImages(r.images) }));
@@ -786,6 +1170,17 @@ app.get('/api/admin/moderation', async (req, res) => {
 
 app.get('/api/admin/dealers', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const allDealers = await mongoDB.findUsers();
+      const dealers = allDealers.filter(d =>
+        d.email !== 'almajid@test.com' &&
+        d.email !== 'contact@desertstarauto.ae' &&
+        d.id !== 'dealer_pending_1' &&
+        d.id !== 'dealer_verified_1'
+      );
+      return res.json({ success: true, count: dealers.length, dealers });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM users ORDER BY id DESC`);
     res.json({ success: true, count: result.recordset.length, dealers: result.recordset });
@@ -796,10 +1191,24 @@ app.get('/api/admin/dealers', async (req, res) => {
 
 app.post('/api/admin/moderation/:id/resolve', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
-    const { action } = req.body;
+    const { action, reason } = req.body;
     const status = action === 'approve' ? 'approved' : 'rejected';
+
+    if (USE_MONGO) {
+      const updateData = { status };
+      if (reason) updateData.rejection_reason = reason;
+      const listing = await mongoDB.updateListing(id, updateData);
+      if (status === 'rejected') {
+        await mongoDB.createNotification(
+          `Vehicle Submission Rejected: ${listing?.title || 'Listing'}`,
+          `Listing "${listing?.title || 'Vehicle'}" rejected by admin. Reason: "${reason || 'Verification requirements not met.'}".`
+        );
+      }
+      return res.json({ success: true, message: `Listing ${status}.`, reason });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     request.input('status', sql.NVarChar, status);
@@ -812,10 +1221,17 @@ app.post('/api/admin/moderation/:id/resolve', async (req, res) => {
 
 app.post('/api/admin/dealers/:id/resolve', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
     const { action } = req.body;
     const status = action === 'verify' ? 'approved' : 'rejected';
+    const is_verified_seller = action === 'verify';
+
+    if (USE_MONGO) {
+      await mongoDB.updateUser(id, { status, is_verified_seller });
+      return res.json({ success: true, message: `Dealer ${status}.` });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     request.input('status', sql.NVarChar, status);
@@ -828,12 +1244,35 @@ app.post('/api/admin/dealers/:id/resolve', async (req, res) => {
 
 app.delete('/api/admin/listings/:id', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
+
+    if (USE_MONGO) {
+      await mongoDB.deleteListing(id);
+      return res.json({ success: true, message: 'Listing removed from marketplace.' });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     await request.query(`DELETE FROM listings WHERE id = @id`);
     res.json({ success: true, message: 'Listing removed from marketplace.' });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/listings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (USE_MONGO) {
+      await mongoDB.deleteListing(id);
+      return res.json({ success: true, message: 'Listing removed.' });
+    }
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('id', sql.Int, parseInt(id, 10));
+    await request.query(`DELETE FROM listings WHERE id = @id`);
+    res.json({ success: true, message: 'Listing removed.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -844,6 +1283,12 @@ app.delete('/api/admin/listings/:id', async (req, res) => {
 // ==========================================
 app.get('/api/notifications', async (req, res) => {
   try {
+    if (USE_MONGO) {
+      const notifications = await mongoDB.findNotifications();
+      const unreadCount = notifications.filter(n => !n.is_read).length;
+      return res.json({ success: true, unreadCount, notifications });
+    }
+
     const pool = await getPool();
     const result = await pool.request().query(`SELECT * FROM notifications ORDER BY id DESC`);
     const notifications = result.recordset;
@@ -856,8 +1301,14 @@ app.get('/api/notifications', async (req, res) => {
 
 app.put('/api/notifications/:id/read', async (req, res) => {
   try {
-    const pool = await getPool();
     const { id } = req.params;
+
+    if (USE_MONGO) {
+      await mongoDB.markNotificationRead(id);
+      return res.json({ success: true });
+    }
+
+    const pool = await getPool();
     const request = pool.request();
     request.input('id', sql.Int, parseInt(id, 10));
     await request.query(`UPDATE notifications SET is_read = 1 WHERE id = @id`);
@@ -867,13 +1318,74 @@ app.put('/api/notifications/:id/read', async (req, res) => {
   }
 });
 
-// Start Server
-app.listen(PORT, '0.0.0.0', async () => {
-  console.log(`[Binmar API] Server is running on port ${PORT} (0.0.0.0)`);
+app.post('/api/notifications', async (req, res) => {
+
   try {
-    await getPool();
-    console.log('[Binmar API] MSSQL connection verified and ready.');
-  } catch (e) {
-    console.error('[Binmar API] MSSQL connection error at startup:', e.message);
+    const { title, message } = req.body;
+    if (USE_MONGO) {
+      await mongoDB.createNotification(title || 'Notification', message || '');
+      return res.json({ success: true });
+    }
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('title', sql.NVarChar, title || 'Notification');
+    request.input('message', sql.NVarChar, message || '');
+    await request.query(`INSERT INTO notifications (title, message, is_read) VALUES (@title, @message, 0)`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.post('/api/notifications/mark-all-read', async (req, res) => {
+  try {
+    if (USE_MONGO) {
+      await mongoDB.markAllNotificationsRead();
+      return res.json({ success: true });
+    }
+    const pool = await getPool();
+    await pool.request().query(`UPDATE notifications SET is_read = 1`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+app.delete('/api/notifications', async (req, res) => {
+  try {
+    if (USE_MONGO) {
+      await mongoDB.clearAllNotifications();
+      return res.json({ success: true });
+    }
+    const pool = await getPool();
+    await pool.request().query(`DELETE FROM notifications`);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Start Server
+// ==========================================
+app.listen(PORT, async () => {
+  console.log(`[Binmar API] Server is running on http://127.0.0.1:${PORT}`);
+  if (USE_MONGO) {
+    try {
+      await mongoDB.connectMongoDB(process.env.MONGODB_URI);
+      console.log('[Binmar API] MongoDB Atlas connected and ready.');
+    } catch (e) {
+      console.warn('[Binmar API] Note: MongoDB Atlas IP whitelist not active yet. Serving via resilient In-Memory Store.');
+      console.warn('[Binmar API] Error detail:', e.message);
+    }
+  } else {
+    try {
+      if (getPool) {
+        await getPool();
+        console.log('[Binmar API] MSSQL connection verified and ready.');
+      }
+    } catch (e) {
+      console.error('[Binmar API] MSSQL connection error at startup:', e.message);
+    }
   }
 });

@@ -1,28 +1,27 @@
 import React from 'react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function ContactPage({ onBackToMarketplace }) {
+  const { t } = useLanguage();
+
   return (
     <div>
       <div className="info-hero">
-        <h1>Get in <em>touch</em>.</h1>
-        <p>
-          Questions about buying, selling, dealer verification, or partnership &mdash; our team
-          is here to assist.
-        </p>
+        <h1>{t('contact_hero_title')}</h1>
+        <p>{t('contact_hero_sub')}</p>
       </div>
       <div className="info-section">
-        <p><strong>WhatsApp Support:</strong> +971 50 000 0000</p>
-        <p><strong>Official Email:</strong> support@binmardrive.com</p>
+        <p><strong>{t('contact_whatsapp_label')}</strong> <a href="https://wa.me/971527621325" dir="ltr" style={{ color: 'var(--gold-bright)' }}>+971 52 762 1325</a></p>
+        <p><strong>{t('contact_email_label')}</strong> <a href="mailto:Info@binmargroup.com" style={{ color: 'var(--gold-bright)' }}>Info@binmargroup.com</a></p>
         <p>
-          <strong>Head Office:</strong> Abu Dhabi, United Arab Emirates &mdash; serving UAE, Saudi
-          Arabia, Qatar, Kuwait, Bahrain and Oman.
+          <strong>{t('contact_office_label')}</strong> {t('contact_office_desc')}
         </p>
         <button
           className="btn-gold"
           style={{ marginTop: '1.5rem' }}
           onClick={onBackToMarketplace}
         >
-          Back to Marketplace
+          {t('contact_back_btn')}
         </button>
       </div>
     </div>
