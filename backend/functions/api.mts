@@ -564,6 +564,48 @@ export default async (request: Request) => {
 
   try {
     // ----------------------------------------------------
+    // Dynamic XML Sitemap for SEO Crawlers
+    // ----------------------------------------------------
+    if ((path === '/sitemap.xml' || path === '/sitemap') && method === 'GET') {
+      const allListings = await loadListings();
+      const approvedListings = allListings.filter(l =>
+        !l.disabled &&
+        (l.status === 'approved' || l.status === 'live' || !l.status)
+      );
+
+      const today = new Date().toISOString().split('T')[0];
+
+      let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+      xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>1.0</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/?type=sale</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/?type=rent</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/about</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/how-it-works</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/contact</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
+
+      for (const listing of approvedListings) {
+        const canonicalUrl = getVehicleCanonicalUrl(listing);
+        const lastmod = (listing.sold_at || listing.created_at || today).split('T')[0];
+        const isSoldOrRented = listing.sale_status === 'sold' || listing.sale_status === 'rented';
+        const priority = isSoldOrRented ? '0.5' : '0.8';
+        const changefreq = isSoldOrRented ? 'monthly' : 'weekly';
+
+        xml += '  <url>\n    <loc>' + canonicalUrl + '</loc>\n    <lastmod>' + lastmod + '</lastmod>\n    <changefreq>' + changefreq + '</changefreq>\n    <priority>' + priority + '</priority>\n  </url>\n';
+      }
+
+      xml += '</urlset>';
+
+      return new Response(xml, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600'
+        }
+      });
+    }
+
+    // ----------------------------------------------------
     // Public: Listings for Marketplace
     // ----------------------------------------------------
     if (path === '/api/listings' && method === 'GET') {
@@ -1448,8 +1490,6 @@ export const config: Config = {
   path: [
     '/api/*',
     '/api',
-    '/car/*',
-    '/car',
     '/sitemap.xml',
     '/sitemap'
   ]

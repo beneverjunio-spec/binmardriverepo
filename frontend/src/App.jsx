@@ -110,6 +110,7 @@ export default function App() {
   const [sortBy, setSortBy] = useState('newest');
   const [selectedListing, setSelectedListing] = useState(null);
   const [loadingListing, setLoadingListing] = useState(() => (window.location.pathname || '').startsWith('/car/'));
+  const [showListingModal, setShowListingModal] = useState(false);
 
   // Toast Helper
   const notify = (msg) => {
@@ -119,19 +120,25 @@ export default function App() {
 
   const handleSelectListing = (listing) => {
     setSelectedListing(listing);
+    setCurrentPage('vehicle-detail');
+    setShowListingModal(true);
     if (listing) {
       const vehicleUrl = getVehicleUrl(listing);
       if (window.location.pathname !== vehicleUrl) {
-        window.history.pushState({ page: 'marketplace', listingId: listing.id, modal: true }, '', vehicleUrl);
+        window.history.pushState({ page: 'vehicle-detail', listingId: listing.id }, '', vehicleUrl);
       }
     }
   };
 
   const handleCloseModal = () => {
+    // Closing the pop-up modal leaves the vehicle's own page visible at this URL
+    setShowListingModal(false);
+  };
+
+  const handleBackToMarketplace = () => {
+    setShowListingModal(false);
     setSelectedListing(null);
-    if (currentPage === 'vehicle-detail') {
-      setCurrentPage('marketplace');
-    }
+    setCurrentPage('marketplace');
     if (window.location.pathname.startsWith('/car/')) {
       window.history.pushState({ page: 'marketplace' }, '', '/');
     }
@@ -275,11 +282,13 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = (window.location.pathname || '').toLowerCase();
+      setShowListingModal(false);
       if (path.startsWith('/car/')) {
         const rawSlug = path.replace(/^\/car\/?/, '').replace(/\/$/, '');
         fetchListingById(rawSlug).then(found => {
           if (found) {
             setSelectedListing(found);
+            setCurrentPage('vehicle-detail');
           }
         });
       } else {
@@ -396,7 +405,7 @@ export default function App() {
           <VehicleDetailPage
             listing={selectedListing}
             isLoading={loadingListing}
-            onBack={handleCloseModal}
+            onBack={handleBackToMarketplace}
             onPostListingClick={handlePostListingClick}
           />
         )}
@@ -537,8 +546,8 @@ export default function App() {
         )}
       </main>
 
-      {/* Vehicle Details Modal - display pop up when browsing marketplace or other pages */}
-      {selectedListing && currentPage !== 'vehicle-detail' && (
+      {/* Vehicle Details Modal - displayed over vehicle page, closing it leaves the vehicle's own page visible */}
+      {selectedListing && showListingModal && (
         <ListingDetailModal
           listing={selectedListing}
           onClose={handleCloseModal}
