@@ -1,1 +1,4 @@
-/*    /index.html   200
+/sitemap.xml    /.netlify/functions/api    200
+/car/*          /.netlify/functions/api    200
+/api/*          /.netlify/functions/api    200
+/*              /index.html                200

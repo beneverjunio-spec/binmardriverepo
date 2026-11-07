@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { User, Building2, Upload } from 'lucide-react';
-import { signup } from '@netlify/identity';
+import { signup, logout } from '@netlify/identity';
 import { GCC_COUNTRIES, COUNTRY_DIAL_CODES } from '../constants';
 import { authErrorMessage, loadProfile } from '../api/auth';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
@@ -176,6 +176,15 @@ export default function RegistrationPage({
     // 4. Try Netlify Identity signup if available
     try {
       await signup(regEmail.trim(), regPassword, { ...payload, full_name: displayName });
+    } catch {}
+
+    // CRITICAL: Newly registered accounts are pending verification and must NOT remain logged in!
+    try {
+      await logout();
+    } catch {}
+    if (setCurrentUser) setCurrentUser(null);
+    try {
+      localStorage.removeItem('binmar_current_user');
     } catch {}
 
     setRegPassword('');

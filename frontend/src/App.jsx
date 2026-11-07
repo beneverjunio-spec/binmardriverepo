@@ -23,10 +23,13 @@ import ContactPage from './pages/ContactPage';
 import SellerPortalPage from './pages/SellerPortalPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfUsePage from './pages/TermsOfUsePage';
+import VehicleDetailPage from './pages/VehicleDetailPage';
+import { getVehicleUrl, extractListingIdFromSlug } from './utils/seo';
 
 function getInitialPage() {
   try {
     const path = (window.location.pathname || '').toLowerCase();
+    if (path.startsWith('/car/') || path === '/car') return 'vehicle-detail';
     if (path.includes('seller') || path.includes('studio')) return 'seller';
     if (path.includes('admin-login')) return 'admin-login';
     if (path.includes('admin')) return 'admin';
@@ -49,6 +52,8 @@ function getSavedUser() {
       const u = JSON.parse(raw);
       if (u.user_type === 'admin') return u;
       if (u.status === 'pending' || u.status === 'rejected') return null;
+      const isVerified = u.status === 'approved' || u.status === 'verified' || Boolean(u.is_verified_seller);
+      if (!isVerified) return null;
       return u;
     }
   } catch {}
@@ -74,7 +79,17 @@ export default function App() {
       const next = typeof userOrUpdater === 'function' ? userOrUpdater(prev) : userOrUpdater;
       try {
         if (next) {
-          localStorage.setItem('binmar_current_user', JSON.stringify(next));
+          const isVerified = next.user_type === 'admin' || next.status === 'approved' || next.status === 'verified' || Boolean(next.is_verified_seller);
+          if (isVerified && next.status !== 'pending' && next.status !== 'rejected') {
+            localStorage.setItem('binmar_current_user', JSON.stringify(next));
+            return next;
+          } else if (next.user_type === 'admin') {
+            localStorage.setItem('binmar_current_user', JSON.stringify(next));
+            return next;
+          } else {
+            localStorage.removeItem('binmar_current_user');
+            return null;
+          }
         } else {
           localStorage.removeItem('binmar_current_user');
         }
@@ -101,6 +116,11 @@ export default function App() {
     setTimeout(() => setToast({ show: false, message: '' }), 3500);
   };
 
+  const handleSelectListing = (listing) => {
+    setSelectedListing(listing);
+    setCurrentPage('vehicle-detail');
+  };
+
   // Fetch live public listings
   const loadListings = async () => {
     try {
@@ -123,6 +143,18 @@ export default function App() {
           const matched = data.find(item => String(item.id) === String(sharedId));
           if (matched) {
             setSelectedListing(matched);
+          }
+        }
+
+        // Deep link match for SEO vehicle URL: /car/{slug-id}
+        const currentPath = window.location.pathname || '';
+        if (currentPath.startsWith('/car/') && data && data.length > 0) {
+          const rawSlug = currentPath.replace(/^\/car\/?/, '').replace(/\/$/, '');
+          const extractedId = extractListingIdFromSlug(rawSlug);
+          const matched = data.find(item => String(item.id) === String(extractedId) || item.slug === rawSlug);
+          if (matched) {
+            setSelectedListing(matched);
+            setCurrentPage('vehicle-detail');
           }
         }
       } catch {}
@@ -184,9 +216,16 @@ export default function App() {
         'privacy-policy': '/privacy-policy',
         'terms-of-use': '/terms-of-use'
       };
-      const targetPath = pageToPath[currentPage] || '/';
-      if (window.location.pathname !== targetPath) {
-        window.history.pushState({ page: currentPage }, '', targetPath);
+      if (currentPage === 'vehicle-detail' && selectedListing) {
+        const vehicleUrl = getVehicleUrl(selectedListing);
+        if (window.location.pathname !== vehicleUrl) {
+          window.history.pushState({ page: 'vehicle-detail', listingId: selectedListing.id }, '', vehicleUrl);
+        }
+      } else {
+        const targetPath = pageToPath[currentPage] || '/';
+        if (window.location.pathname !== targetPath) {
+          window.history.pushState({ page: currentPage }, '', targetPath);
+        }
       }
     } catch {}
   }, [currentPage]);
@@ -229,7 +268,13 @@ export default function App() {
           if (identity) {
             // Netlify has a valid session — refresh profile from API
             const profile = await loadProfile();
-            if (active) setCurrentUser(profile);
+            const isVerified = profile?.user_type === 'admin' || profile?.status === 'approved' || profile?.status === 'verified' || Boolean(profile?.is_verified_seller);
+            if (!isVerified) {
+              try { await logout(); } catch {}
+              if (active) setCurrentUser(null);
+            } else if (active) {
+              setCurrentUser(profile);
+            }
           }
           // If no identity from Netlify but we have a cached user in localStorage,
           // keep the cached session (handled by getSavedUser initializer above)
@@ -295,6 +340,17 @@ export default function App() {
 
       {/* Page Content */}
       <main style={{ flex: 1 }}>
+        {currentPage === 'vehicle-detail' && (
+          <VehicleDetailPage
+            listing={selectedListing}
+            onBack={() => {
+              setSelectedListing(null);
+              setCurrentPage('marketplace');
+            }}
+            onPostListingClick={handlePostListingClick}
+          />
+        )}
+
         {currentPage === 'marketplace' && (
           <MarketplacePage
             listings={listings}
@@ -313,7 +369,7 @@ export default function App() {
             setSelectedCategory={setSelectedCategory}
             sortBy={sortBy}
             setSortBy={setSortBy}
-            onSelectListing={setSelectedListing}
+            onSelectListing={handleSelectListing}
             onPostListingClick={handlePostListingClick}
           />
         )}

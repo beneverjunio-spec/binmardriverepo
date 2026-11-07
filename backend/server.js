@@ -303,6 +303,85 @@ app.get('/api/health', async (req, res) => {
 // ==========================================
 // Public Listings Route
 // ==========================================
+
+// ==========================================
+// SEO Helpers & Route Handlers
+// ==========================================
+function slugifySegment(text) {
+  if (!text) return '';
+  return text.toString().toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+}
+
+function generateVehicleSlug(l) {
+  if (!l) return '';
+  if (l.slug) return l.slug;
+  const make = slugifySegment(l.make || '');
+  const model = slugifySegment(l.model || '');
+  const year = l.year ? String(l.year).trim() : '';
+  const city = slugifySegment(l.city || l.country || 'uae');
+  const id = String(l.id || l._id || '').trim();
+  const parts = [];
+  if (make) parts.push(make);
+  if (model) parts.push(model);
+  if (year && !parts.includes(year)) parts.push(year);
+  if (city && !parts.includes(city)) parts.push(city);
+  if (id) parts.push(id);
+  const slug = parts.join('-').replace(/-+/g, '-');
+  return slug || ('vehicle-' + (id || 'detail'));
+}
+
+function extractListingId(slug) {
+  if (!slug) return null;
+  const cleaned = slug.replace(/^\/car\//, '').replace(/\/$/, '').trim();
+  const segs = cleaned.split('-');
+  return segs[segs.length - 1] || cleaned;
+}
+
+app.get('/sitemap.xml', async (req, res) => {
+  try {
+    let listings = [];
+    if (USE_MONGO) {
+      listings = await mongoDB.findListings({ status: 'approved' });
+    }
+    const today = new Date().toISOString().split('T')[0];
+    let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/?type=sale</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/?type=rent</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/about</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/how-it-works</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/contact</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
+
+    listings.forEach(l => {
+      const slug = generateVehicleSlug(l);
+      const loc = 'https://binmardrive.binmargroup.com/car/' + slug + '/';
+      xml += '  <url><loc>' + loc + '</loc><lastmod>' + today + '</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>\n';
+    });
+    xml += '</urlset>';
+
+    res.header('Content-Type', 'application/xml; charset=utf-8');
+    return res.send(xml);
+  } catch (err) {
+    return res.status(500).send('Error generating sitemap');
+  }
+});
+
+app.get('/api/listings/:idOrSlug', async (req, res) => {
+  try {
+    const { idOrSlug } = req.params;
+    const id = extractListingId(idOrSlug);
+    if (USE_MONGO) {
+      const listing = await mongoDB.findListingById(id);
+      if (listing) {
+        return res.json({ success: true, listing: { ...listing, slug: generateVehicleSlug(listing) } });
+      }
+    }
+    return res.status(404).json({ success: false, error: 'Listing not found.' });
+  } catch (e) {
+    return res.status(500).json({ success: false, error: e.message });
+  }
+});
+
 app.get('/api/listings', async (req, res) => {
   try {
     const { make, country, type, category, maxPrice, sort, seller } = req.query;

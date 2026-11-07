@@ -2,6 +2,7 @@ import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { admin, getUser, type User } from '@netlify/identity';
 import { getStore } from '@netlify/blobs';
 import type { Config } from '@netlify/functions';
+import { generateVehicleSlug, extractListingIdFromSlug, generateVehicleSchema, getVehicleCanonicalUrl } from '../utils/seo.js';
 
 function reply(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -303,6 +304,7 @@ async function provisionAdmin(email: string, password: string) {
 // ==========================================
 export interface AdminItem {
   id: number | string;
+  slug?: string;
   name: string;
   email: string;
   password?: string;
@@ -334,6 +336,7 @@ export interface UserItem {
 
 export interface ListingItem {
   id: number | string;
+  slug?: string;
   title: string;
   make: string;
   model: string;
@@ -495,12 +498,18 @@ async function loadListings(): Promise<ListingItem[]> {
     try {
       const data = await store.get('listings', { type: 'json' }) as ListingItem[];
       if (Array.isArray(data)) {
-        inMemoryListings = data;
+        inMemoryListings = data.map(item => ({
+          ...item,
+          slug: item.slug || generateVehicleSlug(item)
+        }));
         return inMemoryListings;
       }
     } catch {}
   }
-  return inMemoryListings;
+  return inMemoryListings.map(item => ({
+    ...item,
+    slug: item.slug || generateVehicleSlug(item)
+  }));
 }
 
 async function saveListings(listingsList: ListingItem[]): Promise<void> {
@@ -1438,6 +1447,10 @@ export default async (request: Request) => {
 export const config: Config = {
   path: [
     '/api/*',
-    '/api'
+    '/api',
+    '/car/*',
+    '/car',
+    '/sitemap.xml',
+    '/sitemap'
   ]
 };

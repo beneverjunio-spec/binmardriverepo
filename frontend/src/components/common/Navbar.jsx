@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Building2, User, Store } from 'lucide-react';
+import { Car, Building2, User, Store, ShieldCheck } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -58,7 +58,15 @@ export default function Navbar({
         >
           {t('nav_contact')}
         </a>
-        {currentUser && (
+        {currentUser?.user_type === 'admin' ? (
+          <a
+            className={currentPage === 'admin' ? 'active' : ''}
+            onClick={() => setCurrentPage('admin')}
+            style={{ color: '#E4C374', fontWeight: 600 }}
+          >
+            Admin Portal
+          </a>
+        ) : (currentUser && currentPage !== 'admin-login' && currentPage !== 'admin') ? (
           <a
             className={currentPage === 'seller' ? 'active' : ''}
             onClick={() => setCurrentPage('seller')}
@@ -66,14 +74,39 @@ export default function Navbar({
           >
             {t('nav_seller_studio')}
           </a>
-        )}
+        ) : null}
       </div>
 
       <div className="nav-actions">
         {/* Language Selection Switcher */}
         <LanguageSwitcher />
 
-        {currentUser ? (
+        {currentUser?.user_type === 'admin' ? (
+          <>
+            <div
+              className="user-chip cursor-pointer"
+              onClick={() => setCurrentPage('admin')}
+              title="Admin Operations Portal"
+              style={{ cursor: 'pointer', background: 'rgba(212, 175, 55, 0.2)', borderColor: '#E4C374' }}
+            >
+              <ShieldCheck size={13} style={{ display: 'inline', marginRight: isRTL ? 0 : 4, marginLeft: isRTL ? 4 : 0, color: '#E4C374' }} />
+              {currentUser.name}
+            </div>
+
+            <button
+              className="btn-outline-gold"
+              onClick={() => setCurrentPage(currentPage === 'admin' ? 'marketplace' : 'admin')}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}
+            >
+              <ShieldCheck size={14} />
+              {currentPage === 'admin' ? t('nav_marketplace') : 'Admin Portal'}
+            </button>
+
+            <button className="btn-outline-gold" onClick={onLogout}>
+              {t('nav_sign_out')}
+            </button>
+          </>
+        ) : (currentUser && currentPage !== 'admin-login') ? (
           <>
             <div
               className="user-chip cursor-pointer"
@@ -102,6 +135,10 @@ export default function Navbar({
               {t('nav_sign_out')}
             </button>
           </>
+        ) : currentPage === 'admin-login' ? (
+          <button className="btn-outline-gold" onClick={() => setCurrentPage('marketplace')}>
+            Exit to Marketplace
+          </button>
         ) : (
           <button className="btn-outline-gold" onClick={() => setCurrentPage('user-login')}>
             {t('nav_sign_in')}

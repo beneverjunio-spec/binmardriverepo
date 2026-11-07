@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Allow: /car/
+Disallow: /admin
+Disallow: /admin-login
+Disallow: /seller
+Disallow: /create-listing
+Disallow: /api/
+
+Sitemap: https://binmardrive.binmargroup.com/sitemap.xml

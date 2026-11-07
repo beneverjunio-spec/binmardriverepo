@@ -3,6 +3,7 @@ import { MapPin } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import { useLanguage } from '../../context/LanguageContext';
+import { getVehicleUrl } from '../../utils/seo';
 
 export default function ListingCard({ listing, index, onSelect }) {
   const { t, isRTL } = useLanguage();
@@ -20,8 +21,25 @@ export default function ListingCard({ listing, index, onSelect }) {
   const isSold = listing.sale_status === 'sold';
   const isRented = listing.sale_status === 'rented';
 
+  const vehicleUrl = getVehicleUrl(listing);
+
+  const handleClick = (e) => {
+    // If user clicked with Ctrl/Cmd/middle click, let default browser navigation happen (open in new tab)
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) {
+      return;
+    }
+    e.preventDefault();
+    if (onSelect) onSelect(listing);
+  };
+
   return (
-    <div className="card" onClick={() => onSelect(listing)}>
+    <a
+      href={vehicleUrl}
+      className="card card-seo-link"
+      onClick={handleClick}
+      style={{ textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column' }}
+      title={`${listing.title} - View vehicle details`}
+    >
       <div
         className="card-img"
         style={{
@@ -97,7 +115,11 @@ export default function ListingCard({ listing, index, onSelect }) {
         <div className="card-title">{listing.title}</div>
         <div
           className="card-loc card-loc-clickable"
-          onClick={(e) => openGoogleMaps(locationText, e)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openGoogleMaps(locationText, e);
+          }}
           title={`Click to open "${locationText}" on Google Maps`}
         >
           <MapPin size={13} style={{ display: 'inline', verticalAlign: '-1px', marginRight: isRTL ? 0 : 4, marginLeft: isRTL ? 4 : 0, color: 'var(--gold)', flexShrink: 0 }} />
@@ -116,13 +138,17 @@ export default function ListingCard({ listing, index, onSelect }) {
         <button
           type="button"
           className="btn-whatsapp-card"
-          onClick={(e) => openWhatsApp(listing, e)}
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            openWhatsApp(listing, e);
+          }}
           title="Direct WhatsApp inquiry with seller"
         >
           <WhatsAppIcon size={16} color="#ffffff" />
           <span>{t('chat_whatsapp')}</span>
         </button>
       </div>
-    </div>
+    </a>
   );
 }

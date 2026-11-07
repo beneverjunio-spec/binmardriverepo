@@ -71,6 +71,66 @@ export default function MarketplacePage({
         setSelectedCategory={setSelectedCategory}
       />
 
+      {/* Registered Sellers Quick Filter Strip */}
+      {sellerOptions && sellerOptions.length > 0 && (
+        <div className="seller-strip" style={{
+          display: 'flex',
+          gap: '8px',
+          overflowX: 'auto',
+          padding: '0.4rem 1.2rem 1.2rem',
+          maxWidth: '1140px',
+          margin: '0 auto',
+          alignItems: 'center'
+        }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            {t('label_seller')}:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedSeller('')}
+            style={{
+              padding: '5px 14px',
+              borderRadius: '20px',
+              border: selectedSeller === '' ? '1.5px solid #d4af37' : '1px solid #cbd5e1',
+              background: selectedSeller === '' ? '#d4af37' : '#ffffff',
+              color: selectedSeller === '' ? '#071e16' : '#1e293b',
+              fontSize: '0.82rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+            }}
+          >
+            {t('tab_all')}
+          </button>
+          {sellerOptions.map(s => {
+            const val = s.company_name || s.name;
+            const isSelected = selectedSeller.toLowerCase() === val.toLowerCase();
+            return (
+              <button
+                key={s.id || val}
+                type="button"
+                onClick={() => setSelectedSeller(isSelected ? '' : val)}
+                style={{
+                  padding: '5px 14px',
+                  borderRadius: '20px',
+                  border: isSelected ? '1.5px solid #d4af37' : '1px solid #cbd5e1',
+                  background: isSelected ? '#d4af37' : '#ffffff',
+                  color: isSelected ? '#071e16' : '#1e293b',
+                  fontSize: '0.82rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.05)'
+                }}
+              >
+                {val}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* Vehicle Browse Grid */}
       <div className="browse" id="browse">
         <div className="browse-head">
@@ -113,6 +173,23 @@ export default function MarketplacePage({
             </div>
           </div>
           <div className="browse-controls">
+            <select
+              className="sort"
+              value={selectedSeller}
+              onChange={e => setSelectedSeller(e.target.value)}
+              title={t('label_seller')}
+              style={{ minWidth: '130px', fontWeight: selectedSeller ? '700' : '500' }}
+            >
+              <option value="">{t('any_seller')}</option>
+              {sellerOptions.map(seller => {
+                const val = seller.company_name || seller.name;
+                return (
+                  <option key={seller.id || val} value={val}>
+                    {val}
+                  </option>
+                );
+              })}
+            </select>
             <div className="tab-pair">
               <div
                 className={`tab-opt ${selectedType === '' ? 'on' : ''}`}
