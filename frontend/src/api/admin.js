@@ -437,10 +437,31 @@ export async function resolveModerationListing(id, approve, reason = '') {
   }
 
   try {
+    // Also notify seller in local notifications if approved
+    if (approve) {
+      try {
+        const sellerNotifRaw = localStorage.getItem('binmar_seller_notifications');
+        const sellerNotifs = sellerNotifRaw ? JSON.parse(sellerNotifRaw) : [];
+        const approveNotif = {
+          id: Date.now(),
+          listing_id: id,
+          seller_email: sellerEmail,
+          title: `Listing Approved: ${foundTitle}`,
+          message: `Your vehicle listing "${foundTitle}" has been approved by admin and is now LIVE on BinmarDrive!`,
+          type: 'approval',
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+        localStorage.setItem('binmar_seller_notifications', JSON.stringify([approveNotif, ...sellerNotifs]));
+      } catch (e) {
+        console.warn('Could not store seller approval notification', e);
+      }
+    }
+
     const res = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: approve ? 'approve' : 'reject', reason })
+      body: JSON.stringify({ action: approve ? 'approve' : 'reject', reason, email: sellerEmail, title: foundTitle })
     });
     return res;
   } catch {
@@ -453,6 +474,7 @@ export async function resolveModerationListing(id, approve, reason = '') {
 
 export async function resolveDealerApplication(id, verify) {
   let dealerName = 'Dealer';
+  let dealerEmail = '';
 
   // Mark as permanently resolved in localStorage
   try {
@@ -471,6 +493,7 @@ export async function resolveDealerApplication(id, verify) {
       if (matchIndex !== -1) {
         const dealerItem = items[matchIndex];
         dealerName = dealerItem.name || dealerItem.company_name || 'Dealer';
+        dealerEmail = dealerItem.email || dealerEmail;
         items[matchIndex].status = verify ? 'verified' : 'rejected';
         items[matchIndex].verified_at = new Date().toISOString();
         localStorage.setItem('binmar_custom_dealers', JSON.stringify(items));
@@ -488,6 +511,7 @@ export async function resolveDealerApplication(id, verify) {
         );
         if (userIndex !== -1) {
           dealerName = users[userIndex].name || users[userIndex].company_name || dealerName;
+          dealerEmail = users[userIndex].email || dealerEmail;
           users[userIndex].status = verify ? 'approved' : 'rejected';
           users[userIndex].is_verified_seller = verify;
           localStorage.setItem('binmar_custom_users', JSON.stringify(users));
@@ -499,10 +523,28 @@ export async function resolveDealerApplication(id, verify) {
   } catch {}
 
   try {
+    // Add seller notification
+    try {
+      const sellerNotifRaw = localStorage.getItem('binmar_seller_notifications');
+      const sellerNotifs = sellerNotifRaw ? JSON.parse(sellerNotifRaw) : [];
+      const newNotif = {
+        id: Date.now(),
+        seller_email: dealerEmail,
+        title: verify ? 'Seller Account Verified!' : 'Seller Application Status',
+        message: verify
+          ? 'Congratulations! Your seller account has been verified and approved by the BinmarDrive admin team. You can now log in and post vehicles.'
+          : 'Your seller registration was not approved. Please contact info@binmargroup.com for assistance.',
+        type: verify ? 'verification_approved' : 'verification_rejected',
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      localStorage.setItem('binmar_seller_notifications', JSON.stringify([newNotif, ...sellerNotifs]));
+    } catch {}
+
     const res = await apiRequest(`/api/admin/dealers/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: verify ? 'verify' : 'reject' })
+      body: JSON.stringify({ action: verify ? 'verify' : 'reject', email: dealerEmail, name: dealerName })
     });
     return res;
   } catch {

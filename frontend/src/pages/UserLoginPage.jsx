@@ -73,9 +73,20 @@ export default function UserLoginPage({
         setAuthLoading(false);
         return;
       } else if (!response.ok && data.error) {
-        setLoginError(data.error);
-        setAuthLoading(false);
-        return;
+        // If account is not found on backend API, check local custom admins before failing
+        let adminsList = [];
+        try {
+          const rawAdmins = localStorage.getItem('binmar_custom_admins');
+          if (rawAdmins) adminsList = JSON.parse(rawAdmins);
+        } catch {}
+        const isKnownAdmin = adminsList.some(a => a.email && a.email.toLowerCase() === email) ||
+          ['info@binmargroup.com', 'admin@binmardrive.com', 'beneverjunio@gmail.com'].includes(email);
+
+        if (!isKnownAdmin) {
+          setLoginError(data.error);
+          setAuthLoading(false);
+          return;
+        }
       }
     } catch (apiErr) {
       console.warn('API login offline, falling back to local credentials:', apiErr.message);

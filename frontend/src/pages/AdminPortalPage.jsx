@@ -51,37 +51,50 @@ export default function AdminPortalPage({
         if (rawDel) deletedAdmins = JSON.parse(rawDel);
       } catch {}
 
-      let storedAdmins = [];
+      let localAdmins = [];
+      try {
+        const local = localStorage.getItem('binmar_custom_admins');
+        if (local) localAdmins = JSON.parse(local);
+      } catch {}
+
+      let serverAdmins = [];
       try {
         const staffRes = await fetch('/api/admin/staff');
         if (staffRes.ok) {
           const staffData = await staffRes.json();
           if (staffData.success && Array.isArray(staffData.admins)) {
-            storedAdmins = staffData.admins;
+            serverAdmins = staffData.admins;
           }
         }
       } catch (staffErr) {
         console.warn('API staff fetch fallback to local:', staffErr);
       }
 
-      if (!storedAdmins.length) {
-        try {
-          const local = localStorage.getItem('binmar_custom_admins');
-          if (local) storedAdmins = JSON.parse(local);
-        } catch {}
-      }
-
-      // Combine default seeded admins with any created custom staff admins
+      // Merge default, server, and local custom admins preserving custom passwords
+      const mergedMap = new Map();
       const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
-      const combinedAdmins = [...storedAdmins];
       for (const da of defaultAdmins) {
-        if (!combinedAdmins.some(a => a.email.toLowerCase() === da.email.toLowerCase())) {
-          combinedAdmins.push(da);
+        if (da.email) mergedMap.set(da.email.toLowerCase(), { ...da });
+      }
+      for (const sa of serverAdmins) {
+        if (sa.email) {
+          const existing = mergedMap.get(sa.email.toLowerCase()) || {};
+          mergedMap.set(sa.email.toLowerCase(), { ...existing, ...sa });
+        }
+      }
+      for (const la of localAdmins) {
+        if (la.email) {
+          const existing = mergedMap.get(la.email.toLowerCase()) || {};
+          mergedMap.set(la.email.toLowerCase(), {
+            ...existing,
+            ...la,
+            password: la.password || existing.password
+          });
         }
       }
 
       // Filter out permanently deleted admins
-      const activeAdmins = combinedAdmins.filter(a =>
+      const activeAdmins = Array.from(mergedMap.values()).filter(a =>
         !deletedAdmins.includes(String(a.id)) &&
         (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
       );
@@ -98,33 +111,24 @@ export default function AdminPortalPage({
         if (rawDel) deletedAdmins = JSON.parse(rawDel);
       } catch {}
 
-      let storedAdmins = [];
+      let localAdmins = [];
       try {
-        const staffRes = await fetch('/api/admin/staff');
-        if (staffRes.ok) {
-          const staffData = await staffRes.json();
-          if (staffData.success && Array.isArray(staffData.admins)) {
-            storedAdmins = staffData.admins;
-          }
+        const local = localStorage.getItem('binmar_custom_admins');
+        if (local) localAdmins = JSON.parse(local);
+      } catch {}
+
+      const mergedMap = new Map();
+      for (const da of (DEFAULT_ADMIN_DATA.admins || [])) {
+        if (da.email) mergedMap.set(da.email.toLowerCase(), { ...da });
+      }
+      for (const la of localAdmins) {
+        if (la.email) {
+          const existing = mergedMap.get(la.email.toLowerCase()) || {};
+          mergedMap.set(la.email.toLowerCase(), { ...existing, ...la });
         }
-      } catch (staffErr) {
-        console.warn('API staff fetch fallback to local:', staffErr);
       }
 
-      if (!storedAdmins.length) {
-        try {
-          const local = localStorage.getItem('binmar_custom_admins');
-          if (local) storedAdmins = JSON.parse(local);
-        } catch {}
-      }
-      const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
-      const combinedAdmins = [...storedAdmins];
-      for (const da of defaultAdmins) {
-        if (!combinedAdmins.some(a => a.email.toLowerCase() === da.email.toLowerCase())) {
-          combinedAdmins.push(da);
-        }
-      }
-      const activeAdmins = combinedAdmins.filter(a =>
+      const activeAdmins = Array.from(mergedMap.values()).filter(a =>
         !deletedAdmins.includes(String(a.id)) &&
         (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
       );

@@ -138,6 +138,130 @@ async function dispatchAdminEmailNotification(options: {
   }
 }
 
+// ==========================================
+// Seller Email Notification Dispatcher
+// ==========================================
+async function dispatchSellerEmailNotification(options: {
+  to: string;
+  subject: string;
+  title: string;
+  message: string;
+  details: Record<string, string | number | undefined | null>;
+  actionUrl?: string;
+  actionText?: string;
+}) {
+  const { to, subject, title, message, details, actionUrl = 'https://binmardrive.binmargroup.com/login', actionText = 'Sign in to Seller Studio' } = options;
+  if (!to || !to.includes('@')) return;
+
+  console.log(`[SELLER NOTIFICATION DISPATCH] To: ${to} | Subject: ${subject}`);
+
+  const detailsRows = Object.entries(details)
+    .filter(([_, val]) => val !== undefined && val !== null && val !== '')
+    .map(([label, val]) => `<tr><td style="padding: 8px 12px; font-weight: bold; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; width: 35%;">${label}</td><td style="padding: 8px 12px; color: #334155; border: 1px solid #e2e8f0;">${val}</td></tr>`)
+    .join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+      <head><meta charset="utf-8" /><title>${subject}</title></head>
+      <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; padding: 24px; margin: 0;">
+        <table align="center" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width: 600px; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.08); border: 1px solid #e2e8f0;">
+          <tr>
+            <td style="background: #0f3527; padding: 24px 32px; text-align: left;">
+              <h1 style="color: #ffffff; margin: 0; font-size: 22px; letter-spacing: 0.5px;">BINMAR<span style="color: #d4af37;">DRIVE</span></h1>
+              <p style="color: #94a3b8; margin: 6px 0 0; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;">Seller Studio Notification</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 32px;">
+              <h2 style="color: #0f172a; margin-top: 0; font-size: 19px;">${title}</h2>
+              <p style="color: #475569; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">${message}</p>
+              <table border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse: collapse; margin-bottom: 28px; font-size: 14px;">
+                ${detailsRows}
+              </table>
+              <div style="text-align: center; margin: 32px 0 16px;">
+                <a href="${actionUrl}" style="background: linear-gradient(180deg, #d4af37, #b89327); color: #0d261d; font-weight: 700; text-decoration: none; padding: 13px 28px; border-radius: 8px; font-size: 15px; display: inline-block;">
+                  ${actionText} &rarr;
+                </a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background: #f8fafc; padding: 18px 32px; border-top: 1px solid #e2e8f0; text-align: center; font-size: 12px; color: #64748b;">
+              This message was sent by BinmarDrive Operations.<br />
+              Recipient: <strong>${to}</strong> &bull; &copy; 2026 Binmar Group.
+            </td>
+          </tr>
+        </table>
+      </body>
+    </html>
+  `;
+
+  const text = `${title}\n\n${message}\n\nDetails:\n` +
+    Object.entries(details).map(([k, v]) => `• ${k}: ${v}`).join('\n') +
+    `\n\n${actionText}: ${actionUrl}`;
+
+  // 1. Resend API
+  if (process.env.RESEND_API_KEY) {
+    try {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: process.env.EMAIL_FROM || 'BinmarDrive <notifications@binmargroup.com>',
+          to: [to],
+          subject,
+          html,
+          text
+        })
+      });
+    } catch (e) {
+      console.warn('[Seller Resend Email Error]', e);
+    }
+  }
+
+  // 2. SendGrid API
+  if (process.env.SENDGRID_API_KEY) {
+    try {
+      await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email: to }] }],
+          from: { email: process.env.EMAIL_FROM || 'notifications@binmargroup.com', name: 'BinmarDrive' },
+          subject,
+          content: [
+            { type: 'text/plain', value: text },
+            { type: 'text/html', value: html }
+          ]
+        })
+      });
+    } catch (e) {
+      console.warn('[Seller SendGrid Email Error]', e);
+    }
+  }
+
+  // 3. Webhook
+  const webhook = process.env.ADMIN_NOTIFICATION_WEBHOOK || process.env.NOTIFICATION_EMAIL_WEBHOOK;
+  if (webhook) {
+    try {
+      await fetch(webhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to, subject, title, message, details, actionUrl, timestamp: new Date().toISOString() })
+      });
+    } catch (e) {
+      console.warn('[Seller Webhook Email Error]', e);
+    }
+  }
+}
+
 function matchesAdminCredentials(email: unknown, password: unknown) {
   if (typeof email !== 'string' || typeof password !== 'string' || !password) return false;
   const adminEmail = (process.env.ADMIN_EMAIL || DEFAULT_ADMIN_EMAIL).trim().toLowerCase();
@@ -664,6 +788,22 @@ export default async (request: Request) => {
         return reply({ error: 'Incorrect password. Please try again.' }, 401);
       }
 
+      if (matchedUser.user_type === 'admin') {
+        return reply({
+          success: true,
+          user: {
+            id: matchedUser.id,
+            name: matchedUser.name,
+            email: matchedUser.email,
+            user_type: 'admin',
+            role: (matchedUser as any).role || 'Listing Moderator',
+            department: (matchedUser as any).department || 'Operations',
+            country: matchedUser.country || 'United Arab Emirates',
+            status: 'Active'
+          }
+        });
+      }
+
       if (matchedUser.status === 'rejected') {
         return reply({ error: 'Your seller registration was rejected by the administrator.' }, 403);
       }
@@ -726,6 +866,33 @@ export default async (request: Request) => {
       const updatedAdmins = [newAdminItem, ...filtered];
       await saveAdmins(updatedAdmins);
 
+      // Also persist to users store with user_type: 'admin'
+      try {
+        const currentUsers = await loadUsers();
+        const adminAsUser: UserItem = {
+          id: newAdminItem.id,
+          identity_id: randomUUID(),
+          name: newAdminItem.name,
+          company_name: 'Binmar Operations Staff',
+          email: newAdminItem.email,
+          password: newAdminItem.password,
+          user_type: 'admin',
+          country: newAdminItem.country,
+          status: 'approved',
+          is_verified_seller: true,
+          created_at: newAdminItem.created_at
+        };
+        const filteredUsers = currentUsers.filter(u => (u.email || '').toLowerCase() !== email);
+        await saveUsers([adminAsUser, ...filteredUsers]);
+      } catch (uErr) {
+        console.warn('Could not sync admin to users store:', uErr);
+      }
+
+      // Provision into Netlify Identity if available
+      try {
+        await provisionAdmin(email, newAdminItem.password || 'admin123');
+      } catch {}
+
       return reply({ success: true, admin: newAdminItem }, 201);
     }
 
@@ -776,20 +943,57 @@ export default async (request: Request) => {
       const body = await request.json();
       const isVerify = body.action === 'verify';
       const status = isVerify ? 'approved' : 'rejected';
+      const rejectionReason = body.reason || '';
 
       const currentUsers = await loadUsers();
+      let targetUser: UserItem | undefined;
       const updatedUsers = currentUsers.map(u => {
         if (String(u.id) === String(dealerId) || (u.email && u.email.toLowerCase() === dealerId.toLowerCase())) {
-          return {
-            ...u,
-            status,
-            is_verified_seller: isVerify,
-            verified_at: new Date().toISOString()
-          };
+          targetUser = { ...u } as UserItem;
+          return { ...u, status, is_verified_seller: isVerify, verified_at: new Date().toISOString() };
         }
         return u;
       });
       await saveUsers(updatedUsers);
+
+      const sellerName = targetUser ? ((targetUser as any).name || (targetUser as any).company_name || 'Seller') : 'Seller';
+      const sellerEmail = (targetUser as any)?.email || '';
+      const sellerCountry = (targetUser as any)?.country || 'UAE';
+
+      dispatchAdminEmailNotification({
+        subject: `[BinmarDrive] Seller ${isVerify ? 'Verified' : 'Rejected'}: ${sellerName}`,
+        title: `Dealer Verification ${isVerify ? 'Completed' : 'Rejected'}`,
+        message: `Admin has ${isVerify ? 'approved and verified' : 'rejected'} the seller registration for ${sellerName}.`,
+        details: {
+          'Seller Name': sellerName, 'Email': sellerEmail, 'Country': sellerCountry,
+          'Decision': isVerify ? 'APPROVED & VERIFIED' : 'REJECTED',
+          ...(rejectionReason && !isVerify ? { 'Rejection Reason': rejectionReason } : {}),
+          'Action Time': new Date().toLocaleString()
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/admin',
+        actionText: 'Open Dealer Verification Panel'
+      }).catch(e => console.warn('Admin email warning:', e));
+
+      if (sellerEmail) {
+        dispatchSellerEmailNotification({
+          to: sellerEmail,
+          subject: isVerify ? '[BinmarDrive] Your Seller Account Has Been Verified!' : '[BinmarDrive] Your Seller Application Was Not Approved',
+          title: isVerify ? 'Your BinmarDrive Seller Account is Now Active!' : 'Your Seller Application Was Rejected',
+          message: isVerify
+            ? `Great news, ${sellerName}! Your seller account has been verified and approved. You can now log in to Seller Studio and post vehicle listings.`
+            : `Dear ${sellerName}, your seller registration was not approved at this time.${rejectionReason ? ' Reason: ' + rejectionReason + '.' : ''} Contact info@binmargroup.com for support.`,
+          details: {
+            'Your Name': sellerName,
+            'Account Status': isVerify ? 'Verified & Active' : 'Not Approved',
+            ...(rejectionReason && !isVerify ? { 'Reason': rejectionReason } : {}),
+            'Decision Date': new Date().toLocaleDateString(),
+            'Support Email': 'info@binmargroup.com'
+          },
+          actionUrl: 'https://binmardrive.binmargroup.com/login',
+          actionText: isVerify ? 'Sign in to Seller Studio' : 'Contact Support'
+        }).catch(e => console.warn('Seller email warning:', e));
+      }
+
       return reply({ success: true, message: `Dealer ${status}.` });
     }
 
@@ -829,21 +1033,61 @@ export default async (request: Request) => {
     if (modResolveMatch && method === 'POST') {
       const modId = modResolveMatch[1];
       const body = await request.json();
-      const status = body.action === 'approve' ? 'approved' : 'rejected';
+      const isApprove = body.action === 'approve';
+      const status = isApprove ? 'approved' : 'rejected';
+      const rejectionReason = body.reason || '';
 
       const allListings = await loadListings();
+      let targetListing: ListingItem | undefined;
       const updated = allListings.map(l => {
         if (String(l.id) === String(modId)) {
-          return {
-            ...l,
-            status,
-            rejection_reason: body.reason || null,
-            approved_at: status === 'approved' ? new Date().toISOString() : undefined
-          };
+          targetListing = { ...l };
+          return { ...l, status, rejection_reason: rejectionReason || null, approved_at: status === 'approved' ? new Date().toISOString() : undefined };
         }
         return l;
       });
       await saveListings(updated);
+
+      const listingTitle = targetListing ? (targetListing as any).title : `Listing #${modId}`;
+      const sellerName = targetListing ? ((targetListing as any).seller_name || 'Seller') : 'Seller';
+      const sellerEmail = targetListing ? ((targetListing as any).seller_email || (targetListing as any).email || '') : '';
+      const listingType = targetListing ? ((targetListing as any).listing_type === 'rent' ? 'For Rent' : 'For Sale') : 'For Sale';
+      const price = targetListing ? `${(targetListing as any).currency || 'AED'} ${Number((targetListing as any).price || 0).toLocaleString()}` : '';
+
+      dispatchAdminEmailNotification({
+        subject: `[BinmarDrive] Listing ${isApprove ? 'Approved' : 'Rejected'}: ${listingTitle}`,
+        title: `Listing Moderation ${isApprove ? 'Approved' : 'Rejected'}`,
+        message: `Admin has ${isApprove ? 'approved and published' : 'rejected'} the listing "${listingTitle}" by ${sellerName}.`,
+        details: {
+          'Vehicle Title': listingTitle, 'Seller Name': sellerName, 'Seller Email': sellerEmail,
+          'Type': listingType, 'Price': price,
+          'Decision': isApprove ? 'APPROVED - Now LIVE' : 'REJECTED',
+          ...(rejectionReason && !isApprove ? { 'Rejection Reason': rejectionReason } : {}),
+          'Action Time': new Date().toLocaleString()
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/admin',
+        actionText: 'Open Moderation Queue'
+      }).catch(e => console.warn('Admin email warning:', e));
+
+      if (sellerEmail) {
+        dispatchSellerEmailNotification({
+          to: sellerEmail,
+          subject: isApprove ? `[BinmarDrive] Your listing is now LIVE!` : `[BinmarDrive] Your listing was not approved`,
+          title: isApprove ? `Your vehicle listing is now live on BinmarDrive!` : `Your vehicle listing was not approved`,
+          message: isApprove
+            ? `Great news, ${sellerName}! Your vehicle listing "${listingTitle}" has been approved by admin and is now live on the marketplace.`
+            : `Dear ${sellerName}, your listing "${listingTitle}" was reviewed but not approved.${rejectionReason ? ' Reason: ' + rejectionReason + '.' : ''} Log in to Seller Studio to update and resubmit.`,
+          details: {
+            'Vehicle': listingTitle, 'Type': listingType, 'Price': price,
+            'Status': isApprove ? 'Live on Marketplace' : 'Not Approved',
+            ...(rejectionReason && !isApprove ? { 'Reason': rejectionReason } : {}),
+            'Date': new Date().toLocaleDateString(), 'Support Email': 'info@binmargroup.com'
+          },
+          actionUrl: 'https://binmardrive.binmargroup.com/login',
+          actionText: isApprove ? 'View in Seller Studio' : 'Update and Resubmit'
+        }).catch(e => console.warn('Seller email warning:', e));
+      }
+
       return reply({ success: true, message: `Listing ${status}.` });
     }
 
@@ -965,6 +1209,43 @@ export default async (request: Request) => {
         return l;
       });
       await saveListings(updated);
+
+      // Notify info@binmargroup.com if listing is updated/pending verification
+      if (updatedListing) {
+        const notifs = await loadNotifications();
+        const updateNotif: NotificationItem = {
+          id: Date.now(),
+          title: `[Listing Updated] ${updatedListing.title}`,
+          message: `Vehicle "${updatedListing.title}" was updated by seller ${updatedListing.seller_name || 'Seller'} (${updatedListing.seller_email || 'N/A'}) and resubmitted for admin verification.`,
+          recipient: 'info@binmargroup.com',
+          action_tab: 'moderation',
+          type: 'listing_moderation',
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+        await saveNotifications([updateNotif, ...notifs]);
+
+        dispatchAdminEmailNotification({
+          subject: `[BinmarDrive] Vehicle Listing Updated & Pending Verification: ${updatedListing.title}`,
+          title: 'Vehicle Listing Updated for Admin Verification',
+          message: `A registered seller has updated vehicle details and resubmitted the listing for administrative moderation:`,
+          details: {
+            'Vehicle Title': updatedListing.title,
+            'Make & Model': `${updatedListing.make} ${updatedListing.model} (${updatedListing.year})`,
+            'Category': updatedListing.category,
+            'Type': updatedListing.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+            'Price': `${updatedListing.currency} ${Number(updatedListing.price).toLocaleString()}`,
+            'Seller Name': updatedListing.seller_name,
+            'Seller Email': updatedListing.seller_email,
+            'Location': `${updatedListing.city}, ${updatedListing.country}`,
+            'Status': 'Pending Verification',
+            'Updated At': new Date().toLocaleString()
+          },
+          actionUrl: 'https://binmardrive.binmargroup.com/admin',
+          actionText: 'Review in Moderation Queue'
+        }).catch(err => console.warn('Email dispatch warning:', err));
+      }
+
       return reply({ success: true, listing: updatedListing, message: 'Listing updated successfully.' });
     }
 
@@ -1156,15 +1437,7 @@ export default async (request: Request) => {
 
 export const config: Config = {
   path: [
-    '/api/admin/*',
-    '/api/admin/staff/*',
-    '/api/dealers/*',
-    '/api/register',
-    '/api/notifications',
-    '/api/notifications/*',
-    '/api/auth/*',
-    '/api/listings',
-    '/api/listings/*',
-    '/api/seller/*'
+    '/api/*',
+    '/api'
   ]
 };

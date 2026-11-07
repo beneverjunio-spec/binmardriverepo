@@ -247,6 +247,7 @@ const SHOWCASE_LISTINGS = [
 // Database Providers (MongoDB with In-Memory Resilience & MSSQL fallback)
 // ==========================================
 let mongoDB = null;
+let inMemoryAdminsList = [];
 let sql = null;
 let getPool = null;
 
@@ -879,30 +880,33 @@ app.post('/api/auth/login', async (req, res) => {
       });
     }
 
+    let staffAdmins = [];
     if (USE_MONGO) {
-      const admins = await mongoDB.findAdmins();
-      const foundAdmin = admins.find(a => (a.email || '').toLowerCase() === cleanEmail);
-      if (foundAdmin) {
-        if (foundAdmin.status === 'Suspended') {
-          return res.status(403).json({ success: false, error: 'This administrator account is suspended.' });
-        }
-        const valid = foundAdmin.password ? foundAdmin.password === cleanPass : (cleanPass === 'admin1234' || cleanPass === 'admin123');
-        if (!valid) {
-          return res.status(401).json({ success: false, error: 'Invalid password for administrator account.' });
-        }
-        return res.json({
-          success: true,
-          user: {
-            id: foundAdmin.id || foundAdmin._id,
-            name: foundAdmin.name,
-            email: foundAdmin.email,
-            user_type: 'admin',
-            role: foundAdmin.role || 'Super Admin',
-            country: foundAdmin.country || 'United Arab Emirates',
-            status: 'Active'
-          }
-        });
+      staffAdmins = await mongoDB.findAdmins();
+    } else {
+      staffAdmins = inMemoryAdminsList;
+    }
+    const foundAdmin = staffAdmins.find(a => (a.email || '').toLowerCase() === cleanEmail);
+    if (foundAdmin) {
+      if (foundAdmin.status === 'Suspended') {
+        return res.status(403).json({ success: false, error: 'This administrator account is suspended.' });
       }
+      const valid = foundAdmin.password ? foundAdmin.password === cleanPass : (cleanPass === 'admin1234' || cleanPass === 'admin123');
+      if (!valid) {
+        return res.status(401).json({ success: false, error: 'Invalid password for administrator account.' });
+      }
+      return res.json({
+        success: true,
+        user: {
+          id: foundAdmin.id || foundAdmin._id,
+          name: foundAdmin.name,
+          email: foundAdmin.email,
+          user_type: 'admin',
+          role: foundAdmin.role || 'Super Admin',
+          country: foundAdmin.country || 'United Arab Emirates',
+          status: 'Active'
+        }
+      });
     }
 
     // 2. Check Registered Users (Dealers / Individual Sellers)
@@ -970,7 +974,7 @@ app.get('/api/admin/staff', async (req, res) => {
       const admins = await mongoDB.findAdmins();
       return res.json({ success: true, admins });
     }
-    res.json({ success: true, admins: [] });
+    res.json({ success: true, admins: inMemoryAdminsList });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -995,7 +999,18 @@ app.post('/api/admin/staff', async (req, res) => {
       });
       return res.status(201).json({ success: true, admin: newAdmin });
     }
-    res.status(201).json({ success: true, admin: req.body });
+    const newAdmin = {
+      id: Date.now(),
+      name,
+      email: email.toLowerCase(),
+      password,
+      role: role || 'Listing Moderator',
+      department: department || 'Vehicle Moderation',
+      country: country || 'United Arab Emirates',
+      status: 'Active'
+    };
+    inMemoryAdminsList = [newAdmin, ...inMemoryAdminsList.filter(a => a.email !== newAdmin.email)];
+    res.status(201).json({ success: true, admin: newAdmin });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
