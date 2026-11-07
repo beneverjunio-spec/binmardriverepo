@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getUser, handleAuthCallback, logout, onAuthChange } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from './api/auth';
-import { fetchPublicListings, fetchRegisteredSellers } from './api/listings';
+import { fetchPublicListings, fetchRegisteredSellers, fetchListingById } from './api/listings';
 
 // Common Components
 import Toast from './components/common/Toast';
@@ -109,6 +109,7 @@ export default function App() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [sortBy, setSortBy] = useState('newest');
   const [selectedListing, setSelectedListing] = useState(null);
+  const [loadingListing, setLoadingListing] = useState(() => (window.location.pathname || '').startsWith('/car/'));
 
   // Toast Helper
   const notify = (msg) => {
@@ -118,8 +119,39 @@ export default function App() {
 
   const handleSelectListing = (listing) => {
     setSelectedListing(listing);
-    setCurrentPage('vehicle-detail');
+    if (listing) {
+      const vehicleUrl = getVehicleUrl(listing);
+      if (window.location.pathname !== vehicleUrl) {
+        window.history.pushState({ page: 'marketplace', listingId: listing.id, modal: true }, '', vehicleUrl);
+      }
+    }
   };
+
+  const handleCloseModal = () => {
+    setSelectedListing(null);
+    if (currentPage === 'vehicle-detail') {
+      setCurrentPage('marketplace');
+    }
+    if (window.location.pathname.startsWith('/car/')) {
+      window.history.pushState({ page: 'marketplace' }, '', '/');
+    }
+  };
+
+  // On initial mount, if landing directly on /car/{slug}, fetch listing immediately
+  useEffect(() => {
+    const currentPath = window.location.pathname || '';
+    if (currentPath.startsWith('/car/')) {
+      const rawSlug = currentPath.replace(/^\/car\/?/, '').replace(/\/$/, '');
+      setLoadingListing(true);
+      fetchListingById(rawSlug).then(found => {
+        if (found) {
+          setSelectedListing(found);
+          setCurrentPage('vehicle-detail');
+        }
+        setLoadingListing(false);
+      }).catch(() => setLoadingListing(false));
+    }
+  }, []);
 
   // Fetch live public listings
   const loadListings = async () => {
@@ -148,13 +180,22 @@ export default function App() {
 
         // Deep link match for SEO vehicle URL: /car/{slug-id}
         const currentPath = window.location.pathname || '';
-        if (currentPath.startsWith('/car/') && data && data.length > 0) {
+        if (currentPath.startsWith('/car/')) {
           const rawSlug = currentPath.replace(/^\/car\/?/, '').replace(/\/$/, '');
           const extractedId = extractListingIdFromSlug(rawSlug);
-          const matched = data.find(item => String(item.id) === String(extractedId) || item.slug === rawSlug);
+          const matched = data?.find(item => String(item.id) === String(extractedId) || item.slug === rawSlug);
           if (matched) {
             setSelectedListing(matched);
             setCurrentPage('vehicle-detail');
+            setLoadingListing(false);
+          } else {
+            fetchListingById(rawSlug).then(found => {
+              if (found) {
+                setSelectedListing(found);
+                setCurrentPage('vehicle-detail');
+              }
+              setLoadingListing(false);
+            }).catch(() => setLoadingListing(false));
           }
         }
       } catch {}
@@ -233,7 +274,18 @@ export default function App() {
   // Handle browser back / forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      setCurrentPage(getInitialPage());
+      const path = (window.location.pathname || '').toLowerCase();
+      if (path.startsWith('/car/')) {
+        const rawSlug = path.replace(/^\/car\/?/, '').replace(/\/$/, '');
+        fetchListingById(rawSlug).then(found => {
+          if (found) {
+            setSelectedListing(found);
+          }
+        });
+      } else {
+        setSelectedListing(null);
+        setCurrentPage(getInitialPage());
+      }
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -343,10 +395,8 @@ export default function App() {
         {currentPage === 'vehicle-detail' && (
           <VehicleDetailPage
             listing={selectedListing}
-            onBack={() => {
-              setSelectedListing(null);
-              setCurrentPage('marketplace');
-            }}
+            isLoading={loadingListing}
+            onBack={handleCloseModal}
             onPostListingClick={handlePostListingClick}
           />
         )}
@@ -487,11 +537,11 @@ export default function App() {
         )}
       </main>
 
-      {/* Vehicle Details Modal */}
-      {selectedListing && (
+      {/* Vehicle Details Modal - display pop up when browsing marketplace or other pages */}
+      {selectedListing && currentPage !== 'vehicle-detail' && (
         <ListingDetailModal
           listing={selectedListing}
-          onClose={() => setSelectedListing(null)}
+          onClose={handleCloseModal}
         />
       )}
 

@@ -47,6 +47,7 @@ const TikTokIcon = ({ size = 16 }) => (
 
 export default function VehicleDetailPage({
   listing,
+  isLoading = false,
   onBack,
   onSelectMake,
   notify
@@ -144,6 +145,18 @@ export default function VehicleDetailPage({
       }
     };
   }, [listing, canonicalUrl, isRent, isSold, isRented, isBrandNew, photos]);
+
+  if (isLoading) {
+    return (
+      <div style={{ maxWidth: '800px', margin: '6rem auto', textAlign: 'center', padding: '3rem' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '1.2rem' }}>🚗</div>
+        <h2 style={{ color: 'var(--gold, #d4af37)', fontSize: '1.6rem', marginBottom: '0.6rem', fontFamily: 'Fraunces, serif' }}>
+          Loading vehicle details...
+        </h2>
+        <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>Retrieving verified vehicle specifications and media.</p>
+      </div>
+    );
+  }
 
   if (!listing) {
     return (

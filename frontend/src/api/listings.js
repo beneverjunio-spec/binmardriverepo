@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 import { DEFAULT_LISTINGS } from '../constants';
 import { isSameVehicle } from './admin';
+import { generateVehicleSlug, extractListingIdFromSlug } from '../utils/seo';
 
 const MAKE_FALLBACK_IMAGES = {
   Toyota: 'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80',
@@ -41,7 +42,8 @@ function sanitizeListing(item) {
     maps_url: item.maps_url || (item.latitude && item.longitude ? `https://www.google.com/maps?q=${item.latitude},${item.longitude}` : null),
     images,
     whatsapp_number: item.whatsapp_number || item.contact_phone || '+971501234567',
-    contact_phone: item.whatsapp_number || item.contact_phone || '+971501234567'
+    contact_phone: item.whatsapp_number || item.contact_phone || '+971501234567',
+    slug: item.slug || generateVehicleSlug(item)
   };
 }
 
@@ -127,6 +129,11 @@ export async function fetchPublicListings(filters = {}) {
     if (!existingIds.has(String(c.id))) {
       baseListings.push(c);
     }
+  }
+
+  // Ensure default curated listings are always present as baseline
+  if (baseListings.length === 0) {
+    baseListings = DEFAULT_LISTINGS.filter(l => !deletedListingIds.includes(String(l.id)) && !disabledListingIds.includes(String(l.id))).map(sanitizeListing);
   }
 
   let filtered = [...baseListings];
@@ -375,3 +382,61 @@ export async function uploadListingPhotos(files) {
   return { success: true, images };
 }
 
+
+/**
+ * Direct lookup for a single vehicle by slug or numeric ID
+ */
+export async function fetchListingById(idOrSlug) {
+  if (!idOrSlug) return null;
+  const rawCleaned = String(idOrSlug).replace(/^\/car\/?/, '').replace(/\/$/, '').trim();
+  const extractedId = extractListingIdFromSlug(rawCleaned);
+
+  // 1. Check in localStorage custom listings first (matches ID, slug, or generated slug)
+  try {
+    const raw = localStorage.getItem('binmar_custom_listings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const match = parsed.find(item =>
+        String(item.id) === String(extractedId) ||
+        item.slug === rawCleaned ||
+        generateVehicleSlug(item) === rawCleaned ||
+        String(item.id) === String(rawCleaned)
+      );
+      if (match) return sanitizeListing(match);
+    }
+  } catch {}
+
+  // 2. Fetch directly from backend API endpoint
+  try {
+    const target = extractedId || rawCleaned;
+    const res = await fetch('/api/listings/' + encodeURIComponent(target));
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.success && data.listing) {
+        return sanitizeListing(data.listing);
+      }
+    }
+  } catch {}
+
+  // 3. Search public listings array (including server + approved custom + baseline)
+  try {
+    const publicList = await fetchPublicListings();
+    const match = publicList.find(item =>
+      String(item.id) === String(extractedId) ||
+      item.slug === rawCleaned ||
+      generateVehicleSlug(item) === rawCleaned ||
+      String(item.id) === String(rawCleaned)
+    );
+    if (match) return sanitizeListing(match);
+  } catch {}
+
+  // 4. Check DEFAULT_LISTINGS
+  const defMatch = DEFAULT_LISTINGS.find(item =>
+    String(item.id) === String(extractedId) ||
+    generateVehicleSlug(item) === rawCleaned ||
+    String(item.id) === String(rawCleaned)
+  );
+  if (defMatch) return sanitizeListing(defMatch);
+
+  return null;
+}
