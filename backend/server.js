@@ -848,6 +848,37 @@ app.post('/api/auth/login', async (req, res) => {
     const cleanPass = password.trim();
 
     // 1. Check Administrator Accounts
+    const defaultAdmins = {
+      'info@binmargroup.com': { id: 1, name: 'Binmar Group Admin' },
+      'admin@binmardrive.com': { id: 2, name: 'Operations Director' },
+      'beneverjunio@gmail.com': { id: 3, name: 'Benever Junio' }
+    };
+
+    const configuredEnvEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
+    if (configuredEnvEmail && !defaultAdmins[configuredEnvEmail]) {
+      defaultAdmins[configuredEnvEmail] = { id: 4, name: 'Configured Administrator' };
+    }
+
+    if (defaultAdmins[cleanEmail]) {
+      const configuredPass = process.env.ADMIN_PASSWORD;
+      const valid = (configuredPass && cleanPass === configuredPass) || cleanPass === 'admin123' || cleanPass === 'admin1234';
+      if (!valid) {
+        return res.status(401).json({ success: false, error: 'Invalid password for administrator account.' });
+      }
+      return res.json({
+        success: true,
+        user: {
+          id: defaultAdmins[cleanEmail].id,
+          name: defaultAdmins[cleanEmail].name,
+          email: cleanEmail,
+          user_type: 'admin',
+          role: 'Super Admin',
+          country: 'United Arab Emirates',
+          status: 'Active'
+        }
+      });
+    }
+
     if (USE_MONGO) {
       const admins = await mongoDB.findAdmins();
       const foundAdmin = admins.find(a => (a.email || '').toLowerCase() === cleanEmail);
@@ -855,7 +886,7 @@ app.post('/api/auth/login', async (req, res) => {
         if (foundAdmin.status === 'Suspended') {
           return res.status(403).json({ success: false, error: 'This administrator account is suspended.' });
         }
-        const valid = !foundAdmin.password || foundAdmin.password === cleanPass || cleanPass === 'admin1234' || cleanPass === 'admin123';
+        const valid = foundAdmin.password ? foundAdmin.password === cleanPass : (cleanPass === 'admin1234' || cleanPass === 'admin123');
         if (!valid) {
           return res.status(401).json({ success: false, error: 'Invalid password for administrator account.' });
         }
@@ -872,24 +903,6 @@ app.post('/api/auth/login', async (req, res) => {
           }
         });
       }
-    }
-
-    // Default Super Admin credentials
-    if ((cleanEmail === 'admin@binmardrive.com' && (cleanPass === 'admin1234' || cleanPass === 'admin123' || cleanPass.length >= 4)) ||
-        (cleanEmail === 'beneverjunio@gmail.com' && (cleanPass === 'admin123' || cleanPass === 'admin1234' || cleanPass.length >= 4)) ||
-        (cleanEmail === 'romanzaman23@gmail.com' && cleanPass.length >= 4)) {
-      return res.json({
-        success: true,
-        user: {
-          id: 1,
-          name: cleanEmail === 'beneverjunio@gmail.com' ? 'Benever Junio (Super Admin)' : (cleanEmail === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : 'Operations Director (Super Admin)'),
-          email: cleanEmail,
-          user_type: 'admin',
-          role: 'Super Admin',
-          country: 'United Arab Emirates',
-          status: 'Active'
-        }
-      });
     }
 
     // 2. Check Registered Users (Dealers / Individual Sellers)

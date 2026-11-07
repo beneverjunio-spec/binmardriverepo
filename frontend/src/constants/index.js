@@ -308,7 +308,6 @@ export const DEFAULT_LISTINGS = [
   }
 ];
 
-
 export const DEFAULT_ADMIN_DATA = {
   stats: {
     liveListings: 0,
@@ -322,8 +321,28 @@ export const DEFAULT_ADMIN_DATA = {
   admins: [
     {
       id: 1,
+      name: 'Binmar Group Admin',
+      email: 'info@binmargroup.com',
+      role: 'Super Admin',
+      department: 'Executive Operations',
+      country: 'United Arab Emirates',
+      status: 'Active',
+      created_at: '2026-01-15'
+    },
+    {
+      id: 2,
       name: 'Operations Director',
       email: 'admin@binmardrive.com',
+      role: 'Super Admin',
+      department: 'Operations',
+      country: 'United Arab Emirates',
+      status: 'Active',
+      created_at: '2026-01-15'
+    },
+    {
+      id: 3,
+      name: 'Benever Junio',
+      email: 'beneverjunio@gmail.com',
       role: 'Super Admin',
       department: 'Operations',
       country: 'United Arab Emirates',

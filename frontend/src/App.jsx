@@ -152,6 +152,20 @@ export default function App() {
     loadListings();
   }, [selectedMake, selectedCountry, selectedType, selectedSeller, selectedCategory, maxPrice, sortBy]);
 
+  // Auto-redirect if already authenticated
+  useEffect(() => {
+    if (currentPage === 'admin-login' && currentUser?.user_type === 'admin') {
+      setCurrentPage('admin');
+    }
+    // If a verified seller is already logged in, redirect away from login/register pages
+    if (currentPage === 'user-login' && currentUser && currentUser.user_type !== 'admin') {
+      const isVerified = currentUser.status === 'approved' || currentUser.status === 'verified' || Boolean(currentUser.is_verified_seller);
+      if (isVerified) {
+        setCurrentPage('seller');
+      }
+    }
+  }, [currentPage, currentUser]);
+
   // Synchronize browser URL bar and scroll position
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -266,8 +280,8 @@ export default function App() {
       {/* Toast Notification */}
       <Toast show={toast.show} message={toast.message} />
 
-      {/* Top Navigation on all pages except full Admin Portal and Seller Studio shells */}
-      {currentPage !== 'admin' && currentPage !== 'seller' && (
+      {/* Top Navigation on all pages except full Admin Portal, Seller Studio, and standalone auth screens */}
+      {currentPage !== 'admin' && currentPage !== 'seller' && currentPage !== 'admin-login' && currentPage !== 'user-login' && (
         <Navbar
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}

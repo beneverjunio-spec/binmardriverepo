@@ -121,6 +121,9 @@ export default function RegistrationPage({
         id: Date.now(),
         title: `New ${isCompany ? 'Commercial Dealer' : 'Seller'} Verification Request`,
         message: `${displayName} registered from ${regCountry} (${payload.email}) and submitted for admin verification.`,
+        recipient: 'info@binmargroup.com',
+        action_tab: 'dealers',
+        type: 'dealer_verification',
         is_read: false,
         created_at: new Date().toISOString()
       };

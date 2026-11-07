@@ -300,6 +300,9 @@ export async function createListing(payload) {
       id: Date.now(),
       title: notifTitle,
       message: notifMsg,
+      recipient: 'info@binmargroup.com',
+      action_tab: 'moderation',
+      type: 'listing_moderation',
       is_read: false,
       created_at: new Date().toISOString()
     };

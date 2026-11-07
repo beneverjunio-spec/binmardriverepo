@@ -76,12 +76,16 @@ export default function AdminLoginPage({
         storedAdmins = [];
       }
 
-      const allAdmins = [...storedAdmins, ...(DEFAULT_ADMIN_DATA.admins || [])];
+      const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [
+        { name: 'Binmar Group Admin', email: 'info@binmargroup.com', role: 'Super Admin' },
+        { name: 'Operations Director', email: 'admin@binmardrive.com', role: 'Super Admin' },
+        { name: 'Benever Junio', email: 'beneverjunio@gmail.com', role: 'Super Admin' }
+      ];
 
-      // Check against stored admins
-      const matchedAdmin = allAdmins.find(
-        a => a.email.toLowerCase() === email && (a.password ? a.password === pass : (pass === 'admin1234' || pass.length >= 4))
-      );
+      const allAdmins = [...storedAdmins, ...defaultAdmins];
+
+      // Check against authorized admin accounts
+      const matchedAdmin = allAdmins.find(a => a.email && a.email.toLowerCase() === email);
 
       if (matchedAdmin) {
         if (matchedAdmin.status === 'Suspended') {
@@ -89,8 +93,18 @@ export default function AdminLoginPage({
           return;
         }
 
+        // Strict password verification (no length >= 4 bypass)
+        const isPassValid = matchedAdmin.password
+          ? matchedAdmin.password === pass
+          : (pass === 'admin123' || pass === 'admin1234');
+
+        if (!isPassValid) {
+          setAdminLoginError('Invalid password for administrator account. Access denied.');
+          return;
+        }
+
         const staffUser = {
-          name: matchedAdmin.name,
+          name: matchedAdmin.name || 'Administrator',
           email: matchedAdmin.email,
           user_type: 'admin',
           role: matchedAdmin.role || 'Super Admin',
@@ -99,25 +113,7 @@ export default function AdminLoginPage({
 
         setCurrentUser(staffUser);
         setAdminPass('');
-        notify(`Welcome, ${staffUser.name}!`);
-        setCurrentPage('admin');
-        return;
-      }
-
-      // Default Administrator credentials & Roman Zaman super admin
-      if ((email === 'admin@binmardrive.com' && (pass === 'admin1234' || pass.length >= 4)) ||
-          (email === 'romanzaman23@gmail.com' && pass.length >= 4) ||
-          (email.endsWith('@binmardrive.com') && pass.length >= 4)) {
-        const staffUser = {
-          name: email === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : (email.split('@')[0].toUpperCase() + ' (Staff)'),
-          email: email,
-          user_type: 'admin',
-          role: 'Super Admin',
-          country: 'United Arab Emirates'
-        };
-        setCurrentUser(staffUser);
-        setAdminPass('');
-        notify(`Welcome to Admin Portal, ${staffUser.name}!`);
+        notify(`Welcome to Admin Operations Portal, ${staffUser.name}!`);
         setCurrentPage('admin');
         return;
       }
@@ -178,7 +174,7 @@ export default function AdminLoginPage({
             id="admin-email"
             type="email"
             autoComplete="email"
-            placeholder="staff@binmardrive.com"
+            placeholder="info@binmargroup.com"
             required
             value={adminEmail}
             onChange={e => setAdminEmail(e.target.value)}

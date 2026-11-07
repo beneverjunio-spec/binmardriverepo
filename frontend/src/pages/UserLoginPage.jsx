@@ -92,13 +92,14 @@ export default function UserLoginPage({
 
       const foundAdmin = adminsList.find(a => a.email && a.email.toLowerCase() === email);
       if (foundAdmin) {
-        if (foundAdmin.password && foundAdmin.password !== pass && pass !== 'admin1234') {
+        const isPassValid = foundAdmin.password ? foundAdmin.password === pass : (pass === 'admin123' || pass === 'admin1234');
+        if (!isPassValid) {
           setLoginError('Invalid password for administrator account.');
           setAuthLoading(false);
           return;
         }
         const staffUser = {
-          name: foundAdmin.name,
+          name: foundAdmin.name || 'Administrator',
           email: foundAdmin.email,
           user_type: 'admin',
           role: foundAdmin.role || 'Super Admin',
@@ -112,11 +113,16 @@ export default function UserLoginPage({
         return;
       }
 
-      // Default Super Admin credentials
-      if ((email === 'admin@binmardrive.com' && (pass === 'admin1234' || pass.length >= 4)) ||
-          (email === 'romanzaman23@gmail.com' && pass.length >= 4)) {
+      // Default Super Admin credentials (strict password match: admin123 or admin1234)
+      const defaultAdmins = {
+        'info@binmargroup.com': 'Binmar Group Admin',
+        'admin@binmardrive.com': 'Operations Director',
+        'beneverjunio@gmail.com': 'Benever Junio'
+      };
+
+      if (defaultAdmins[email] && (pass === 'admin123' || pass === 'admin1234')) {
         const staffUser = {
-          name: email === 'romanzaman23@gmail.com' ? 'Roman Zaman (Super Admin)' : 'Operations Director (Super Admin)',
+          name: defaultAdmins[email],
           email: email,
           user_type: 'admin',
           role: 'Super Admin',

@@ -145,9 +145,12 @@ export default function AdminPortalPage({
     };
     window.addEventListener('focus', handleSync);
     window.addEventListener('storage', handleSync);
+    // Also refresh when seller marks a listing as sold/rented in same session
+    window.addEventListener('binmar_listings_updated', handleSync);
     return () => {
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('storage', handleSync);
+      window.removeEventListener('binmar_listings_updated', handleSync);
     };
   }, []);
 
