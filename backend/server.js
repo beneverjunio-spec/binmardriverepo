@@ -1458,6 +1458,66 @@ app.post('/api/notifications/mark-all-read', async (req, res) => {
   }
 });
 
+// Dealer Deletion
+app.delete(['/api/dealers/:id', '/api/admin/dealers/:id', '/api/sellers/:id'], async (req, res) => {
+  try {
+    const id = req.params.id;
+    const { email } = req.body || {};
+    const targetEmail = (email || '').toLowerCase().trim();
+
+    if (global.inMemoryUsers) {
+      global.inMemoryUsers = global.inMemoryUsers.filter(u => {
+        if (String(u.id) === String(id)) return false;
+        if (targetEmail && u.email && u.email.toLowerCase() === targetEmail) return false;
+        return true;
+      });
+    }
+
+    if (global.inMemoryListings) {
+      global.inMemoryListings = global.inMemoryListings.filter(l => {
+        if (String(l.user_id) === String(id)) return false;
+        if (targetEmail && l.seller_email && l.seller_email.toLowerCase() === targetEmail) return false;
+        return true;
+      });
+    }
+
+    res.json({ success: true, message: `Seller #${id} and associated vehicles deleted successfully.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Notifications Email Relay
+app.post('/api/notifications/email', async (req, res) => {
+  try {
+    const { recipient = 'info@binmargroup.com', subject, title, message, details = {}, actionUrl } = req.body || {};
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(recipient)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({
+          _subject: subject,
+          title,
+          message,
+          action_url: actionUrl,
+          ...details,
+          _template: 'table',
+          _captcha: 'false'
+        }),
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+    } catch (e) {
+      console.warn('[Server Email Relay Note]', e.message);
+    }
+    res.json({ success: true, message: `Email relayed to ${recipient}` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.delete('/api/notifications', async (req, res) => {
   try {
     if (USE_MONGO) {

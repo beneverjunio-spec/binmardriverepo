@@ -11,6 +11,7 @@ import {
   fetchAdminPortalData,
   resolveModerationListing,
   resolveDealerApplication,
+  deleteDealer,
   deleteLiveListing,
   toggleDisableLiveListing
 } from '../api/admin';
@@ -204,6 +205,27 @@ export default function AdminPortalPage({
       window.dispatchEvent(new Event('binmar_dealers_updated'));
     } catch (err) {
       notify(err.message || 'Unable to update dealer. Please try again.');
+    }
+  };
+
+  const handleDeleteDealer = async (id) => {
+    try {
+      const data = await deleteDealer(id);
+      notify(data.message || 'Seller deleted successfully.');
+      setDealerQueue(prev => prev.filter(dealer => String(dealer.id) !== String(id)));
+      setAdminStats(prev => {
+        const updated = dealerQueue.filter(dealer => String(dealer.id) !== String(id));
+        return {
+          ...prev,
+          pendingDealers: updated.filter(d => !d.status || d.status === 'pending').length,
+          verifiedDealers: updated.filter(d => d.status === 'verified' || d.status === 'approved').length,
+          rejectedDealers: updated.filter(d => d.status === 'rejected').length
+        };
+      });
+      if (onRefreshListings) onRefreshListings();
+      window.dispatchEvent(new Event('binmar_dealers_updated'));
+    } catch (err) {
+      notify(err.message || 'Unable to delete seller. Please try again.');
     }
   };
 
@@ -433,6 +455,7 @@ export default function AdminPortalPage({
           <DealersTab
             dealerQueue={dealerQueue}
             onResolveDealer={handleResolveDealer}
+            onDeleteDealer={handleDeleteDealer}
           />
         )}
 

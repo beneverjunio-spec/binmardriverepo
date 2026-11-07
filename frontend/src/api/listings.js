@@ -1,3 +1,4 @@
+import { sendAdminEmailNotification, sendSellerEmailNotification } from './email';
 import { apiRequest } from './client';
 import { DEFAULT_LISTINGS } from '../constants';
 import { isSameVehicle } from './admin';
@@ -316,6 +317,43 @@ export async function createListing(payload) {
     localStorage.setItem('binmar_admin_notifications', JSON.stringify([newNotif, ...filteredNotifs]));
   } catch (e) {
     console.warn('Could not save to localStorage', e);
+  }
+
+    // Send Real-Time Notification Emails to info@binmargroup.com and Seller
+  sendAdminEmailNotification({
+    subject: `[BinmarDrive Action Required] New Vehicle Listing Pending Moderation: ${newListing.title}`,
+    title: 'Vehicle Listing Submitted For Admin Approval',
+    message: 'A seller has posted a new vehicle listing awaiting administrative moderation before appearing live on the marketplace:',
+    details: {
+      'Vehicle Title': newListing.title,
+      'Make & Model': `${newListing.make} ${newListing.model} (${newListing.year})`,
+      'Listing Type': newListing.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+      'Price': `${newListing.currency} ${Number(newListing.price).toLocaleString()}`,
+      'Seller Name': newListing.seller_name,
+      'Seller Email': newListing.seller_email || 'N/A',
+      'Contact WhatsApp': newListing.whatsapp_number || 'N/A',
+      'Location': `${newListing.city}, ${newListing.country}`,
+      'Submission Time': new Date().toLocaleString()
+    },
+    actionUrl: 'https://binmardrive.binmargroup.com/admin'
+  }).catch(e => console.warn(e));
+
+  if (newListing.seller_email) {
+    sendSellerEmailNotification({
+      to: newListing.seller_email,
+      subject: `[BinmarDrive] Vehicle Listing Received - Moderation In Progress`,
+      title: 'Vehicle Listing Submitted for Approval',
+      message: `Hello ${newListing.seller_name},\n\nYour listing "${newListing.title}" has been successfully submitted and is currently in the BinmarDrive moderation queue.\n\nOur operations team will review your vehicle details and documents. You will receive an email notification as soon as your listing is approved and live on the marketplace.`,
+      details: {
+        'Vehicle Title': newListing.title,
+        'Price': `${newListing.currency} ${Number(newListing.price).toLocaleString()}`,
+        'Type': newListing.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+        'Location': `${newListing.city}, ${newListing.country}`,
+        'Status': 'Pending Moderation Approval',
+        'Support Email': 'info@binmargroup.com'
+      },
+      actionUrl: 'https://binmardrive.binmargroup.com/seller'
+    }).catch(e => console.warn(e));
   }
 
   return { success: true, id: serverId, message: 'Listing submitted for moderation.' };

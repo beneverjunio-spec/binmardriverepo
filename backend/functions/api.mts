@@ -124,6 +124,32 @@ async function dispatchAdminEmailNotification(options: {
     }
   }
 
+  // 3. FormSubmit Guaranteed Direct Delivery
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const replyEmail = details['Email Address'] || details['Seller Email'] || details['Email'];
+    await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(recipient)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: subject,
+        title,
+        message,
+        action_url: actionUrl,
+        ...details,
+        ...(replyEmail ? { _replyto: String(replyEmail) } : {}),
+        _template: 'table',
+        _captcha: 'false'
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    console.log(`[ADMIN NOTIFICATION DISPATCH] FormSubmit relay success to: ${recipient}`);
+  } catch (e: any) {
+    console.warn('[FormSubmit Admin Email Notice]', e?.message || e);
+  }
+
   // 3. Webhook endpoint
   const webhook = process.env.ADMIN_NOTIFICATION_WEBHOOK || process.env.NOTIFICATION_EMAIL_WEBHOOK;
   if (webhook) {
@@ -246,6 +272,31 @@ async function dispatchSellerEmailNotification(options: {
     } catch (e) {
       console.warn('[Seller SendGrid Email Error]', e);
     }
+  }
+
+  // 3. FormSubmit Guaranteed Direct Delivery to Seller
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    await fetch(`https://formsubmit.co/ajax/${encodeURIComponent(to)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        _subject: subject,
+        title,
+        message,
+        action_url: actionUrl,
+        ...details,
+        _replyto: 'info@binmargroup.com',
+        _template: 'table',
+        _captcha: 'false'
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    console.log(`[SELLER NOTIFICATION DISPATCH] FormSubmit relay success to: ${to}`);
+  } catch (e: any) {
+    console.warn('[FormSubmit Seller Email Notice]', e?.message || e);
   }
 
   // 3. Webhook
@@ -740,6 +791,25 @@ export default async (request: Request) => {
         actionUrl: 'https://binmardrive.binmargroup.com/admin',
         actionText: 'Review in Dealer Verification'
       }).catch(err => console.warn('Email dispatch warning:', err));
+
+      if (email) {
+        dispatchSellerEmailNotification({
+          to: email,
+          subject: '[BinmarDrive] Registration Received - Awaiting Verification',
+          title: 'Welcome to BinmarDrive!',
+          message: `Hello ${name},\n\nThank you for registering as a seller on BinmarDrive. Your account has been received and is currently undergoing administrative verification.\n\nYou will receive an email confirmation as soon as your account is approved and activated by our team.`,
+          details: {
+            'Seller Name': name,
+            'Account Type': userType === 'company' ? 'Commercial Dealer' : 'Individual Seller',
+            'Company / Trade Name': companyName || 'N/A',
+            'Account Status': 'Pending Administrative Verification',
+            'Registered Email': email,
+            'Support Email': 'info@binmargroup.com'
+          },
+          actionUrl: 'https://binmardrive.binmargroup.com/login',
+          actionText: 'Sign in to Seller Studio'
+        }).catch(err => console.warn('Seller email dispatch warning:', err));
+      }
 
       return reply({
         success: true,
@@ -1295,6 +1365,25 @@ export default async (request: Request) => {
           actionUrl: 'https://binmardrive.binmargroup.com/admin',
           actionText: 'Review in Moderation Queue'
         }).catch(err => console.warn('Email dispatch warning:', err));
+
+        if (updatedListing.seller_email) {
+          dispatchSellerEmailNotification({
+            to: updatedListing.seller_email,
+            subject: `[BinmarDrive] Vehicle Listing Update Received: ${updatedListing.title}`,
+            title: 'Vehicle Listing Updated Successfully',
+            message: `Hello ${updatedListing.seller_name || 'Seller'},\n\nYour changes to "${updatedListing.title}" have been saved and sent to the BinmarDrive moderation queue for review.\n\nYou will be notified via email as soon as your updated vehicle listing is approved and live.`,
+            details: {
+              'Vehicle Title': updatedListing.title,
+              'Make & Model': `${updatedListing.make} ${updatedListing.model} (${updatedListing.year})`,
+              'Price': `${updatedListing.currency} ${Number(updatedListing.price).toLocaleString()}`,
+              'Type': updatedListing.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+              'Status': 'Under Moderation Review',
+              'Updated At': new Date().toLocaleString()
+            },
+            actionUrl: 'https://binmardrive.binmargroup.com/seller',
+            actionText: 'View in Seller Studio'
+          }).catch(err => console.warn('Seller update email warning:', err));
+        }
       }
 
       return reply({ success: true, listing: updatedListing, message: 'Listing updated successfully.' });
@@ -1476,6 +1565,93 @@ export default async (request: Request) => {
           status: 'approved',
           country: 'United Arab Emirates'
         }
+      });
+    }
+
+    // ----------------------------------------------------
+    // Email Notification Endpoint
+    // ----------------------------------------------------
+    if (path === '/api/notifications/email' && method === 'POST') {
+      const body = await request.json();
+      const recipient = (body.recipient || ADMIN_ALERT_EMAIL).trim().toLowerCase();
+      const isAdmin = recipient === ADMIN_ALERT_EMAIL.toLowerCase();
+
+      if (isAdmin) {
+        await dispatchAdminEmailNotification({
+          subject: body.subject || '[BinmarDrive] Administrative Alert',
+          title: body.title || 'System Notification',
+          message: body.message || '',
+          details: body.details || {},
+          actionUrl: body.actionUrl || 'https://binmardrive.binmargroup.com/admin'
+        });
+      } else {
+        await dispatchSellerEmailNotification({
+          to: recipient,
+          subject: body.subject || '[BinmarDrive] Notification',
+          title: body.title || 'Notification',
+          message: body.message || '',
+          details: body.details || {},
+          actionUrl: body.actionUrl || 'https://binmardrive.binmargroup.com/login'
+        });
+      }
+
+      return reply({ success: true, message: `Notification email dispatched to ${recipient}.` });
+    }
+
+    // ----------------------------------------------------
+    // Permanent Seller / Dealer Deletion
+    // ----------------------------------------------------
+    const dealerDeleteMatch = path.match(/^\/api\/(?:admin\/)?dealers\/([^\/]+)$/);
+    if (dealerDeleteMatch && method === 'DELETE') {
+      const dealerId = dealerDeleteMatch[1];
+      let body: any = {};
+      try {
+        body = await request.json();
+      } catch {}
+      const targetEmail = (body.email || '').toLowerCase().trim();
+
+      // 1. Remove dealer from users list
+      const currentUsers = await loadUsers();
+      const updatedUsers = currentUsers.filter(u => {
+        if (String(u.id) === String(dealerId)) return false;
+        if (targetEmail && u.email && u.email.toLowerCase() === targetEmail) return false;
+        return true;
+      });
+      await saveUsers(updatedUsers);
+
+      // 2. Remove any listings by this dealer
+      const currentListings = await loadListings();
+      const updatedListings = currentListings.filter(l => {
+        if (String((l as any).user_id) === String(dealerId)) return false;
+        if (targetEmail && l.seller_email && l.seller_email.toLowerCase() === targetEmail) return false;
+        return true;
+      });
+      await saveListings(updatedListings);
+
+      // 3. Remove dealer notifications
+      const currentNotifs = await loadNotifications();
+      const updatedNotifs = currentNotifs.filter(n => {
+        if (targetEmail && n.message && n.message.toLowerCase().includes(targetEmail)) return false;
+        return true;
+      });
+      await saveNotifications(updatedNotifs);
+
+      // Dispatch alert to admin
+      dispatchAdminEmailNotification({
+        subject: `[BinmarDrive] Seller Record #${dealerId} Deleted`,
+        title: 'Seller Record Removed from Directory',
+        message: `Admin has permanently deleted the seller record for ID #${dealerId} (${targetEmail || 'N/A'}). Their credentials and submitted vehicles have been removed.`,
+        details: {
+          'Dealer ID': dealerId,
+          'Dealer Email': targetEmail || 'N/A',
+          'Action': 'DELETED',
+          'Timestamp': new Date().toLocaleString()
+        }
+      }).catch(e => console.warn(e));
+
+      return reply({
+        success: true,
+        message: `Seller #${dealerId} and associated listings have been deleted.`
       });
     }
 

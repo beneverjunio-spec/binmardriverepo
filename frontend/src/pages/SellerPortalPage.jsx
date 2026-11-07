@@ -46,6 +46,7 @@ import {
   TRANSMISSION_TYPES
 } from '../constants';
 import { uploadListingPhotos, isTestData } from '../api/listings';
+import { sendAdminEmailNotification, sendSellerEmailNotification } from '../api/email';
 import { apiRequest } from '../api/client';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { useLanguage } from '../context/LanguageContext';
@@ -492,6 +493,42 @@ export default function SellerPortalPage({
       setEditingListing(null);
       setEditForm(null);
       setEditWasRejected(false);
+            // Send notification emails for listing update
+      const sellerMail = updatedItem.seller_email || (currentUser ? currentUser.email : '');
+      sendAdminEmailNotification({
+        subject: `[BinmarDrive] Vehicle Listing Updated & Pending Verification: ${updatedItem.title}`,
+        title: 'Vehicle Listing Updated for Admin Verification',
+        message: 'A registered seller has updated vehicle details and resubmitted the listing for administrative moderation:',
+        details: {
+          'Vehicle Title': updatedItem.title,
+          'Make & Model': `${updatedItem.make} ${updatedItem.model} (${updatedItem.year})`,
+          'Listing Type': (updatedItem.listing_type || updatedItem.type) === 'rent' ? 'For Rent' : 'For Sale',
+          'Price': `${updatedItem.currency || 'AED'} ${Number(updatedItem.price).toLocaleString()}`,
+          'Seller Name': updatedItem.seller_name || (currentUser ? (currentUser.company_name || currentUser.name) : 'Seller'),
+          'Seller Email': sellerMail || 'N/A',
+          'Location': `${updatedItem.city || 'Dubai'}, ${updatedItem.country || 'UAE'}`,
+          'Status': 'Pending Verification',
+          'Updated At': new Date().toLocaleString()
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/admin'
+      }).catch(e => console.warn(e));
+
+      if (sellerMail) {
+        sendSellerEmailNotification({
+          to: sellerMail,
+          subject: `[BinmarDrive] Vehicle Listing Update Received: ${updatedItem.title}`,
+          title: 'Listing Updated Successfully',
+          message: `Hello ${updatedItem.seller_name || 'Seller'},\n\nYour changes to "${updatedItem.title}" have been saved and sent to the BinmarDrive moderation queue for verification.\n\nYou will be notified via email as soon as your updated vehicle listing is approved.`,
+          details: {
+            'Vehicle': updatedItem.title,
+            'Price': `${updatedItem.currency || 'AED'} ${Number(updatedItem.price).toLocaleString()}`,
+            'Status': 'Under Moderation Review',
+            'Support Email': 'info@binmargroup.com'
+          },
+          actionUrl: 'https://binmardrive.binmargroup.com/seller'
+        }).catch(e => console.warn(e));
+      }
+
       notify(`"${updatedItem.title}" submitted to Admin Moderation Queue! Admin approval is required before it goes live.`);
       if (onRefreshListings) onRefreshListings();
     } catch {
@@ -737,6 +774,44 @@ export default function SellerPortalPage({
 
     // 4. Update UI state immediately
     setSellerListings(prev => [newVehicle, ...prev.filter(l => String(l.id) !== String(newVehicle.id))]);
+        // Send notification emails for new vehicle submitted in Seller Studio
+    const newSellerMail = newVehicle.seller_email || (currentUser ? currentUser.email : '');
+    sendAdminEmailNotification({
+      subject: `[BinmarDrive Action Required] New Vehicle Listing Pending Moderation: ${newVehicle.title}`,
+      title: 'Vehicle Listing Submitted For Admin Approval',
+      message: 'A seller has posted a new vehicle listing awaiting administrative moderation before appearing live on the marketplace:',
+      details: {
+        'Vehicle Title': newVehicle.title,
+        'Make & Model': `${newVehicle.make} ${newVehicle.model} (${newVehicle.year})`,
+        'Listing Type': newVehicle.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+        'Price': `${newVehicle.currency} ${Number(newVehicle.price).toLocaleString()}`,
+        'Seller Name': newVehicle.seller_name,
+        'Seller Email': newSellerMail || 'N/A',
+        'Contact WhatsApp': newVehicle.whatsapp_number || 'N/A',
+        'Location': `${newVehicle.city}, ${newVehicle.country}`,
+        'Submission Time': new Date().toLocaleString()
+      },
+      actionUrl: 'https://binmardrive.binmargroup.com/admin'
+    }).catch(e => console.warn(e));
+
+    if (newSellerMail) {
+      sendSellerEmailNotification({
+        to: newSellerMail,
+        subject: `[BinmarDrive] Vehicle Listing Received - Moderation In Progress`,
+        title: 'Vehicle Listing Submitted for Approval',
+        message: `Hello ${newVehicle.seller_name},\n\nYour listing "${newVehicle.title}" has been successfully submitted and is currently in the BinmarDrive moderation queue.\n\nOur operations team will review your vehicle details and documents. You will receive an email notification as soon as your listing is approved and live on the marketplace.`,
+        details: {
+          'Vehicle Title': newVehicle.title,
+          'Price': `${newVehicle.currency} ${Number(newVehicle.price).toLocaleString()}`,
+          'Type': newVehicle.listing_type === 'rent' ? 'For Rent' : 'For Sale',
+          'Location': `${newVehicle.city}, ${newVehicle.country}`,
+          'Status': 'Pending Moderation Approval',
+          'Support Email': 'info@binmargroup.com'
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/seller'
+      }).catch(e => console.warn(e));
+    }
+
     setStatusFilter('pending'); // Auto switch to Pending tab so seller sees their submission
     setShowAddModal(false);
     setAddForm({

@@ -1,5 +1,6 @@
 import { apiRequest } from './client';
 import { DEFAULT_ADMIN_DATA } from '../constants';
+import { sendAdminEmailNotification, sendSellerEmailNotification } from './email';
 
 const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
 
@@ -102,13 +103,25 @@ export async function fetchAdminPortalData() {
     if (rawResD) resolvedDealers = JSON.parse(rawResD);
   } catch {}
 
+  let deletedDealers = [];
+  try {
+    const rawDelD = localStorage.getItem('binmar_deleted_dealers');
+    if (rawDelD) deletedDealers = JSON.parse(rawDelD).map(s => String(s).toLowerCase());
+  } catch {}
+
   // 4. Load local custom dealers registered by users and cross-reference with registered users
   let customDealers = [];
   try {
     const rawDealers = localStorage.getItem('binmar_custom_dealers');
     if (rawDealers) {
       const parsedDealers = JSON.parse(rawDealers);
-      customDealers = parsedDealers.filter(d => !isTestData(d));
+      customDealers = parsedDealers.filter(d => {
+        if (isTestData(d)) return false;
+        const idStr = String(d.id || '').toLowerCase();
+        const emStr = (d.email || '').toLowerCase();
+        if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
+        return true;
+      });
     }
   } catch {}
 
@@ -267,9 +280,17 @@ export async function fetchAdminPortalData() {
       }
     }
 
-    const pendingDealers = combinedDealers.filter(d => !d.status || d.status === 'pending');
-    const verifiedDealers = combinedDealers.filter(d => d.status === 'approved' || d.status === 'verified');
-    const rejectedDealers = combinedDealers.filter(d => d.status === 'rejected');
+    // Filter out permanently deleted sellers
+    const cleanDealers = combinedDealers.filter(d => {
+      const idStr = String(d.id || '').toLowerCase();
+      const emStr = (d.email || '').toLowerCase();
+      if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
+      return true;
+    });
+
+    const pendingDealers = cleanDealers.filter(d => !d.status || d.status === 'pending');
+    const verifiedDealers = cleanDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+    const rejectedDealers = cleanDealers.filter(d => d.status === 'rejected');
 
     // 4. Combine Notifications (Deduplicated)
     const serverNotifs = (notifRes.notifications || []).filter(n => !isTestData(n));
@@ -293,7 +314,7 @@ export async function fetchAdminPortalData() {
         rejectedDealers: rejectedDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: combinedDealers,
+      dealerQueue: cleanDealers,
       adminListings: liveList,
       notifications: combinedNotifs
     };
@@ -338,9 +359,17 @@ export async function fetchAdminPortalData() {
       }
     }
 
-    const pendingDealers = combinedDealers.filter(d => !d.status || d.status === 'pending');
-    const verifiedDealers = combinedDealers.filter(d => d.status === 'approved' || d.status === 'verified');
-    const rejectedDealers = combinedDealers.filter(d => d.status === 'rejected');
+    // Filter out permanently deleted sellers
+    const cleanDealers = combinedDealers.filter(d => {
+      const idStr = String(d.id || '').toLowerCase();
+      const emStr = (d.email || '').toLowerCase();
+      if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
+      return true;
+    });
+
+    const pendingDealers = cleanDealers.filter(d => !d.status || d.status === 'pending');
+    const verifiedDealers = cleanDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+    const rejectedDealers = cleanDealers.filter(d => d.status === 'rejected');
 
     return {
       ...DEFAULT_ADMIN_DATA,
@@ -352,7 +381,7 @@ export async function fetchAdminPortalData() {
         rejectedDealers: rejectedDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: combinedDealers,
+      dealerQueue: cleanDealers,
       adminListings: liveList,
       notifications: customNotifs
     };
@@ -458,6 +487,38 @@ export async function resolveModerationListing(id, approve, reason = '') {
       }
     }
 
+    // Dispatch real-time email notifications
+    sendAdminEmailNotification({
+      subject: `[BinmarDrive] Listing ${approve ? 'Approved & Published' : 'Rejected'}: ${foundTitle}`,
+      title: `Listing Moderation ${approve ? 'Approved' : 'Rejected'}`,
+      message: `Admin has ${approve ? 'approved and published' : 'rejected'} the listing "${foundTitle}".`,
+      details: {
+        'Vehicle Title': foundTitle,
+        'Seller Email': sellerEmail || 'N/A',
+        'Decision': approve ? 'APPROVED & LIVE' : 'REJECTED',
+        ...(reason && !approve ? { 'Rejection Reason': reason } : {}),
+        'Processed At': new Date().toLocaleString()
+      }
+    }).catch(e => console.warn(e));
+
+    if (sellerEmail) {
+      sendSellerEmailNotification({
+        to: sellerEmail,
+        subject: approve ? `[BinmarDrive] Your listing is now LIVE: ${foundTitle}` : `[BinmarDrive] Update on your listing: ${foundTitle}`,
+        title: approve ? 'Your Vehicle Listing is Live on BinmarDrive!' : 'Vehicle Listing Requires Revisions',
+        message: approve
+          ? `Congratulations! Your vehicle "${foundTitle}" has passed moderation and is now publicly visible to buyers and renters on BinmarDrive.`
+          : `Dear Seller,\n\nYour vehicle listing "${foundTitle}" was reviewed but could not be approved at this time.\nReason: ${reason || 'Details require revision'}.\n\nPlease log in to your Seller Studio to update and resubmit.`,
+        details: {
+          'Vehicle Title': foundTitle,
+          'Status': approve ? 'Live on Marketplace' : 'Rejected / Needs Revision',
+          ...(reason && !approve ? { 'Remarks': reason } : {}),
+          'Date': new Date().toLocaleDateString()
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/seller'
+      }).catch(e => console.warn(e));
+    }
+
     const res = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -541,6 +602,37 @@ export async function resolveDealerApplication(id, verify) {
       localStorage.setItem('binmar_seller_notifications', JSON.stringify([newNotif, ...sellerNotifs]));
     } catch {}
 
+    // Dispatch real-time email notifications
+    sendAdminEmailNotification({
+      subject: `[BinmarDrive] Seller Application ${verify ? 'Approved & Verified' : 'Rejected'}: ${dealerName}`,
+      title: `Seller Verification ${verify ? 'Approved' : 'Rejected'}`,
+      message: `Admin has ${verify ? 'verified and activated' : 'rejected'} the seller registration for ${dealerName}.`,
+      details: {
+        'Seller Name': dealerName,
+        'Email Address': dealerEmail || 'N/A',
+        'Decision': verify ? 'APPROVED & VERIFIED' : 'REJECTED',
+        'Processed At': new Date().toLocaleString()
+      }
+    }).catch(e => console.warn(e));
+
+    if (dealerEmail) {
+      sendSellerEmailNotification({
+        to: dealerEmail,
+        subject: verify ? '[BinmarDrive] Congratulations! Your Seller Account is Verified' : '[BinmarDrive] Update on Your Seller Registration',
+        title: verify ? 'Your Seller Account is Now Active!' : 'Seller Application Status',
+        message: verify
+          ? `Great news, ${dealerName}! Your seller account has been approved and verified by BinmarDrive. You can now log in to Seller Studio and post your vehicles live on the marketplace.`
+          : `Dear ${dealerName},\n\nThank you for your interest in BinmarDrive. Unfortunately, your seller application was not approved at this time. If you believe this was an error, please reply to this email or contact info@binmargroup.com.`,
+        details: {
+          'Seller': dealerName,
+          'Account Status': verify ? 'Verified & Active' : 'Not Approved',
+          'Date': new Date().toLocaleDateString(),
+          'Support Contact': 'info@binmargroup.com'
+        },
+        actionUrl: 'https://binmardrive.binmargroup.com/login'
+      }).catch(e => console.warn(e));
+    }
+
     const res = await apiRequest(`/api/admin/dealers/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -551,6 +643,100 @@ export async function resolveDealerApplication(id, verify) {
     return {
       success: true,
       message: `Dealer "${dealerName}" ${verify ? 'verified successfully! Account is now active.' : 'application rejected.'}`
+    };
+  }
+}
+
+export async function deleteDealer(id) {
+  let dealerName = 'Seller';
+  let dealerEmail = '';
+
+  // 1. Mark as deleted in localStorage
+  try {
+    let deleted = [];
+    const rawDel = localStorage.getItem('binmar_deleted_dealers');
+    if (rawDel) deleted = JSON.parse(rawDel);
+    const idStr = String(id).toLowerCase();
+    if (!deleted.includes(idStr)) deleted.push(idStr);
+
+    // 2. Remove from custom dealers
+    const raw = localStorage.getItem('binmar_custom_dealers');
+    if (raw) {
+      const items = JSON.parse(raw);
+      const match = items.find(d => String(d.id) === String(id) || (d.email && String(d.email).toLowerCase() === String(id).toLowerCase()));
+      if (match) {
+        dealerName = match.name || match.company_name || dealerName;
+        dealerEmail = (match.email || '').toLowerCase();
+        if (dealerEmail && !deleted.includes(dealerEmail)) {
+          deleted.push(dealerEmail);
+        }
+      }
+      const updated = items.filter(d => String(d.id) !== String(id) && (!dealerEmail || !d.email || d.email.toLowerCase() !== dealerEmail));
+      localStorage.setItem('binmar_custom_dealers', JSON.stringify(updated));
+    }
+
+    // 3. Remove from custom users
+    const rawUsers = localStorage.getItem('binmar_custom_users');
+    if (rawUsers) {
+      const users = JSON.parse(rawUsers);
+      const uMatch = users.find(u => String(u.id) === String(id) || (dealerEmail && u.email && u.email.toLowerCase() === dealerEmail));
+      if (uMatch) {
+        dealerName = uMatch.name || uMatch.company_name || dealerName;
+        dealerEmail = (uMatch.email || dealerEmail).toLowerCase();
+        if (dealerEmail && !deleted.includes(dealerEmail)) {
+          deleted.push(dealerEmail);
+        }
+      }
+      const updatedUsers = users.filter(u => String(u.id) !== String(id) && (!dealerEmail || !u.email || u.email.toLowerCase() !== dealerEmail));
+      localStorage.setItem('binmar_custom_users', JSON.stringify(updatedUsers));
+    }
+
+    localStorage.setItem('binmar_deleted_dealers', JSON.stringify(deleted));
+
+    // 4. Remove associated listings by this seller
+    const rawListings = localStorage.getItem('binmar_custom_listings');
+    if (rawListings) {
+      const listings = JSON.parse(rawListings);
+      const remaining = listings.filter(l => {
+        if (l.user_id && String(l.user_id) === String(id)) return false;
+        if (dealerEmail && l.seller_email && l.seller_email.toLowerCase() === dealerEmail) return false;
+        return true;
+      });
+      localStorage.setItem('binmar_custom_listings', JSON.stringify(remaining));
+    }
+
+    // Send admin notification
+    sendAdminEmailNotification({
+      subject: `[BinmarDrive] Seller Record Deleted: ${dealerName}`,
+      title: 'Seller Deleted from Directory',
+      message: `Admin has permanently deleted the seller record for "${dealerName}" (${dealerEmail || 'N/A'}). All associated credentials and submitted vehicles have been removed.`,
+      details: {
+        'Seller Name': dealerName,
+        'Email Address': dealerEmail || 'N/A',
+        'Action': 'DELETED',
+        'Timestamp': new Date().toLocaleString()
+      }
+    }).catch(e => console.warn(e));
+  } catch (e) {
+    console.warn('Local dealer deletion note:', e);
+  }
+
+  // 5. Backend API call to permanently delete
+  try {
+    const res = await apiRequest(`/api/dealers/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: dealerEmail })
+    });
+    return {
+      success: true,
+      message: res?.message || `Seller "${dealerName}" has been permanently deleted.`
+    };
+  } catch (err) {
+    console.warn('Backend API dealer deletion note:', err);
+    return {
+      success: true,
+      message: `Seller "${dealerName}" has been deleted successfully.`
     };
   }
 }

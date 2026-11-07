@@ -11,14 +11,18 @@ import {
   FileSpreadsheet,
   CheckSquare,
   Square,
-  ExternalLink
+  ExternalLink,
+  Trash2,
+  AlertTriangle
 } from 'lucide-react';
 import DocumentViewerModal from '../common/DocumentViewerModal';
 import { exportToExcel } from '../../utils/exportToExcel';
 
-export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
+export default function DealersTab({ dealerQueue = [], onResolveDealer, onDeleteDealer }) {
   const [selectedDealerDoc, setSelectedDealerDoc] = useState(null);
   const [viewingDocument, setViewingDocument] = useState(null);
+  const [dealerToDelete, setDealerToDelete] = useState(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all'); // 'all' | 'pending' | 'verified' | 'rejected'
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedIds, setSelectedIds] = useState([]);
@@ -437,7 +441,7 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                     </div>
                   </td>
                   <td>
-                    <div className="row-actions">
+                    <div className="row-actions" style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                       {isPending && (
                         <>
                           <button
@@ -474,6 +478,31 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                           Re-Approve
                         </button>
                       )}
+                      <button
+                        type="button"
+                        className="act-btn delete"
+                        onClick={() => setDealerToDelete(dealer)}
+                        title="Delete seller from directory"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          padding: '5px 10px',
+                          borderRadius: '4px',
+                          background: 'rgba(239, 68, 68, 0.12)',
+                          color: '#ef4444',
+                          border: '1px solid rgba(239, 68, 68, 0.35)',
+                          cursor: 'pointer',
+                          fontSize: '0.78rem',
+                          fontWeight: 700,
+                          transition: 'all 0.15s ease'
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.22)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'}
+                      >
+                        <Trash2 size={12} />
+                        <span>Delete</span>
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -757,7 +786,32 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                 Close
               </button>
 
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '6px',
+                    background: 'rgba(239, 68, 68, 0.12)',
+                    border: '1px solid rgba(239, 68, 68, 0.35)',
+                    color: '#ef4444',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    fontSize: '0.82rem'
+                  }}
+                  onClick={() => {
+                    const toDelete = selectedDealerDoc;
+                    setSelectedDealerDoc(null);
+                    setDealerToDelete(toDelete);
+                  }}
+                  title="Permanently delete this seller record"
+                >
+                  <Trash2 size={14} />
+                  <span>Delete Seller</span>
+                </button>
                 <button
                   type="button"
                   className="act-btn reject"
@@ -781,6 +835,199 @@ export default function DealersTab({ dealerQueue = [], onResolveDealer }) {
                   Approve & Verify Account
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRMATION POPUP MODAL BEFORE DELETION */}
+      {dealerToDelete && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.78)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 99999,
+            padding: '20px'
+          }}
+          onClick={() => {
+            if (!isDeleting) setDealerToDelete(null);
+          }}
+        >
+          <div
+            style={{
+              background: '#0d261d',
+              border: '1px solid rgba(239, 68, 68, 0.5)',
+              borderRadius: '14px',
+              maxWidth: '520px',
+              width: '100%',
+              padding: '28px',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.7)',
+              color: '#f8fafc',
+              position: 'relative',
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
+              <div style={{
+                width: '46px',
+                height: '46px',
+                borderRadius: '50%',
+                background: 'rgba(239, 68, 68, 0.15)',
+                border: '1px solid rgba(239, 68, 68, 0.35)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#ef4444',
+                flexShrink: 0
+              }}>
+                <Trash2 size={24} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: '#fff', fontWeight: 800 }}>
+                  Confirm Seller Deletion
+                </h3>
+                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: '#94a3b8' }}>
+                  Please confirm that you want to delete this seller from BinmarDrive.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setDealerToDelete(null)}
+                disabled={isDeleting}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: '#94a3b8',
+                  cursor: 'pointer',
+                  padding: '4px'
+                }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Seller Details Card */}
+            <div style={{
+              background: 'rgba(0, 0, 0, 0.3)',
+              border: '1px solid rgba(255, 255, 255, 0.1)',
+              borderRadius: '10px',
+              padding: '16px',
+              marginBottom: '18px',
+              fontSize: '0.88rem'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Seller / Dealership:</span>
+                <span style={{ color: '#fff', fontWeight: 700 }}>
+                  {dealerToDelete.company_name || dealerToDelete.name || 'Seller'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#94a3b8' }}>Account Type:</span>
+                <span style={{ color: '#d4af37', fontWeight: 600, textTransform: 'uppercase' }}>
+                  {dealerToDelete.user_type === 'company' ? 'Commercial Dealer' : 'Private Seller'}
+                </span>
+              </div>
+              {dealerToDelete.email && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Email Address:</span>
+                  <span style={{ color: '#38bdf8' }}>{dealerToDelete.email}</span>
+                </div>
+              )}
+              {dealerToDelete.phone && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span style={{ color: '#94a3b8' }}>Phone / WhatsApp:</span>
+                  <span style={{ color: '#cbd5e1' }}>{dealerToDelete.phone}</span>
+                </div>
+              )}
+              {dealerToDelete.country && (
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: '#94a3b8' }}>Country:</span>
+                  <span style={{ color: '#cbd5e1' }}>{dealerToDelete.country}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Warning Message */}
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: '8px',
+              padding: '12px 14px',
+              marginBottom: '22px',
+              display: 'flex',
+              gap: '10px',
+              alignItems: 'flex-start'
+            }}>
+              <AlertTriangle size={18} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+              <div style={{ fontSize: '0.82rem', color: '#fca5a5', lineHeight: 1.5 }}>
+                <strong>Permanent Deletion:</strong> This action cannot be reversed. The seller's credentials, verification documents, and all submitted vehicle listings will be permanently removed from the system.
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setDealerToDelete(null)}
+                disabled={isDeleting}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  color: '#cbd5e1',
+                  fontWeight: 600,
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  fontSize: '0.88rem'
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={async () => {
+                  try {
+                    setIsDeleting(true);
+                    const targetId = dealerToDelete.id;
+                    if (onDeleteDealer) {
+                      await onDeleteDealer(targetId);
+                    }
+                    setDealerToDelete(null);
+                  } catch (err) {
+                    console.error('Failed to delete dealer:', err);
+                  } finally {
+                    setIsDeleting(false);
+                  }
+                }}
+                style={{
+                  padding: '10px 22px',
+                  borderRadius: '6px',
+                  background: '#ef4444',
+                  border: '1px solid #dc2626',
+                  color: '#fff',
+                  fontWeight: 700,
+                  cursor: isDeleting ? 'not-allowed' : 'pointer',
+                  fontSize: '0.88rem',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 12px rgba(239, 68, 68, 0.4)'
+                }}
+              >
+                <Trash2 size={16} />
+                <span>{isDeleting ? 'Deleting...' : 'Confirm Delete'}</span>
+              </button>
             </div>
           </div>
         </div>

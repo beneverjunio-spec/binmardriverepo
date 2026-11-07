@@ -3,6 +3,7 @@ import { User, Building2, Upload } from 'lucide-react';
 import { signup, logout } from '@netlify/identity';
 import { GCC_COUNTRIES, COUNTRY_DIAL_CODES } from '../constants';
 import { authErrorMessage, loadProfile } from '../api/auth';
+import { sendAdminEmailNotification, sendSellerEmailNotification } from '../api/email';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -186,6 +187,39 @@ export default function RegistrationPage({
     try {
       localStorage.removeItem('binmar_current_user');
     } catch {}
+
+        // Send Real-Time Notifications to info@binmargroup.com and the newly registered seller
+    sendAdminEmailNotification({
+      subject: `[BinmarDrive Action Required] New Seller Registration - Verification Needed (${displayName})`,
+      title: 'New Seller Awaiting Administrative Verification',
+      message: 'A new seller/dealer has registered on BinmarDrive and requires admin verification before they can post live vehicles:',
+      details: {
+        'Seller Full Name': displayName,
+        'Account Type': regAccountType === 'company' ? 'Commercial Dealer' : 'Individual Seller',
+        'Company / Trade Name': companyName || 'N/A',
+        'Email Address': regEmail.trim(),
+        'Contact Phone': regPhone || 'N/A',
+        'Country': regCountry,
+        'Trade License / ID': tradeLicense || tradeDoc,
+        'Registration Date': new Date().toLocaleString()
+      },
+      actionUrl: 'https://binmardrive.binmargroup.com/admin'
+    }).catch(e => console.warn(e));
+
+    sendSellerEmailNotification({
+      to: regEmail.trim(),
+      subject: '[BinmarDrive] Registration Received - Awaiting Verification',
+      title: 'Welcome to BinmarDrive!',
+      message: `Hello ${displayName},\n\nThank you for registering as a seller on BinmarDrive. Your account has been received and is currently undergoing administrative verification.\n\nYou will receive an email confirmation as soon as your account is approved and activated by our team.`,
+      details: {
+        'Seller Name': displayName,
+        'Account Type': regAccountType === 'company' ? 'Commercial Dealer' : 'Individual Seller',
+        'Account Status': 'Pending Administrative Verification',
+        'Registered Email': regEmail.trim(),
+        'Support Email': 'info@binmargroup.com'
+      },
+      actionUrl: 'https://binmardrive.binmargroup.com/login'
+    }).catch(e => console.warn(e));
 
     setRegPassword('');
     setLoginEmail(regEmail.trim());
