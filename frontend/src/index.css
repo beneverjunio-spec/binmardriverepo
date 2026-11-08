@@ -555,11 +555,72 @@ select.sort {
 }
 
 
+.card-specs-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  margin: 6px 0 10px;
+}
+
+.card-spec-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: #FAF7EF;
+  border: 1px solid #E8E1CE;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.card-spec-icon {
+  color: var(--gold);
+  flex-shrink: 0;
+}
+
+.card-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
 .card-price {
   font-family: 'Fraunces', serif;
   font-size: 1.15rem;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--ink);
+}
+
+.btn-whatsapp-icon-only {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #25D366;
+  color: #ffffff !important;
+  border: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(37, 211, 102, 0.3);
+  transition: transform 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btn-whatsapp-icon-only:hover {
+  background: #1EBE5D;
+  transform: scale(1.08);
+  box-shadow: 0 5px 12px rgba(37, 211, 102, 0.45);
+}
+
+.btn-whatsapp-icon-only:active {
+  transform: scale(0.95);
 }
 
 .card-meta {

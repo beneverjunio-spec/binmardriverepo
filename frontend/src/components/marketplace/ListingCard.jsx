@@ -1,5 +1,5 @@
 import React from 'react';
-import { MapPin } from 'lucide-react';
+import { MapPin, Calendar, Gauge, Car, Tag } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import { useLanguage } from '../../context/LanguageContext';
@@ -20,6 +20,26 @@ export default function ListingCard({ listing, index, onSelect }) {
   const condText = isBrandNew ? t('cond_brand_new') : t('cond_used');
   const isSold = listing.sale_status === 'sold';
   const isRented = listing.sale_status === 'rented';
+
+  // Small captions specifications
+  const displayYear = listing.year || '';
+
+  const displayMileage = (() => {
+    if (listing.mileage === 0 || listing.mileage === '0') return '0 km';
+    if (!listing.mileage) return '';
+    const mStr = String(listing.mileage).trim();
+    if (/km$/i.test(mStr)) return mStr;
+    const num = Number(mStr.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(num) && num > 0) return `${num.toLocaleString()} km`;
+    return `${mStr} km`;
+  })();
+
+  const isManual = (listing.transmission || '').toLowerCase().includes('man');
+  const displayTransmission = isManual
+    ? (t('trans_manual') || 'Manual')
+    : (listing.transmission || t('trans_auto') || 'Automatic');
+
+  const displayCategory = listing.category || '';
 
   const vehicleUrl = getVehicleUrl(listing);
 
@@ -126,28 +146,61 @@ export default function ListingCard({ listing, index, onSelect }) {
           <span className="loc-text">{locationText}</span>
           <span className="loc-badge-maps">{isRTL ? 'خريطة ↗' : 'Map ↗'}</span>
         </div>
-        <div className="card-price">
-          {listing.price_label || `${listing.currency || 'AED'} ${Number(listing.price).toLocaleString()}`}
+
+        {/* Small captions details: Year, Mileage, Transmission, Category */}
+        <div className="card-specs-strip">
+          {displayYear && (
+            <span className="card-spec-item" title={t('modal_year') || 'Year'}>
+              <Calendar size={11} className="card-spec-icon" />
+              <span>{displayYear}</span>
+            </span>
+          )}
+          {displayMileage && (
+            <span className="card-spec-item" title={t('modal_mileage') || 'Mileage'}>
+              <Gauge size={11} className="card-spec-icon" />
+              <span>{displayMileage}</span>
+            </span>
+          )}
+          {displayTransmission && (
+            <span className="card-spec-item" title={t('modal_transmission') || 'Transmission'}>
+              <Car size={11} className="card-spec-icon" />
+              <span>{displayTransmission}</span>
+            </span>
+          )}
+          {displayCategory && (
+            <span className="card-spec-item" title={t('modal_category') || 'Category'}>
+              <Tag size={11} className="card-spec-icon" />
+              <span>{displayCategory}</span>
+            </span>
+          )}
         </div>
+
+        {/* Price row with WhatsApp Icon Button */}
+        <div className="card-price-row">
+          <div className="card-price">
+            {listing.price_label || `${listing.currency || 'AED'} ${Number(listing.price).toLocaleString()}`}
+          </div>
+          <button
+            type="button"
+            className="btn-whatsapp-icon-only"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              openWhatsApp(listing, e);
+            }}
+            title={t('chat_whatsapp') || 'Chat on WhatsApp'}
+            aria-label="Chat on WhatsApp"
+          >
+            <WhatsAppIcon size={18} color="#ffffff" />
+          </button>
+        </div>
+
         <div className="card-meta">
           <span className={`card-cond ${listing.condition_type || listing.condition}`}>
             {condText}
           </span>
           <span className="card-seller">{listing.seller_name || listing.seller}</span>
         </div>
-        <button
-          type="button"
-          className="btn-whatsapp-card"
-          onClick={(e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            openWhatsApp(listing, e);
-          }}
-          title="Direct WhatsApp inquiry with seller"
-        >
-          <WhatsAppIcon size={16} color="#ffffff" />
-          <span>{t('chat_whatsapp')}</span>
-        </button>
       </div>
     </a>
   );
