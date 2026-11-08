@@ -322,15 +322,30 @@ button {
   font-weight: 600;
 }
 
-/* Category & Type Filter Strip */
+/* Category, Type & Controls Bar */
 .cat-strip {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 1.6rem 2.4rem 0;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 1.6rem 2.4rem 0.6rem;
   flex-wrap: wrap;
   max-width: 1200px;
   margin: 0 auto;
+}
+
+.cat-strip-tabs {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cat-strip-dropdowns {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .cat-strip-divider {
@@ -346,7 +361,8 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.5rem 1.2rem;
+  height: 38px;
+  padding: 0 1.2rem;
   border: 1.5px solid var(--card-border);
   border-radius: 999px;
   font-size: 0.82rem;
@@ -359,6 +375,7 @@ button {
   white-space: nowrap;
   outline: none;
   user-select: none;
+  box-sizing: border-box;
   transition: all 0.2s ease;
 }
 
@@ -371,6 +388,67 @@ button {
   background: var(--gold-bright);
   color: var(--ink);
   font-weight: 700;
+}
+
+.filter-select {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  padding: 0 2.2rem 0 1.1rem;
+  border: 1.5px solid var(--card-border);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--ink-2);
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat calc(100% - 13px) center;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  outline: none;
+  box-sizing: border-box;
+  white-space: nowrap;
+  transition: all 0.2s ease;
+  min-width: 125px;
+}
+
+[dir="rtl"] .filter-select {
+  padding: 0 1.1rem 0 2.2rem;
+  background-position: 13px center;
+}
+
+.filter-select:hover {
+  border-color: var(--gold);
+}
+
+.filter-select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
+}
+
+.filter-select.active {
+  border-color: var(--gold);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .cat-strip {
+    padding: 1.2rem 1.4rem 0.4rem;
+    gap: 10px;
+  }
+  .cat-strip-tabs {
+    gap: 8px;
+  }
+  .cat-strip-dropdowns {
+    width: 100%;
+    gap: 8px;
+  }
+  .filter-select {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 120px;
+  }
 }
 
 /* Browse Section */

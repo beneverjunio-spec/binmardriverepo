@@ -65,12 +65,17 @@ export default function MarketplacePage({
       {/* Trust Metrics */}
       <TrustBanner listings={listings} listingsCount={listings.length} selectedCountry={selectedCountry} />
 
-      {/* Category Chips & Type Filter Tabs Strip */}
+      {/* Category Chips, Type Filters & Sort/Seller Dropdowns Strip */}
       <CategoryStrip
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
         selectedType={selectedType}
         setSelectedType={setSelectedType}
+        selectedSeller={selectedSeller}
+        setSelectedSeller={setSelectedSeller}
+        sellerOptions={sellerOptions}
+        sortBy={sortBy}
+        setSortBy={setSortBy}
       />
 
       {/* Registered Sellers Quick Filter Strip */}
@@ -173,30 +178,6 @@ export default function MarketplacePage({
                 </span>
               )}
             </div>
-          </div>
-          <div className="browse-controls">
-            <select
-              className="sort"
-              value={selectedSeller}
-              onChange={e => setSelectedSeller(e.target.value)}
-              title={t('label_seller')}
-              style={{ minWidth: '130px', fontWeight: selectedSeller ? '700' : '500' }}
-            >
-              <option value="">{t('any_seller')}</option>
-              {sellerOptions.map(seller => {
-                const val = seller.company_name || seller.name;
-                return (
-                  <option key={seller.id || val} value={val}>
-                    {val}
-                  </option>
-                );
-              })}
-            </select>
-            <select className="sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
-              <option value="newest">{t('sort_newest')}</option>
-              <option value="low">{t('sort_low')}</option>
-              <option value="high">{t('sort_high')}</option>
-            </select>
           </div>
         </div>
 
