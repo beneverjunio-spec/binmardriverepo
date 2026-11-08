@@ -65,10 +65,12 @@ export default function MarketplacePage({
       {/* Trust Metrics */}
       <TrustBanner listings={listings} listingsCount={listings.length} selectedCountry={selectedCountry} />
 
-      {/* Category Chips Strip */}
+      {/* Category Chips & Type Filter Tabs Strip */}
       <CategoryStrip
         selectedCategory={selectedCategory}
         setSelectedCategory={setSelectedCategory}
+        selectedType={selectedType}
+        setSelectedType={setSelectedType}
       />
 
       {/* Registered Sellers Quick Filter Strip */}
@@ -190,26 +192,6 @@ export default function MarketplacePage({
                 );
               })}
             </select>
-            <div className="tab-pair">
-              <div
-                className={`tab-opt ${selectedType === '' ? 'on' : ''}`}
-                onClick={() => setSelectedType('')}
-              >
-                {t('tab_all')}
-              </div>
-              <div
-                className={`tab-opt ${selectedType === 'sale' ? 'on' : ''}`}
-                onClick={() => setSelectedType('sale')}
-              >
-                {t('tab_sale')}
-              </div>
-              <div
-                className={`tab-opt ${selectedType === 'rent' ? 'on' : ''}`}
-                onClick={() => setSelectedType('rent')}
-              >
-                {t('tab_rent')}
-              </div>
-            </div>
             <select className="sort" value={sortBy} onChange={e => setSortBy(e.target.value)}>
               <option value="newest">{t('sort_newest')}</option>
               <option value="low">{t('sort_low')}</option>
