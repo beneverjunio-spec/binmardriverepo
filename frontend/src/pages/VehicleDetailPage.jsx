@@ -69,11 +69,36 @@ export default function VehicleDetailPage({
   const isRent = (listing?.listing_type || listing?.type) === 'rent';
   const isSold = listing?.sale_status === 'sold';
   const isRented = listing?.sale_status === 'rented';
-  const isBrandNew = (listing?.condition_type || listing?.condition) === 'new';
 
-  const typeLabel = isRent ? t('for_rent') : t('for_sale');
-  const condLabel = isBrandNew ? t('cond_brand_new') : t('cond_used');
-  const transLabel = (listing?.transmission || '').toLowerCase().includes('man') ? t('trans_manual') : t('trans_auto');
+  // Dynamic specs extraction matching popup / marketplace listings
+  const displayYear = listing?.year || '—';
+
+  const displayMileage = (() => {
+    if (listing?.mileage === 0 || listing?.mileage === '0') return '0 km';
+    if (!listing?.mileage) return '0 km';
+    const mStr = String(listing.mileage).trim();
+    if (/km$/i.test(mStr)) return mStr;
+    const num = Number(mStr.replace(/[^0-9.]/g, ''));
+    if (Number.isFinite(num) && num > 0) return `${num.toLocaleString()} km`;
+    return `${mStr} km`;
+  })();
+
+  const isManual = (listing?.transmission || '').toLowerCase().includes('man');
+  const displayTransmission = isManual
+    ? (t('trans_manual') || 'Manual')
+    : (listing?.transmission || t('trans_auto') || 'Automatic');
+
+  const isBrandNew = (listing?.condition_type || listing?.condition || '').toLowerCase() === 'new' ||
+                     (listing?.condition_type || listing?.condition || '').toLowerCase().includes('brand');
+  const displayCondition = isBrandNew
+    ? (t('cond_brand_new') || 'Brand New')
+    : (t('cond_used') || 'Used');
+
+  const displayCategory = listing?.category || 'SUV';
+  const displayFuel = listing?.fuel || 'Petrol';
+
+  const typeLabel = isRent ? (t('for_rent') || 'For Rent') : (t('for_sale') || 'For Sale');
+  const condLabel = displayCondition;
   const locationText = listing?.location || [listing?.city, listing?.country].filter(Boolean).join(', ') || `${listing?.city || 'Dubai'}, ${listing?.country || 'United Arab Emirates'}`;
   const contactNumber = listing?.whatsapp_number || listing?.contact_phone || '+971 50 123 4567';
 
@@ -150,27 +175,38 @@ export default function VehicleDetailPage({
     return (
       <div style={{ maxWidth: '800px', margin: '6rem auto', textAlign: 'center', padding: '3rem' }}>
         <div style={{ fontSize: '3rem', marginBottom: '1.2rem' }}>🚗</div>
-        <h2 style={{ color: 'var(--gold, #d4af37)', fontSize: '1.6rem', marginBottom: '0.6rem', fontFamily: 'Fraunces, serif' }}>
+        <h2 style={{ color: '#12281F', fontSize: '1.6rem', marginBottom: '0.6rem', fontFamily: 'Fraunces, Georgia, serif', fontWeight: 700 }}>
           Loading vehicle details...
         </h2>
-        <p style={{ color: '#94a3b8', fontSize: '0.95rem' }}>Retrieving verified vehicle specifications and media.</p>
+        <p style={{ color: '#5C6F65', fontSize: '0.95rem' }}>Retrieving verified vehicle specifications and media.</p>
       </div>
     );
   }
 
   if (!listing) {
     return (
-      <div style={{ maxWidth: '800px', margin: '4rem auto', textAlign: 'center', padding: '2rem' }}>
-        <h1 style={{ color: 'var(--gold, #d4af37)', fontSize: '2rem', marginBottom: '1rem' }}>
+      <div style={{ maxWidth: '800px', margin: '4rem auto', textAlign: 'center', padding: '2.5rem 1.5rem', background: '#FFFFFF', borderRadius: '16px', border: '1px solid #E8E1CE', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+        <h1 style={{ color: '#12281F', fontSize: '2rem', marginBottom: '1rem', fontFamily: 'Fraunces, Georgia, serif', fontWeight: 700 }}>
           Vehicle Listing Not Found
         </h1>
-        <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>
+        <p style={{ color: '#5C6F65', marginBottom: '2rem', fontSize: '0.95rem' }}>
           This vehicle listing may have been sold, removed, or is no longer available on BinmarDrive.
         </p>
         <button
           className="btn-primary"
           onClick={onBack}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'linear-gradient(135deg, #C6A15B, #B89327)',
+            color: '#12281F',
+            fontWeight: 800,
+            padding: '12px 28px',
+            borderRadius: '10px',
+            border: 'none',
+            cursor: 'pointer'
+          }}
         >
           <ArrowLeft size={16} /> Return to Marketplace
         </button>
@@ -199,7 +235,7 @@ export default function VehicleDetailPage({
         await navigator.clipboard.writeText(canonicalUrl);
       }
       setCopiedLink(true);
-      setShareFeedback(t('share_link_copied'));
+      setShareFeedback(t('share_link_copied') || 'Link copied!');
       if (notify) notify('Vehicle link copied to clipboard!');
       setTimeout(() => {
         setCopiedLink(false);
@@ -220,7 +256,7 @@ export default function VehicleDetailPage({
     e.preventDefault();
     try {
       if (navigator.clipboard) await navigator.clipboard.writeText(canonicalUrl);
-      setShareFeedback(t('share_ig_copied'));
+      setShareFeedback(t('share_ig_copied') || 'Link copied for Instagram!');
       setTimeout(() => setShareFeedback(''), 4500);
       window.open('https://www.instagram.com/', '_blank');
     } catch {
@@ -232,7 +268,7 @@ export default function VehicleDetailPage({
     e.preventDefault();
     try {
       if (navigator.clipboard) await navigator.clipboard.writeText(canonicalUrl);
-      setShareFeedback(t('share_tiktok_copied'));
+      setShareFeedback(t('share_tiktok_copied') || 'Link copied for TikTok!');
       setTimeout(() => setShareFeedback(''), 4500);
       window.open('https://www.tiktok.com/', '_blank');
     } catch {
@@ -245,20 +281,20 @@ export default function VehicleDetailPage({
   return (
     <article className="vehicle-page-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '1.5rem 1rem 4rem' }}>
       {/* Crawlable Breadcrumb Navigation */}
-      <nav aria-label="Breadcrumb" style={{ marginBottom: '1.25rem', fontSize: '0.82rem', color: '#94a3b8' }}>
-        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px' }}>
+      <nav aria-label="Breadcrumb" style={{ marginBottom: '1.25rem', fontSize: '0.84rem' }}>
+        <ol style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px' }}>
           <li>
-            <a href="/" onClick={(e) => { e.preventDefault(); onBack(); }} style={{ color: 'var(--gold, #d4af37)', textDecoration: 'none' }}>
+            <a href="/" onClick={(e) => { e.preventDefault(); onBack(); }} style={{ color: '#A87B2E', textDecoration: 'none', fontWeight: 600 }}>
               Home
             </a>
           </li>
-          <li aria-hidden="true">/</li>
+          <li aria-hidden="true" style={{ color: '#8C9B92' }}>/</li>
           <li>
-            <a href={`/?type=${isRent ? 'rent' : 'sale'}`} style={{ color: 'var(--gold, #d4af37)', textDecoration: 'none' }}>
+            <a href={`/?type=${isRent ? 'rent' : 'sale'}`} style={{ color: '#A87B2E', textDecoration: 'none', fontWeight: 600 }}>
               {isRent ? 'Cars for Rent' : 'Cars for Sale'}
             </a>
           </li>
-          <li aria-hidden="true">/</li>
+          <li aria-hidden="true" style={{ color: '#8C9B92' }}>/</li>
           {listing.make && (
             <>
               <li>
@@ -271,66 +307,121 @@ export default function VehicleDetailPage({
                       onBack();
                     }
                   }}
-                  style={{ color: 'var(--gold, #d4af37)', textDecoration: 'none' }}
+                  style={{ color: '#A87B2E', textDecoration: 'none', fontWeight: 600 }}
                 >
                   {listing.make}
                 </a>
               </li>
-              <li aria-hidden="true">/</li>
+              <li aria-hidden="true" style={{ color: '#8C9B92' }}>/</li>
             </>
           )}
-          <li aria-current="page" style={{ color: '#cbd5e1', fontWeight: 600 }}>
+          <li aria-current="page" style={{ color: '#12281F', fontWeight: 700 }}>
             {listing.title}
           </li>
         </ol>
       </nav>
 
       {/* Back button & Share Bar */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '10px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '10px' }}>
         <button
           type="button"
           onClick={onBack}
           style={{
-            background: 'rgba(255, 255, 255, 0.06)',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            color: '#f8fafc',
-            padding: '7px 16px',
-            borderRadius: '8px',
+            background: '#FFFFFF',
+            border: '1px solid #E8E1CE',
+            color: '#12281F',
+            padding: '8px 18px',
+            borderRadius: '10px',
             cursor: 'pointer',
             display: 'inline-flex',
             alignItems: 'center',
             gap: '8px',
-            fontSize: '0.85rem',
-            fontWeight: 600
+            fontSize: '0.88rem',
+            fontWeight: 700,
+            boxShadow: '0 2px 6px rgba(0, 0, 0, 0.04)',
+            transition: 'background 0.15s ease'
           }}
+          onMouseEnter={(e) => e.currentTarget.style.background = '#F5EFE1'}
+          onMouseLeave={(e) => e.currentTarget.style.background = '#FFFFFF'}
         >
           <ArrowLeft size={16} /> {t('back_to_marketplace') || 'Back to Marketplace'}
         </button>
 
         {/* Share buttons */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '0.78rem', color: '#94a3b8', marginRight: '4px' }}>Share:</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '0.82rem', color: '#5C6F65', fontWeight: 700, marginRight: '4px' }}>Share:</span>
           <button
             type="button"
             className="share-btn link-btn"
             onClick={handleCopyLink}
             title="Copy unique link to vehicle"
-            style={{ padding: '6px 12px', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+            style={{
+              padding: '7px 14px',
+              fontSize: '0.8rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              color: '#12281F',
+              borderRadius: '8px',
+              fontWeight: 700,
+              cursor: 'pointer'
+            }}
           >
-            {copiedLink ? <Check size={14} style={{ color: '#4ade80' }} /> : <Share2 size={14} />}
+            {copiedLink ? <Check size={14} style={{ color: '#16A34A' }} /> : <Share2 size={14} style={{ color: '#C6A15B' }} />}
             <span>{copiedLink ? 'Copied!' : 'Copy Link'}</span>
           </button>
-          <button type="button" className="share-btn fb-btn" onClick={handleShareFacebook} title="Share on Facebook">
-            <FacebookIcon size={14} />
+          <button
+            type="button"
+            className="share-btn fb-btn"
+            onClick={handleShareFacebook}
+            title="Share on Facebook"
+            style={{
+              padding: '7px 10px',
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              color: '#1877F2',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <FacebookIcon size={15} />
           </button>
-          <button type="button" className="share-btn ig-btn" onClick={handleShareInstagram} title="Share on Instagram">
-            <InstagramIcon size={14} />
+          <button
+            type="button"
+            className="share-btn ig-btn"
+            onClick={handleShareInstagram}
+            title="Share on Instagram"
+            style={{
+              padding: '7px 10px',
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              color: '#E4405F',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <InstagramIcon size={15} />
           </button>
-          <button type="button" className="share-btn tt-btn" onClick={handleShareTikTok} title="Share on TikTok">
-            <TikTokIcon size={14} />
+          <button
+            type="button"
+            className="share-btn tt-btn"
+            onClick={handleShareTikTok}
+            title="Share on TikTok"
+            style={{
+              padding: '7px 10px',
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              color: '#000000',
+              borderRadius: '8px',
+              cursor: 'pointer'
+            }}
+          >
+            <TikTokIcon size={15} />
           </button>
           {shareFeedback && (
-            <span style={{ fontSize: '0.74rem', color: '#4ade80', marginLeft: '6px' }}>{shareFeedback}</span>
+            <span style={{ fontSize: '0.8rem', color: '#16A34A', fontWeight: 700, marginLeft: '6px' }}>{shareFeedback}</span>
           )}
         </div>
       </div>
@@ -349,9 +440,9 @@ export default function VehicleDetailPage({
               background: hasPhotos
                 ? `url(${photos[activePhotoIdx % photos.length]}) center/cover no-repeat`
                 : CARD_GRADIENTS[(listing.id) % CARD_GRADIENTS.length],
-              border: '1px solid rgba(212, 175, 55, 0.35)',
+              border: '1px solid #E8E1CE',
               position: 'relative',
-              boxShadow: '0 12px 35px rgba(0, 0, 0, 0.45)',
+              boxShadow: '0 12px 30px rgba(10, 42, 31, 0.12)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'
@@ -360,26 +451,30 @@ export default function VehicleDetailPage({
             {/* Badges Overlay */}
             <div style={{ position: 'absolute', top: '16px', left: isRTL ? 'auto' : '16px', right: isRTL ? '16px' : 'auto', display: 'flex', gap: '8px', zIndex: 3 }}>
               <span style={{
-                background: isRent ? 'rgba(59, 130, 246, 0.95)' : 'rgba(34, 197, 94, 0.95)',
-                color: '#fff',
-                padding: '5px 12px',
-                borderRadius: '6px',
+                background: isRent ? '#2563EB' : '#16A34A',
+                color: '#ffffff',
+                padding: '6px 14px',
+                borderRadius: '8px',
                 fontSize: '0.78rem',
                 fontWeight: 800,
                 letterSpacing: '0.04em',
-                textTransform: 'uppercase'
+                textTransform: 'uppercase',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}>
                 {typeLabel}
               </span>
 
               <span style={{
-                background: 'rgba(0, 0, 0, 0.75)',
-                color: 'var(--gold, #d4af37)',
-                border: '1px solid rgba(212, 175, 55, 0.5)',
-                padding: '5px 12px',
-                borderRadius: '6px',
+                background: 'rgba(10, 42, 31, 0.9)',
+                color: '#E4C374',
+                border: '1px solid #C6A15B',
+                padding: '6px 14px',
+                borderRadius: '8px',
                 fontSize: '0.78rem',
-                fontWeight: 700
+                fontWeight: 800,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.25)'
               }}>
                 {condLabel}
               </span>
@@ -399,7 +494,7 @@ export default function VehicleDetailPage({
               }}>
                 <span style={{
                   transform: 'rotate(-8deg)',
-                  background: isSold ? '#dc2626' : '#7c3aed',
+                  background: isSold ? '#DC2626' : '#7C3AED',
                   color: '#ffffff',
                   padding: '10px 32px',
                   borderRadius: '10px',
@@ -424,23 +519,24 @@ export default function VehicleDetailPage({
                   onClick={() => setActivePhotoIdx(prev => (prev === 0 ? photos.length - 1 : prev - 1))}
                   style={{
                     position: 'absolute',
-                    left: '12px',
+                    left: '14px',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    background: 'rgba(0,0,0,0.65)',
-                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(10, 42, 31, 0.75)',
+                    border: '1px solid rgba(255,255,255,0.3)',
                     color: '#fff',
                     borderRadius: '50%',
-                    width: '38px',
-                    height: '38px',
+                    width: '40px',
+                    height: '40px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 5
+                    zIndex: 5,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}
                 >
-                  <ChevronLeft size={22} />
+                  <ChevronLeft size={24} />
                 </button>
                 <button
                   type="button"
@@ -448,23 +544,24 @@ export default function VehicleDetailPage({
                   onClick={() => setActivePhotoIdx(prev => (prev === photos.length - 1 ? 0 : prev + 1))}
                   style={{
                     position: 'absolute',
-                    right: '12px',
+                    right: '14px',
                     top: '50%',
                     transform: 'translateY(-50%)',
-                    background: 'rgba(0,0,0,0.65)',
-                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'rgba(10, 42, 31, 0.75)',
+                    border: '1px solid rgba(255,255,255,0.3)',
                     color: '#fff',
                     borderRadius: '50%',
-                    width: '38px',
-                    height: '38px',
+                    width: '40px',
+                    height: '40px',
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    zIndex: 5
+                    zIndex: 5,
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
                   }}
                 >
-                  <ChevronRight size={22} />
+                  <ChevronRight size={24} />
                 </button>
               </>
             )}
@@ -475,12 +572,13 @@ export default function VehicleDetailPage({
                 position: 'absolute',
                 bottom: '14px',
                 right: '14px',
-                background: 'rgba(0, 0, 0, 0.75)',
-                color: '#fff',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '0.74rem',
+                background: 'rgba(10, 42, 31, 0.85)',
+                color: '#FFFFFF',
+                padding: '4px 12px',
+                borderRadius: '8px',
+                fontSize: '0.75rem',
                 fontWeight: 700,
+                border: '1px solid rgba(255,255,255,0.2)',
                 zIndex: 3
               }}>
                 {activePhotoIdx + 1} / {photos.length} Photos
@@ -490,23 +588,25 @@ export default function VehicleDetailPage({
 
           {/* Thumbnails Row */}
           {photos.length > 1 && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '10px', overflowX: 'auto', paddingBottom: '6px' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '12px', overflowX: 'auto', paddingBottom: '6px' }}>
               {photos.map((src, i) => (
                 <button
                   key={i}
                   type="button"
                   onClick={() => setActivePhotoIdx(i)}
                   style={{
-                    width: '74px',
-                    height: '52px',
-                    borderRadius: '8px',
-                    border: activePhotoIdx === i ? '2px solid var(--gold, #d4af37)' : '1px solid rgba(255,255,255,0.15)',
+                    width: '80px',
+                    height: '56px',
+                    borderRadius: '10px',
+                    border: activePhotoIdx === i ? '2px solid #C6A15B' : '1px solid #E8E1CE',
                     padding: 0,
                     overflow: 'hidden',
                     cursor: 'pointer',
                     flexShrink: 0,
-                    background: '#131b24',
-                    opacity: activePhotoIdx === i ? 1 : 0.65
+                    background: '#FFFFFF',
+                    boxShadow: activePhotoIdx === i ? '0 0 0 2px rgba(198, 161, 91, 0.3)' : 'none',
+                    opacity: activePhotoIdx === i ? 1 : 0.7,
+                    transition: 'opacity 0.15s, border 0.15s'
                   }}
                 >
                   <img
@@ -523,17 +623,24 @@ export default function VehicleDetailPage({
           {/* Vehicle Description Section */}
           <div style={{
             marginTop: '2rem',
-            background: 'rgba(255, 255, 255, 0.03)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '12px',
-            padding: '1.5rem'
+            background: '#FFFFFF',
+            border: '1px solid #E8E1CE',
+            borderRadius: '14px',
+            padding: '1.6rem',
+            boxShadow: '0 4px 18px rgba(10, 42, 31, 0.04)'
           }}>
-            <h2 style={{ fontSize: '1.15rem', color: '#f8fafc', fontWeight: 700, marginBottom: '0.75rem' }}>
+            <h2 style={{
+              fontSize: '1.25rem',
+              color: '#12281F',
+              fontWeight: 700,
+              fontFamily: "'Fraunces', Georgia, serif",
+              marginBottom: '0.9rem'
+            }}>
               Vehicle Overview & Details
             </h2>
             <div style={{
-              color: '#cbd5e1',
-              fontSize: '0.92rem',
+              color: '#334155',
+              fontSize: '0.95rem',
               lineHeight: 1.7,
               whiteSpace: 'pre-wrap'
             }}>
@@ -543,20 +650,22 @@ export default function VehicleDetailPage({
             {/* Official Mulkiya & Registration Status */}
             {(listing.document_name || listing.document_file) && (
               <div style={{
-                marginTop: '1.25rem',
-                padding: '12px 16px',
-                borderRadius: '8px',
-                background: 'rgba(34, 197, 94, 0.1)',
-                border: '1px solid rgba(34, 197, 94, 0.3)',
+                marginTop: '1.4rem',
+                padding: '14px 18px',
+                borderRadius: '10px',
+                background: '#F0FDF4',
+                border: '1px solid #86EFAC',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '10px'
+                gap: '12px'
               }}>
-                <ShieldCheck size={20} style={{ color: '#4ade80', flexShrink: 0 }} />
-                <div style={{ fontSize: '0.82rem', color: '#e2e8f0' }}>
-                  <strong>Mulkiya / Registration Verified</strong>
-                  <div style={{ color: '#94a3b8', fontSize: '0.76rem' }}>
-                    Document on file: {listing.document_name || listing.document_file}
+                <ShieldCheck size={22} style={{ color: '#16A34A', flexShrink: 0 }} />
+                <div style={{ fontSize: '0.88rem' }}>
+                  <strong style={{ color: '#14532D', display: 'block', marginBottom: '2px' }}>
+                    Mulkiya / Registration Verified
+                  </strong>
+                  <div style={{ color: '#166534', fontSize: '0.8rem' }}>
+                    Document on file: <span style={{ fontWeight: 600 }}>{listing.document_name || listing.document_file}</span>
                   </div>
                 </div>
               </div>
@@ -568,7 +677,17 @@ export default function VehicleDetailPage({
         <div>
           {/* Header & H1 Heading */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--gold, #d4af37)', fontSize: '0.85rem', fontWeight: 700, marginBottom: '6px' }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              color: '#A87B2E',
+              fontSize: '0.86rem',
+              fontWeight: 800,
+              letterSpacing: '0.04em',
+              textTransform: 'uppercase',
+              marginBottom: '6px'
+            }}>
               <span>{listing.make}</span>
               <span>&bull;</span>
               <span>{listing.model}</span>
@@ -577,11 +696,12 @@ export default function VehicleDetailPage({
             </div>
 
             <h1 style={{
-              fontSize: '1.85rem',
-              fontWeight: 800,
-              color: '#f8fafc',
+              fontSize: '2.1rem',
+              fontWeight: 700,
+              color: '#12281F',
+              fontFamily: "'Fraunces', Georgia, serif",
               lineHeight: 1.25,
-              margin: '0 0 10px 0'
+              margin: '4px 0 10px 0'
             }}>
               {listing.title}
             </h1>
@@ -592,34 +712,49 @@ export default function VehicleDetailPage({
                 display: 'inline-flex',
                 alignItems: 'center',
                 gap: '6px',
-                fontSize: '0.85rem',
-                color: '#94a3b8',
-                cursor: 'pointer'
+                fontSize: '0.9rem',
+                color: '#5C6F65',
+                cursor: 'pointer',
+                fontWeight: 600
               }}
               onClick={(e) => openGoogleMaps(locationText, e)}
               title="View location on Google Maps"
             >
-              <MapPin size={15} style={{ color: 'var(--gold, #d4af37)' }} />
-              <span style={{ textDecoration: 'underline' }}>{locationText}</span>
-              <ExternalLink size={12} />
+              <MapPin size={16} style={{ color: '#C6A15B' }} />
+              <span style={{ color: '#12281F', textDecoration: 'underline' }}>{locationText}</span>
+              <span style={{
+                background: '#F3EBD8',
+                border: '1px solid #DED6C0',
+                color: '#0A2A1F',
+                padding: '2px 8px',
+                borderRadius: '999px',
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}>
+                Map <ExternalLink size={10} />
+              </span>
             </div>
           </div>
 
           {/* Pricing Box */}
           <div style={{
-            background: 'linear-gradient(135deg, rgba(212, 175, 55, 0.15), rgba(15, 30, 24, 0.5))',
-            border: '1px solid rgba(212, 175, 55, 0.4)',
-            borderRadius: '12px',
-            padding: '1.25rem 1.5rem',
-            marginBottom: '1.5rem'
+            background: 'linear-gradient(135deg, #0A2A1F 0%, #123B2C 100%)',
+            border: '1px solid rgba(198, 161, 91, 0.45)',
+            borderRadius: '14px',
+            padding: '1.4rem 1.6rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 8px 24px rgba(10, 42, 31, 0.15)'
           }}>
-            <div style={{ fontSize: '0.8rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', fontWeight: 700 }}>
+            <div style={{ fontSize: '0.78rem', color: '#9FBBA9', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 800 }}>
               {isRent ? 'Rental Rate' : 'Asking Price'}
             </div>
-            <div style={{ fontSize: '2rem', fontWeight: 900, color: 'var(--gold, #d4af37)', marginTop: '4px' }}>
-              {listing.price_label || `${listing.currency || 'AED'} ${Number(listing.price || 0).toLocaleString()}`}
+            <div style={{ fontSize: '2.25rem', fontWeight: 800, color: '#E4C374', fontFamily: "'Fraunces', Georgia, serif", margin: '4px 0 6px' }}>
+              {listing.price_label || `${listing.currency || 'AED'} ${Number(listing.price || 0).toLocaleString()}${isRent ? ' / day' : ''}`}
             </div>
-            <div style={{ fontSize: '0.78rem', color: '#4ade80', marginTop: '4px', fontWeight: 600 }}>
+            <div style={{ fontSize: '0.82rem', color: '#86EFAC', fontWeight: 600 }}>
               ✓ No buyer commission &bull; Direct dealer / owner pricing
             </div>
           </div>
@@ -629,103 +764,156 @@ export default function VehicleDetailPage({
             display: 'grid',
             gridTemplateColumns: 'repeat(2, 1fr)',
             gap: '12px',
-            marginBottom: '1.75rem'
+            marginBottom: '1.5rem'
           }}>
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Calendar size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Year
+            {/* 1. Year */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Calendar size={14} style={{ color: '#C6A15B' }} /> {t('modal_year') || 'Year'}
               </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {listing.year}
-              </div>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Gauge size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Mileage
-              </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {listing.mileage || '0 km'}
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayYear}
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Car size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Transmission
+            {/* 2. Mileage */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Gauge size={14} style={{ color: '#C6A15B' }} /> {t('modal_mileage') || 'Mileage'}
               </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {transLabel}
-              </div>
-            </div>
-
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Fuel size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Fuel Type
-              </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {listing.fuel || 'Petrol'}
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayMileage}
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Sparkles size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Condition
+            {/* 3. Transmission */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Car size={14} style={{ color: '#C6A15B' }} /> {t('modal_transmission') || 'Transmission'}
               </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {condLabel}
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayTransmission}
               </div>
             </div>
 
-            <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', padding: '12px', borderRadius: '10px' }}>
-              <div style={{ fontSize: '0.74rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Tag size={13} style={{ color: 'var(--gold, #d4af37)' }} /> Category
+            {/* 4. Fuel Type */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Fuel size={14} style={{ color: '#C6A15B' }} /> {t('modal_fuel') || 'Fuel Type'}
               </div>
-              <div style={{ fontSize: '0.96rem', fontWeight: 700, color: '#f8fafc', marginTop: '3px' }}>
-                {listing.category || 'SUV'}
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayFuel}
+              </div>
+            </div>
+
+            {/* 5. Condition */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Sparkles size={14} style={{ color: '#C6A15B' }} /> {t('modal_condition') || 'Condition'}
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayCondition}
+              </div>
+            </div>
+
+            {/* 6. Category */}
+            <div style={{
+              background: '#FFFFFF',
+              border: '1px solid #E8E1CE',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              boxShadow: '0 2px 6px rgba(10, 42, 31, 0.03)'
+            }}>
+              <div style={{ fontSize: '0.74rem', color: '#5C6F65', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Tag size={14} style={{ color: '#C6A15B' }} /> {t('modal_category') || 'Category'}
+              </div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 800, color: '#12281F', marginTop: '4px' }}>
+                {displayCategory}
               </div>
             </div>
           </div>
 
           {/* Seller / Dealer Card */}
           <div style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
-            borderRadius: '12px',
-            padding: '1.25rem',
-            marginBottom: '1.5rem'
+            background: '#FFFFFF',
+            border: '1px solid #E8E1CE',
+            borderRadius: '14px',
+            padding: '1.4rem',
+            marginBottom: '1.5rem',
+            boxShadow: '0 4px 18px rgba(10, 42, 31, 0.04)'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
               <div style={{
-                width: '42px',
-                height: '42px',
+                width: '46px',
+                height: '46px',
                 borderRadius: '50%',
-                background: 'rgba(212, 175, 55, 0.15)',
-                border: '1px solid rgba(212, 175, 55, 0.4)',
+                background: '#F5EFE1',
+                border: '1px solid #DED6C0',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: 'var(--gold, #d4af37)'
+                color: '#A87B2E',
+                flexShrink: 0
               }}>
-                {isCompany ? <Building2 size={20} /> : <User size={20} />}
+                {isCompany ? <Building2 size={22} /> : <User size={22} />}
               </div>
               <div>
-                <div style={{ fontWeight: 800, color: '#f8fafc', fontSize: '1rem' }}>
+                <div style={{ fontWeight: 800, color: '#12281F', fontSize: '1.08rem' }}>
                   {listing.seller_name || listing.seller || 'Verified Dealer'}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                   <span style={{
-                    fontSize: '0.7rem',
+                    fontSize: '0.72rem',
                     fontWeight: 700,
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    background: isCompany ? 'rgba(212, 175, 55, 0.2)' : 'rgba(96, 165, 250, 0.2)',
-                    color: isCompany ? 'var(--gold, #d4af37)' : '#60a5fa',
-                    border: isCompany ? '1px solid rgba(212, 175, 55, 0.4)' : '1px solid rgba(96, 165, 250, 0.4)',
-                    textTransform: 'uppercase'
+                    padding: '3px 8px',
+                    borderRadius: '5px',
+                    background: isCompany ? '#FEF3C7' : '#EFF6FF',
+                    color: isCompany ? '#92400E' : '#1E40AF',
+                    border: isCompany ? '1px solid #FCD34D' : '1px solid #BFDBFE',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.03em'
                   }}>
                     {isCompany ? 'Commercial Dealer' : 'Private Seller'}
                   </span>
-                  <span style={{ fontSize: '0.74rem', color: '#4ade80', fontWeight: 600 }}>
+                  <span style={{
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    padding: '3px 8px',
+                    borderRadius: '5px',
+                    background: '#DCFCE7',
+                    color: '#166534',
+                    border: '1px solid #BBF7D0'
+                  }}>
                     ✓ Verified Account
                   </span>
                 </div>
@@ -733,7 +921,7 @@ export default function VehicleDetailPage({
             </div>
 
             {/* Direct Contact Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '14px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
               {/* WhatsApp Button */}
               <a
                 href={getWhatsAppUrl(contactNumber, `Hello, I am inquiring about the ${listing.title} listed on BinmarDrive (${canonicalUrl}). Is it still available?`)}
@@ -746,10 +934,10 @@ export default function VehicleDetailPage({
                   gap: '8px',
                   background: '#25D366',
                   color: '#ffffff',
-                  fontWeight: 700,
-                  fontSize: '0.94rem',
-                  padding: '12px',
-                  borderRadius: '8px',
+                  fontWeight: 800,
+                  fontSize: '0.96rem',
+                  padding: '13px',
+                  borderRadius: '10px',
                   textDecoration: 'none',
                   boxShadow: '0 4px 14px rgba(37, 211, 102, 0.35)',
                   transition: 'opacity 0.2s'
@@ -767,17 +955,20 @@ export default function VehicleDetailPage({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  background: 'rgba(255, 255, 255, 0.08)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  color: '#f8fafc',
-                  fontWeight: 700,
-                  fontSize: '0.94rem',
+                  background: '#FAF7EF',
+                  border: '1px solid #E8E1CE',
+                  color: '#12281F',
+                  fontWeight: 800,
+                  fontSize: '0.96rem',
                   padding: '12px',
-                  borderRadius: '8px',
-                  textDecoration: 'none'
+                  borderRadius: '10px',
+                  textDecoration: 'none',
+                  transition: 'background 0.15s ease'
                 }}
+                onMouseEnter={(e) => e.currentTarget.style.background = '#F0EAD8'}
+                onMouseLeave={(e) => e.currentTarget.style.background = '#FAF7EF'}
               >
-                <Phone size={18} />
+                <Phone size={18} style={{ color: '#C6A15B' }} />
                 <span>Call {contactNumber}</span>
               </a>
             </div>
