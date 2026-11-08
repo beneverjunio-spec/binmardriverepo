@@ -89,7 +89,7 @@ async function dispatchAdminEmailNotification(options: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || 'BinmarDrive <notifications@binmargroup.com>',
+          from: process.env.EMAIL_FROM || 'Binmar Drive Admin <info@binmargroup.com>',
           to: [recipient],
           subject,
           html,
@@ -112,7 +112,7 @@ async function dispatchAdminEmailNotification(options: {
         },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: recipient }] }],
-          from: { email: process.env.EMAIL_FROM || 'notifications@binmargroup.com', name: 'BinmarDrive Operations' },
+          from: { email: 'info@binmargroup.com', name: 'Binmar Drive Admin' },
           subject,
           content: [
             { type: 'text/plain', value: text },
@@ -177,8 +177,9 @@ async function dispatchSellerEmailNotification(options: {
   details: Record<string, string | number | undefined | null>;
   actionUrl?: string;
   actionText?: string;
+  showCtaButton?: boolean;   // when true, renders a large prominent CTA button
 }) {
-  const { to, subject, title, message, details, actionUrl = 'https://binmardrive.binmargroup.com/login', actionText = 'Sign in to Seller Studio' } = options;
+  const { to, subject, title, message, details, actionUrl = 'https://binmardrive.binmargroup.com/login', actionText = 'Login to Your Account', showCtaButton = true } = options;
   if (!to || !to.includes('@')) return;
 
   console.log(`[SELLER NOTIFICATION DISPATCH] To: ${to} | Subject: ${subject}`);
@@ -208,11 +209,7 @@ async function dispatchSellerEmailNotification(options: {
               <h2 style="color: #0f172a; margin: 0 0 16px; font-size: 20px; font-weight: 700;">${title}</h2>
               <p style="color: #475569; font-size: 15px; line-height: 1.7; margin: 0 0 24px; white-space: pre-line;">${message}</p>
               ${sellerDetailsTableHtml}
-              <div style="text-align: center; margin: 28px 0 8px;">
-                <a href="${actionUrl}" style="background: linear-gradient(135deg, #d4af37, #b89327); color: #0d261d; font-weight: 700; text-decoration: none; padding: 13px 32px; border-radius: 8px; font-size: 15px; display: inline-block;">
-                  ${actionText} &rarr;
-                </a>
-              </div>
+              ${showCtaButton ? '<div style="text-align: center; margin: 32px 0 12px;"><a href="' + actionUrl + '" style="background: linear-gradient(135deg, #0f3527, #1a5240); color: #d4af37; font-weight: 700; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-size: 16px; display: inline-block; letter-spacing: 0.5px; border: 2px solid #d4af37;">' + actionText + ' &rarr;</a></div>' : ''}
             </td>
           </tr>
           <tr>
@@ -239,7 +236,7 @@ async function dispatchSellerEmailNotification(options: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM || 'BinmarDrive <notifications@binmargroup.com>',
+          from: process.env.EMAIL_FROM || 'Binmar Drive Admin <info@binmargroup.com>',
           to: [to],
           subject,
           html,
@@ -262,7 +259,7 @@ async function dispatchSellerEmailNotification(options: {
         },
         body: JSON.stringify({
           personalizations: [{ to: [{ email: to }] }],
-          from: { email: process.env.EMAIL_FROM || 'notifications@binmargroup.com', name: 'BinmarDrive' },
+          from: { email: 'info@binmargroup.com', name: 'Binmar Drive Admin' },
           subject,
           content: [
             { type: 'text/plain', value: text },
@@ -776,7 +773,7 @@ export default async (request: Request) => {
 
       // Dispatch Email Notification directly to info@binmargroup.com
       dispatchAdminEmailNotification({
-        subject: 'New Seller Registration',
+        subject: 'New Seller Registration - BinmarDrive',
         title: 'New Seller Registration',
         message: 'A new seller has registered. Please review the registration and approve or reject the account.',
         details: {
@@ -796,8 +793,8 @@ export default async (request: Request) => {
       if (email) {
         dispatchSellerEmailNotification({
           to: email,
-          subject: 'Registration Received — Welcome to BinmarDrive!',
-          title: 'Welcome to BinmarDrive!',
+          subject: 'BinmarDrive - Registration Received (Pending Approval)',
+          title: 'Registration Received',
           message: 'Hello Seller,\n\nThank you for registering with BinmarDrive! Your registration is currently pending admin approval. You will be notified once your account has been approved.\n\nBest regards,\nBinmarDrive Team',
           details: {
             'Seller Name': name,
@@ -808,7 +805,8 @@ export default async (request: Request) => {
             'Support Email': 'info@binmargroup.com'
           },
           actionUrl: 'https://binmardrive.binmargroup.com/login',
-          actionText: 'Sign in to Seller Studio'
+          actionText: 'Login to Your Account',
+          showCtaButton: false
         }).catch(err => console.warn('Seller email dispatch warning:', err));
       }
 
@@ -1083,9 +1081,9 @@ export default async (request: Request) => {
       const sellerCountry = (targetUser as any)?.country || 'UAE';
 
       dispatchAdminEmailNotification({
-        subject: 'New Seller Registration',
-        title: 'New Seller Registration',
-        message: 'A new seller has registered. Please review the registration and approve or reject the account.',
+        subject: isVerify ? 'Seller Account Approved - BinmarDrive' : 'Seller Account Rejected - BinmarDrive',
+        title: isVerify ? 'Seller Account Approved' : 'Seller Account Rejected',
+        message: isVerify ? 'A seller account has been approved. They can now log in and submit listings.' : 'A seller account has been rejected.',
         details: {
           'Seller Name': sellerName, 'Email': sellerEmail, 'Country': sellerCountry,
           'Decision': isVerify ? 'APPROVED & VERIFIED' : 'REJECTED',
@@ -1099,8 +1097,8 @@ export default async (request: Request) => {
       if (sellerEmail) {
         dispatchSellerEmailNotification({
           to: sellerEmail,
-          subject: isVerify ? 'Seller Account Approved' : 'Seller Account Not Approved',
-          title: isVerify ? 'Seller Account Approved' : 'Seller Account Not Approved',
+          subject: isVerify ? 'Welcome to BinmarDrive - Account Approved!' : 'BinmarDrive - Account Application Update',
+          title: isVerify ? 'Account Approved!' : 'Account Application Update',
           message: isVerify
             ? 'Hello Seller,\n\nCongratulations! Your registration has been successfully approved by the admin.\n\nYou can now access your BinmarDrive account and start submitting your vehicle listings for rent or sale.\n\nThank you for joining us!\n\nBest regards,\nBinmarDrive Team'
             : 'Hello Seller,\n\nThank you for registering with BinmarDrive. Unfortunately, your seller account application was not approved at this time.\n\nPlease contact us at info@binmargroup.com for further assistance.\n\nBest regards,\nBinmarDrive Team',
@@ -1112,7 +1110,8 @@ export default async (request: Request) => {
             'Support Email': 'info@binmargroup.com'
           },
           actionUrl: 'https://binmardrive.binmargroup.com/login',
-          actionText: isVerify ? 'Sign In to BinmarDrive' : 'Contact Support'
+          actionText: isVerify ? 'Login to Your Account' : 'Contact Support',
+          showCtaButton: isVerify ? true : false
         }).catch(e => console.warn('Seller email warning:', e));
       }
 
@@ -1177,9 +1176,9 @@ export default async (request: Request) => {
       const price = targetListing ? `${(targetListing as any).currency || 'AED'} ${Number((targetListing as any).price || 0).toLocaleString()}` : '';
 
       dispatchAdminEmailNotification({
-        subject: 'New Listing Submitted',
-        title: 'New Listing Submitted',
-        message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
+        subject: isApprove ? 'New Vehicle Listing Submitted - BinmarDrive' : 'Listing Rejected - BinmarDrive',
+        title: isApprove ? 'New Listing Submitted' : 'Listing Rejected',
+        message: isApprove ? 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.' : ('Listing "' + listingTitle + '" was rejected by admin.'),
         details: {
           'Vehicle Title': listingTitle, 'Seller Name': sellerName, 'Seller Email': sellerEmail,
           'Type': listingType, 'Price': price,
@@ -1194,11 +1193,11 @@ export default async (request: Request) => {
       if (sellerEmail) {
         dispatchSellerEmailNotification({
           to: sellerEmail,
-          subject: isApprove ? 'Approved' : 'Rejected',
-          title: isApprove ? 'Listing Approved' : 'Listing Rejected',
+          subject: isApprove ? 'Approved: Your vehicle listing is live on BinmarDrive!' : 'Update regarding your vehicle listing on BinmarDrive',
+          title: isApprove ? 'Approved' : 'Rejected',
           message: isApprove
             ? 'Hello Seller,\n\nGood news! Your vehicle listing has been successfully approved and is now published on BinmarDrive.\n\nYour listing is now visible to potential buyers or renters.\n\nThank you for using BinmarDrive!\n\nBest regards,\nBinmarDrive Team'
-            : ('Hello Seller,\n\nUnfortunately, your vehicle listing has not been approved by our admin team.\n\nReason: ' + (rejectionReason || 'Please contact info@binmargroup.com for details.') + '\n\nPlease review the feedback and make the necessary corrections before resubmitting your listing.\n\nThank you for your understanding.\n\nBest regards,\nBinmarDrive Team'),
+            : ('Hello Seller,\n\nUnfortunately, your vehicle listing has not been approved by our admin team.\n\nReason: ' + (rejectionReason || 'No reason provided.') + '\n\nPlease review the feedback and make the necessary corrections before resubmitting your listing.\n\nThank you for your understanding.\n\nBest regards,\nBinmarDrive Team'),
           details: {
             'Vehicle': listingTitle, 'Type': listingType, 'Price': price,
             'Status': isApprove ? 'Live on Marketplace' : 'Not Approved',
@@ -1206,7 +1205,8 @@ export default async (request: Request) => {
             'Date': new Date().toLocaleDateString(), 'Support Email': 'info@binmargroup.com'
           },
           actionUrl: 'https://binmardrive.binmargroup.com/login',
-          actionText: isApprove ? 'View in Seller Studio' : 'Update and Resubmit'
+          actionText: isApprove ? 'Login to Your Account' : 'Update and Resubmit',
+          showCtaButton: isApprove
         }).catch(e => console.warn('Seller email warning:', e));
       }
 
@@ -1348,7 +1348,7 @@ export default async (request: Request) => {
         await saveNotifications([updateNotif, ...notifs]);
 
         dispatchAdminEmailNotification({
-          subject: 'New Listing Submitted',
+          subject: 'New Vehicle Listing Submitted - BinmarDrive',
           title: 'New Listing Submitted',
           message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
           details: {
@@ -1370,9 +1370,9 @@ export default async (request: Request) => {
         if (updatedListing.seller_email) {
           dispatchSellerEmailNotification({
             to: updatedListing.seller_email,
-            subject: 'Listing Submitted — Pending Approval',
-            title: 'Listing Submitted — Pending Approval',
-            message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
+            subject: 'BinmarDrive - Listing Submitted (Pending Approval)',
+            title: 'Listing Submitted',
+            message: 'Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team',
             details: {
               'Vehicle Title': updatedListing.title,
               'Make & Model': `${updatedListing.make} ${updatedListing.model} (${updatedListing.year})`,
@@ -1382,7 +1382,8 @@ export default async (request: Request) => {
               'Updated At': new Date().toLocaleString()
             },
             actionUrl: 'https://binmardrive.binmargroup.com/seller',
-            actionText: 'View in Seller Studio'
+            actionText: 'Login to Your Account',
+            showCtaButton: false
           }).catch(err => console.warn('Seller update email warning:', err));
         }
       }
@@ -1509,7 +1510,7 @@ export default async (request: Request) => {
 
       // Dispatch Email Notification directly to info@binmargroup.com
       dispatchAdminEmailNotification({
-        subject: 'New Listing Submitted',
+        subject: 'New Vehicle Listing Submitted - BinmarDrive',
         title: 'New Listing Submitted',
         message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
         details: {
