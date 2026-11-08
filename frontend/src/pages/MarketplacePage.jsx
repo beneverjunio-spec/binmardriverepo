@@ -80,15 +80,7 @@ export default function MarketplacePage({
 
       {/* Registered Sellers Quick Filter Strip */}
       {sellerOptions && sellerOptions.length > 0 && (
-        <div className="seller-strip" style={{
-          display: 'flex',
-          gap: '8px',
-          overflowX: 'auto',
-          padding: '0.4rem 1.2rem 1.2rem',
-          maxWidth: '1140px',
-          margin: '0 auto',
-          alignItems: 'center'
-        }}>
+        <div className="seller-strip">
           <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', whiteSpace: 'nowrap', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             {t('label_seller')}:
           </span>

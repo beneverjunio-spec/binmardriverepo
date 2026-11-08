@@ -326,34 +326,20 @@ button {
 .cat-strip {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 1.6rem 2.4rem 0.6rem;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 1.6rem 2.4rem 0.5rem;
   flex-wrap: wrap;
   max-width: 1200px;
   margin: 0 auto;
 }
 
-.cat-strip-tabs {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.cat-strip-dropdowns {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
 .cat-strip-divider {
-  width: 1.5px;
+  width: 1px;
   height: 22px;
   background: var(--card-border);
-  margin: 0 2px;
-  border-radius: 2px;
+  margin: 0 4px;
+  border-radius: 1px;
   flex-shrink: 0;
 }
 
@@ -394,14 +380,14 @@ button {
   display: inline-flex;
   align-items: center;
   height: 38px;
-  padding: 0 2.2rem 0 1.1rem;
+  padding: 0 2rem 0 1rem;
   border: 1.5px solid var(--card-border);
-  border-radius: 999px;
+  border-radius: 8px;
   font-size: 0.82rem;
   font-weight: 600;
   font-family: inherit;
   color: var(--ink-2);
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat calc(100% - 13px) center;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23475569' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat calc(100% - 12px) center;
   appearance: none;
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -414,8 +400,8 @@ button {
 }
 
 [dir="rtl"] .filter-select {
-  padding: 0 1.1rem 0 2.2rem;
-  background-position: 13px center;
+  padding: 0 1rem 0 2rem;
+  background-position: 12px center;
 }
 
 .filter-select:hover {
@@ -433,21 +419,24 @@ button {
   font-weight: 700;
 }
 
-@media (max-width: 820px) {
+.seller-strip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0.2rem 2.4rem 1.4rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 768px) {
   .cat-strip {
-    padding: 1.2rem 1.4rem 0.4rem;
-    gap: 10px;
-  }
-  .cat-strip-tabs {
+    padding: 1.2rem 1.2rem 0.4rem;
     gap: 8px;
   }
-  .cat-strip-dropdowns {
-    width: 100%;
-    gap: 8px;
-  }
-  .filter-select {
-    flex: 1 1 calc(50% - 6px);
-    min-width: 120px;
+  .seller-strip {
+    padding: 0.2rem 1.2rem 1.2rem;
+    gap: 6px;
   }
 }
 
