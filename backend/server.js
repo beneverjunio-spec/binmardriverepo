@@ -1465,6 +1465,19 @@ app.delete(['/api/dealers/:id', '/api/admin/dealers/:id', '/api/sellers/:id'], a
     const { email } = req.body || {};
     const targetEmail = (email || '').toLowerCase().trim();
 
+    if (USE_MONGO) {
+      await mongoDB.deleteUser(id);
+      if (targetEmail) {
+        const userListings = await mongoDB.findListings({});
+        for (const l of userListings) {
+          if (l.seller_email && l.seller_email.toLowerCase() === targetEmail) {
+            await mongoDB.deleteListing(l.id || l._id);
+          }
+        }
+      }
+      return res.json({ success: true, message: `Seller #${id} and associated vehicles deleted successfully.` });
+    }
+
     if (global.inMemoryUsers) {
       global.inMemoryUsers = global.inMemoryUsers.filter(u => {
         if (String(u.id) === String(id)) return false;

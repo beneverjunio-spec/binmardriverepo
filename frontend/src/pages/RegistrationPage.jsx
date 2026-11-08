@@ -188,11 +188,11 @@ export default function RegistrationPage({
       localStorage.removeItem('binmar_current_user');
     } catch {}
 
-        // Send Real-Time Notifications to info@binmargroup.com and the newly registered seller
+    // Send Real-Time Notifications to info@binmargroup.com and the newly registered seller
     sendAdminEmailNotification({
-      subject: 'New Seller Registration',
+      subject: 'New Seller Registration - BinmarDrive',
       title: 'New Seller Registration',
-      message: 'A new seller has registered. Please review the registration and approve or reject the account.',
+      message: 'New Seller Registration\n\nA new seller has registered. Please review the registration and approve or reject the account.',
       details: {
         'Seller Full Name': displayName,
         'Account Type': regAccountType === 'company' ? 'Commercial Dealer' : 'Individual Seller',
@@ -208,8 +208,8 @@ export default function RegistrationPage({
 
     sendSellerEmailNotification({
       to: regEmail.trim(),
-      subject: 'Registration Received — Welcome to BinmarDrive!',
-      title: 'Welcome to BinmarDrive!',
+      subject: 'BinmarDrive - Registration Received (Pending Approval)',
+      title: 'Registration Received (Pending Approval)',
       message: `Hello Seller,\n\nThank you for registering with BinmarDrive! Your registration is currently pending admin approval. You will be notified once your account has been approved.\n\nBest regards,\nBinmarDrive Team`,
       details: {
         'Seller Name': displayName,

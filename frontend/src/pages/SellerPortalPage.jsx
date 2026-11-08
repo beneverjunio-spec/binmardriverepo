@@ -493,12 +493,12 @@ export default function SellerPortalPage({
       setEditingListing(null);
       setEditForm(null);
       setEditWasRejected(false);
-            // Send notification emails for listing update
+            // Send notification emails for listing update / resubmission
       const sellerMail = updatedItem.seller_email || (currentUser ? currentUser.email : '');
       sendAdminEmailNotification({
-        subject: 'New Listing Submitted',
+        subject: 'New Vehicle Listing Submitted - BinmarDrive',
         title: 'New Listing Submitted',
-        message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
+        message: 'New Listing Submitted\n\nA seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
         details: {
           'Vehicle Title': updatedItem.title,
           'Make & Model': `${updatedItem.make} ${updatedItem.model} (${updatedItem.year})`,
@@ -516,8 +516,8 @@ export default function SellerPortalPage({
       if (sellerMail) {
         sendSellerEmailNotification({
           to: sellerMail,
-          subject: 'Listing Submitted — Pending Approval',
-          title: 'Listing Submitted — Pending Approval',
+          subject: 'BinmarDrive - Listing Submitted (Pending Approval)',
+          title: 'BinmarDrive - Listing Submitted (Pending Approval)',
           message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
           details: {
             'Vehicle': updatedItem.title,

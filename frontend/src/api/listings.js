@@ -65,7 +65,23 @@ export function isTestData(item) {
   return false;
 }
 
+let publicListingsCache = null;
+let publicListingsCacheTime = 0;
+let publicListingsCacheKey = '';
+const PUBLIC_CACHE_TTL_MS = 2500;
+
+export function invalidateListingsCache() {
+  publicListingsCache = null;
+  publicListingsCacheTime = 0;
+  publicListingsCacheKey = '';
+}
+
 export async function fetchPublicListings(filters = {}) {
+  const cacheKey = JSON.stringify(filters);
+  const now = Date.now();
+  if (publicListingsCache && publicListingsCacheKey === cacheKey && (now - publicListingsCacheTime < PUBLIC_CACHE_TTL_MS)) {
+    return publicListingsCache;
+  }
   // Purge any legacy test data from localStorage
   let localCustom = [];
   try {
@@ -167,6 +183,10 @@ export async function fetchPublicListings(filters = {}) {
   } else if (filters.sortBy === 'high') {
     filtered.sort((a, b) => Number(b.price) - Number(a.price));
   }
+
+  publicListingsCache = filtered;
+  publicListingsCacheTime = Date.now();
+  publicListingsCacheKey = cacheKey;
 
   return filtered;
 }
@@ -319,11 +339,14 @@ export async function createListing(payload) {
     console.warn('Could not save to localStorage', e);
   }
 
-    // Send Real-Time Notification Emails to info@binmargroup.com and Seller
+  // Invalidate listings cache so new item shows immediately
+  invalidateListingsCache();
+
+  // Send Real-Time Notification Emails to info@binmargroup.com and Seller
   sendAdminEmailNotification({
-    subject: 'New Listing Submitted',
+    subject: 'New Vehicle Listing Submitted - BinmarDrive',
     title: 'New Listing Submitted',
-    message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
+    message: 'New Listing Submitted\n\nA seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
     details: {
       'Vehicle Title': newListing.title,
       'Make & Model': `${newListing.make} ${newListing.model} (${newListing.year})`,
@@ -341,8 +364,8 @@ export async function createListing(payload) {
   if (newListing.seller_email) {
     sendSellerEmailNotification({
       to: newListing.seller_email,
-      subject: 'Listing Submitted — Pending Approval',
-      title: 'Listing Submitted — Pending Approval',
+      subject: 'BinmarDrive - Listing Submitted (Pending Approval)',
+      title: 'BinmarDrive - Listing Submitted (Pending Approval)',
       message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
       details: {
         'Vehicle Title': newListing.title,

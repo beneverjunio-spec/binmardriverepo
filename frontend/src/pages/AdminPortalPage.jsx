@@ -38,103 +38,41 @@ export default function AdminPortalPage({
   const [adminSearch, setAdminSearch] = useState('');
   const [adminDataError, setAdminDataError] = useState('');
 
-  const loadAdminData = async () => {
-    setAdminDataError('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
+
+  const loadAdminData = async (silent = false) => {
+    if (!silent) {
+      setIsRefreshing(true);
+      setAdminDataError('');
+    }
     try {
-      const data = await fetchAdminPortalData();
+      const data = await fetchAdminPortalData(!silent);
       setAdminStats(data.stats);
       setModerationQueue(data.moderationQueue);
       setDealerQueue(data.dealerQueue);
       setAdminListings(data.adminListings);
-      let deletedAdmins = [];
-      try {
-        const rawDel = localStorage.getItem('binmar_deleted_admins');
-        if (rawDel) deletedAdmins = JSON.parse(rawDel);
-      } catch {}
+      setNotifications(data.notifications || []);
+      setLastRefreshedAt(new Date());
 
-      let localAdmins = [];
-      try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) localAdmins = JSON.parse(local);
-      } catch {}
-
-      let serverAdmins = [];
+      // Load staff admins from API
       try {
         const staffRes = await fetch('/api/admin/staff');
         if (staffRes.ok) {
           const staffData = await staffRes.json();
           if (staffData.success && Array.isArray(staffData.admins)) {
-            serverAdmins = staffData.admins;
+            setAdmins(staffData.admins);
           }
         }
-      } catch (staffErr) {
-        console.warn('API staff fetch fallback to local:', staffErr);
-      }
-
-      // Merge default, server, and local custom admins preserving custom passwords
-      const mergedMap = new Map();
-      const defaultAdmins = DEFAULT_ADMIN_DATA.admins || [];
-      for (const da of defaultAdmins) {
-        if (da.email) mergedMap.set(da.email.toLowerCase(), { ...da });
-      }
-      for (const sa of serverAdmins) {
-        if (sa.email) {
-          const existing = mergedMap.get(sa.email.toLowerCase()) || {};
-          mergedMap.set(sa.email.toLowerCase(), { ...existing, ...sa });
-        }
-      }
-      for (const la of localAdmins) {
-        if (la.email) {
-          const existing = mergedMap.get(la.email.toLowerCase()) || {};
-          mergedMap.set(la.email.toLowerCase(), {
-            ...existing,
-            ...la,
-            password: la.password || existing.password
-          });
-        }
-      }
-
-      // Filter out permanently deleted admins
-      const activeAdmins = Array.from(mergedMap.values()).filter(a =>
-        !deletedAdmins.includes(String(a.id)) &&
-        (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
-      );
-
-      setAdmins(activeAdmins);
-      try {
-        localStorage.setItem('binmar_custom_admins', JSON.stringify(activeAdmins));
       } catch {}
-      setNotifications(data.notifications);
     } catch (e) {
-      let deletedAdmins = [];
-      try {
-        const rawDel = localStorage.getItem('binmar_deleted_admins');
-        if (rawDel) deletedAdmins = JSON.parse(rawDel);
-      } catch {}
-
-      let localAdmins = [];
-      try {
-        const local = localStorage.getItem('binmar_custom_admins');
-        if (local) localAdmins = JSON.parse(local);
-      } catch {}
-
-      const mergedMap = new Map();
-      for (const da of (DEFAULT_ADMIN_DATA.admins || [])) {
-        if (da.email) mergedMap.set(da.email.toLowerCase(), { ...da });
+      if (!silent) {
+        setAdminDataError(e.message || 'Unable to load admin data. Please try again.');
       }
-      for (const la of localAdmins) {
-        if (la.email) {
-          const existing = mergedMap.get(la.email.toLowerCase()) || {};
-          mergedMap.set(la.email.toLowerCase(), { ...existing, ...la });
-        }
+    } finally {
+      if (!silent) {
+        setIsRefreshing(false);
       }
-
-      const activeAdmins = Array.from(mergedMap.values()).filter(a =>
-        !deletedAdmins.includes(String(a.id)) &&
-        (!a.email || !deletedAdmins.includes(a.email.toLowerCase()))
-      );
-      setAdmins(activeAdmins);
-      setAdminDataError(e.message || 'Unable to load admin data. Please try again.');
     }
   };
 
@@ -143,14 +81,21 @@ export default function AdminPortalPage({
     loadAdminData();
   }, [adminTab]);
 
-  // Synchronize immediately when another tab registers or window regains focus
+  // Auto-refresh interval (every 8 seconds) so any new registration, submission or resubmission shows immediately
+  useEffect(() => {
+    const timer = setInterval(() => {
+      loadAdminData(true);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Synchronize immediately when window regains focus or storage changes
   useEffect(() => {
     const handleSync = () => {
-      loadAdminData();
+      loadAdminData(true);
     };
     window.addEventListener('focus', handleSync);
     window.addEventListener('storage', handleSync);
-    // Also refresh when seller marks a listing as sold/rented in same session
     window.addEventListener('binmar_listings_updated', handleSync);
     return () => {
       window.removeEventListener('focus', handleSync);
@@ -431,6 +376,9 @@ export default function AdminPortalPage({
         <AdminHeader
           notifications={notifications}
           onOpenNotifications={() => setAdminTab('notifications')}
+          onRefresh={() => loadAdminData(false)}
+          isRefreshing={isRefreshing}
+          lastRefreshedAt={lastRefreshedAt}
         />
 
         {adminTab === 'dashboard' && (

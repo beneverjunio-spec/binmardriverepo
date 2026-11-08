@@ -66,109 +66,20 @@ function isTestData(item) {
   return false;
 }
 
-export async function fetchAdminPortalData() {
-  // 1. Clean out any legacy test data from localStorage
-  let customListings = [];
-  try {
-    const raw = localStorage.getItem('binmar_custom_listings');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      customListings = parsed.filter(item => !isTestData(item));
-      localStorage.setItem('binmar_custom_listings', JSON.stringify(customListings));
-    }
-  } catch {}
+let adminDataCache = null;
+let adminDataCacheTime = 0;
+const CACHE_TTL_MS = 2500;
 
-  // 2. Load persistent deleted listings list
-  let deletedListingIds = [];
-  try {
-    const rawDel = localStorage.getItem('binmar_deleted_listings');
-    if (rawDel) deletedListingIds = JSON.parse(rawDel);
-  } catch {}
+export function invalidateAdminCache() {
+  adminDataCache = null;
+  adminDataCacheTime = 0;
+}
 
-  customListings = customListings.filter(item => !deletedListingIds.includes(String(item.id)));
-
-  const pendingCustom = customListings.filter(item => item.status === 'pending');
-  const approvedCustom = customListings.filter(item => item.status === 'approved');
-
-  // 3. Load persistent resolved moderation & dealers
-  let resolvedModeration = [];
-  try {
-    const rawRes = localStorage.getItem('binmar_resolved_moderation');
-    if (rawRes) resolvedModeration = JSON.parse(rawRes);
-  } catch {}
-
-  let resolvedDealers = [];
-  try {
-    const rawResD = localStorage.getItem('binmar_resolved_dealers');
-    if (rawResD) resolvedDealers = JSON.parse(rawResD);
-  } catch {}
-
-  let deletedDealers = [];
-  try {
-    const rawDelD = localStorage.getItem('binmar_deleted_dealers');
-    if (rawDelD) deletedDealers = JSON.parse(rawDelD).map(s => String(s).toLowerCase());
-  } catch {}
-
-  // 4. Load local custom dealers registered by users and cross-reference with registered users
-  let customDealers = [];
-  try {
-    const rawDealers = localStorage.getItem('binmar_custom_dealers');
-    if (rawDealers) {
-      const parsedDealers = JSON.parse(rawDealers);
-      customDealers = parsedDealers.filter(d => {
-        if (isTestData(d)) return false;
-        const idStr = String(d.id || '').toLowerCase();
-        const emStr = (d.email || '').toLowerCase();
-        if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
-        return true;
-      });
-    }
-  } catch {}
-
-  // Cross-reference with binmar_custom_users to guarantee every registered account is in the directory
-  try {
-    const rawUsers = localStorage.getItem('binmar_custom_users');
-    if (rawUsers) {
-      const parsedUsers = JSON.parse(rawUsers);
-      parsedUsers.forEach(u => {
-        if (u.user_type === 'admin') return;
-        const alreadyInDealers = customDealers.some(d =>
-          (d.email && u.email && d.email.toLowerCase() === u.email.toLowerCase()) ||
-          String(d.id) === String(u.id)
-        );
-        if (!alreadyInDealers) {
-          customDealers.push({
-            id: u.id || 'usr_' + Date.now(),
-            name: u.name || u.company_name || 'Registered Seller',
-            company_name: u.company_name || (u.user_type === 'company' ? (u.name || 'Company') : `${u.name || 'Seller'} (Private Seller)`),
-            email: u.email,
-            phone: u.phone || 'N/A',
-            country: u.country || 'United Arab Emirates',
-            user_type: u.user_type || 'individual',
-            trade_license: u.trade_license || (u.user_type === 'company' ? 'CN-Pending' : 'ID-Verified'),
-            trade_license_file: u.trade_license_file || (u.user_type === 'company' ? 'Trade_License_Document.pdf' : 'National_ID_Passport.pdf'),
-            trade_license_url: u.trade_license_url || null,
-            status: u.status || (u.is_verified_seller ? 'approved' : 'pending'),
-            created_at: u.created_at || new Date().toISOString()
-          });
-        }
-      });
-    }
-  } catch {}
-
-  try {
-    localStorage.setItem('binmar_custom_dealers', JSON.stringify(customDealers));
-  } catch {}
-
-  let customNotifs = [];
-  try {
-    const notifRaw = localStorage.getItem('binmar_admin_notifications');
-    if (notifRaw) {
-      const parsedNotifs = JSON.parse(notifRaw);
-      customNotifs = parsedNotifs.filter(n => !isTestData(n) && !n.title?.includes('Land Rover') && !n.message?.includes('Khalid'));
-      localStorage.setItem('binmar_admin_notifications', JSON.stringify(customNotifs));
-    }
-  } catch {}
+export async function fetchAdminPortalData(forceRefresh = false) {
+  const now = Date.now();
+  if (!forceRefresh && adminDataCache && (now - adminDataCacheTime < CACHE_TTL_MS)) {
+    return adminDataCache;
+  }
 
   try {
     const [statsRes, modRes, dealerRes, listRes, notifRes] = await Promise.all([
@@ -179,197 +90,74 @@ export async function fetchAdminPortalData() {
       apiRequest('/api/notifications')
     ]);
 
-    // 1. Combine Moderation Queue (Strictly Deduplicated)
-    const activeServerQueue = (modRes.queue || [])
-      .filter(item => !resolvedModeration.includes(String(item.id)));
-
-    // Deduplicate pendingCustom first
-    const dedupedPendingCustom = [];
-    for (const pc of pendingCustom) {
-      if (!dedupedPendingCustom.some(ex => isSameVehicle(ex, pc))) {
-        dedupedPendingCustom.push(pc);
-      }
-    }
-
-    const combinedQueue = [...dedupedPendingCustom];
-    for (const sq of activeServerQueue) {
-      const matchIdx = combinedQueue.findIndex(cq => isSameVehicle(cq, sq));
-      if (matchIdx !== -1) {
-        // Merge so server is primary, retaining client-attached document URL
-        combinedQueue[matchIdx] = {
-          ...combinedQueue[matchIdx],
-          ...sq,
-          document_url: combinedQueue[matchIdx].document_url || sq.document_url || null,
-          document_file: combinedQueue[matchIdx].document_file || sq.document_file || null
-        };
-      } else {
-        combinedQueue.push(sq);
-      }
-    }
-
-    // Final deduplication guaranteeing strictly 1 entry per vehicle in moderation
-    const queue = [];
-    for (const item of combinedQueue) {
-      if (!isTestData(item) && !queue.some(q => isSameVehicle(q, item))) {
-        queue.push(item);
-      }
-    }
-
-    // 2. Combine Live Listings (Strictly Deduplicated)
-    const activeServerListings = (listRes.listings || [])
-      .filter(l => (l.status === 'approved' || !l.status) && !deletedListingIds.includes(String(l.id)));
-    const combinedLive = [...approvedCustom];
-    for (const sl of activeServerListings) {
-      const matchIdx = combinedLive.findIndex(cl => isSameVehicle(cl, sl));
-      if (matchIdx !== -1) {
-        // Prefer server database values, falling back to local cache
-        const localSaleStatus = combinedLive[matchIdx].sale_status;
-        combinedLive[matchIdx] = {
-          ...combinedLive[matchIdx],
-          ...sl,
-          sale_status: sl.sale_status || localSaleStatus || 'available',
-          sold_at: sl.sold_at || combinedLive[matchIdx].sold_at || null,
-          disabled: sl.disabled !== undefined ? sl.disabled : combinedLive[matchIdx].disabled
-        };
-      } else {
-        combinedLive.push(sl);
-      }
-    }
-    let disabledListingIds = [];
-    try {
-      const rawDis = localStorage.getItem('binmar_disabled_listings');
-      if (rawDis) disabledListingIds = JSON.parse(rawDis);
-    } catch {}
-
-    const rawLiveList = combinedLive.filter(item => !isTestData(item));
-    const liveList = [];
-    for (const item of rawLiveList) {
-      if (!liveList.some(l => isSameVehicle(l, item))) {
-        liveList.push({
-          ...item,
-          disabled: Boolean(item.disabled || disabledListingIds.includes(String(item.id)))
-        });
-      }
-    }
-
-    // 3. Combine Dealers from online server database
-    const serverDealers = (dealerRes.dealers || []).filter(d => !isTestData(d) && d.user_type !== 'admin');
-    const combinedDealers = [...customDealers];
-    for (const sd of serverDealers) {
-      const matchIdx = combinedDealers.findIndex(cd =>
-        String(cd.id) === String(sd.id) ||
-        (cd.email && sd.email && cd.email.toLowerCase() === sd.email.toLowerCase())
-      );
-      if (matchIdx !== -1) {
-        combinedDealers[matchIdx] = {
-          ...combinedDealers[matchIdx],
-          ...sd,
-          trade_license_url: combinedDealers[matchIdx].trade_license_url || sd.trade_license_url || null,
-          trade_license_file: combinedDealers[matchIdx].trade_license_file || sd.trade_license_file || null
-        };
-      } else {
-        combinedDealers.push(sd);
-      }
-    }
-
-    // Ensure default seeded dealers are present if directory is empty
-    const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || []).filter(d => !isTestData(d));
-    for (const dd of defaultDealers) {
-      if (!combinedDealers.some(cd => String(cd.id) === String(dd.id) || (cd.email && dd.email && cd.email.toLowerCase() === dd.email.toLowerCase()))) {
-        combinedDealers.push(dd);
-      }
-    }
-
-    // Filter out permanently deleted sellers
-    const cleanDealers = combinedDealers.filter(d => {
-      const idStr = String(d.id || '').toLowerCase();
-      const emStr = (d.email || '').toLowerCase();
-      if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
-      return true;
+    // 1. Live Moderation Queue from server (Authoritative for all admins)
+    const serverQueue = (modRes?.queue || []).filter(item => !isTestData(item));
+    // Sort resubmitted items to top, then newest
+    serverQueue.sort((a, b) => {
+      if (a.resubmitted && !b.resubmitted) return -1;
+      if (!a.resubmitted && b.resubmitted) return 1;
+      const dateA = new Date(a.resubmitted_at || a.created_at || 0).getTime();
+      const dateB = new Date(b.resubmitted_at || b.created_at || 0).getTime();
+      return dateB - dateA;
     });
+
+    // 2. Live Listings from server (Approved vehicles)
+    const liveList = (listRes?.listings || [])
+      .filter(l => (l.status === 'approved' || !l.status) && !isTestData(l));
+
+    // 3. Dealers from server (All registered sellers)
+    const cleanDealers = (dealerRes?.dealers || [])
+      .filter(d => !isTestData(d) && d.user_type !== 'admin');
 
     const pendingDealers = cleanDealers.filter(d => !d.status || d.status === 'pending');
     const verifiedDealers = cleanDealers.filter(d => d.status === 'approved' || d.status === 'verified');
     const rejectedDealers = cleanDealers.filter(d => d.status === 'rejected');
 
-    // 4. Combine Notifications (Deduplicated)
-    const serverNotifs = (notifRes.notifications || []).filter(n => !isTestData(n));
-    const combinedNotifs = [];
-    for (const n of [...customNotifs, ...serverNotifs]) {
-      const alreadyExists = combinedNotifs.some(cn =>
-        String(cn.id) === String(n.id) ||
-        (cn.title === n.title && cn.message === n.message)
-      );
-      if (!alreadyExists) {
-        combinedNotifs.push(n);
-      }
-    }
+    // 4. Notifications from server
+    const serverNotifs = (notifRes?.notifications || []).filter(n => !isTestData(n));
 
-    return {
+    const result = {
       stats: {
-        pendingModeration: queue.length,
+        pendingModeration: serverQueue.length,
         liveListings: liveList.length,
         pendingDealers: pendingDealers.length,
         verifiedDealers: verifiedDealers.length,
         rejectedDealers: rejectedDealers.length
       },
-      moderationQueue: queue,
+      moderationQueue: serverQueue,
       dealerQueue: cleanDealers,
       adminListings: liveList,
-      notifications: combinedNotifs
+      notifications: serverNotifs
     };
+
+    adminDataCache = result;
+    adminDataCacheTime = Date.now();
+    return result;
   } catch (err) {
     console.warn('Admin portal fetch fallback to local store:', err?.message);
-    const defaultMod = (DEFAULT_ADMIN_DATA.moderationQueue || [])
-      .filter(item => !isTestData(item) && !resolvedModeration.includes(String(item.id)));
-    const defaultListings = (DEFAULT_ADMIN_DATA.adminListings || [])
-      .filter(item => !isTestData(item) && !deletedListingIds.includes(String(item.id)));
-    const defaultDealers = (DEFAULT_ADMIN_DATA.dealerQueue || [])
-      .filter(item => !isTestData(item));
+    let customListings = [];
+    try {
+      const raw = localStorage.getItem('binmar_custom_listings');
+      if (raw) customListings = JSON.parse(raw).filter(item => !isTestData(item));
+    } catch {}
 
-    const combinedQueueFallback = [...pendingCustom];
-    for (const dm of defaultMod) {
-      if (!combinedQueueFallback.some(cq => isSameVehicle(cq, dm))) {
-        combinedQueueFallback.push(dm);
-      }
-    }
-    const queue = [];
-    for (const item of combinedQueueFallback) {
-      if (!queue.some(q => isSameVehicle(q, item))) {
-        queue.push(item);
-      }
-    }
-    const combinedLiveFallback = [...approvedCustom];
-    for (const dl of defaultListings) {
-      if (!combinedLiveFallback.some(cl => isSameVehicle(cl, dl))) {
-        combinedLiveFallback.push(dl);
-      }
-    }
-    const liveList = [];
-    for (const item of combinedLiveFallback) {
-      if (!liveList.some(l => isSameVehicle(l, item))) {
-        liveList.push(item);
-      }
-    }
+    let customDealers = [];
+    try {
+      const rawD = localStorage.getItem('binmar_custom_dealers');
+      if (rawD) customDealers = JSON.parse(rawD).filter(d => !isTestData(d));
+    } catch {}
 
-    const combinedDealers = [...customDealers];
-    for (const dd of defaultDealers) {
-      if (!combinedDealers.some(cd => String(cd.id) === String(dd.id) || (cd.email && dd.email && cd.email.toLowerCase() === dd.email.toLowerCase()))) {
-        combinedDealers.push(dd);
-      }
-    }
+    const queue = customListings.filter(item => item.status === 'pending');
+    const liveList = customListings.filter(item => item.status === 'approved');
+    const pendingDealers = customDealers.filter(d => !d.status || d.status === 'pending');
+    const verifiedDealers = customDealers.filter(d => d.status === 'approved' || d.status === 'verified');
+    const rejectedDealers = customDealers.filter(d => d.status === 'rejected');
 
-    // Filter out permanently deleted sellers
-    const cleanDealers = combinedDealers.filter(d => {
-      const idStr = String(d.id || '').toLowerCase();
-      const emStr = (d.email || '').toLowerCase();
-      if (deletedDealers.includes(idStr) || (emStr && deletedDealers.includes(emStr))) return false;
-      return true;
-    });
-
-    const pendingDealers = cleanDealers.filter(d => !d.status || d.status === 'pending');
-    const verifiedDealers = cleanDealers.filter(d => d.status === 'approved' || d.status === 'verified');
-    const rejectedDealers = cleanDealers.filter(d => d.status === 'rejected');
+    let customNotifs = [];
+    try {
+      const rawN = localStorage.getItem('binmar_admin_notifications');
+      if (rawN) customNotifs = JSON.parse(rawN).filter(n => !isTestData(n));
+    } catch {}
 
     return {
       ...DEFAULT_ADMIN_DATA,
@@ -381,7 +169,7 @@ export async function fetchAdminPortalData() {
         rejectedDealers: rejectedDealers.length
       },
       moderationQueue: queue,
-      dealerQueue: cleanDealers,
+      dealerQueue: customDealers,
       adminListings: liveList,
       notifications: customNotifs
     };
@@ -520,6 +308,7 @@ export async function resolveModerationListing(id, approve, reason = '') {
       }).catch(e => console.warn(e));
     }
 
+    invalidateAdminCache();
     const res = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -527,6 +316,7 @@ export async function resolveModerationListing(id, approve, reason = '') {
     });
     return res;
   } catch {
+    invalidateAdminCache();
     return {
       success: true,
       message: `"${foundTitle}" has been ${approve ? 'approved and is now LIVE on public listings!' : 'rejected with remarks recorded.'}`
@@ -634,6 +424,7 @@ export async function resolveDealerApplication(id, verify) {
       }).catch(e => console.warn(e));
     }
 
+    invalidateAdminCache();
     const res = await apiRequest(`/api/admin/dealers/${id}/resolve`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -641,6 +432,7 @@ export async function resolveDealerApplication(id, verify) {
     });
     return res;
   } catch {
+    invalidateAdminCache();
     return {
       success: true,
       message: `Dealer "${dealerName}" ${verify ? 'verified successfully! Account is now active.' : 'application rejected.'}`
@@ -722,6 +514,8 @@ export async function deleteDealer(id) {
     console.warn('Local dealer deletion note:', e);
   }
 
+  invalidateAdminCache();
+
   // 5. Backend API call to permanently delete
   try {
     const res = await apiRequest(`/api/dealers/${encodeURIComponent(id)}`, {
@@ -766,6 +560,8 @@ export async function toggleDisableLiveListing(id, shouldDisable) {
     }
   } catch {}
 
+  invalidateAdminCache();
+
   try {
     return await apiRequest(`/api/admin/listings/${id}/disable`, {
       method: 'POST',
@@ -795,6 +591,8 @@ export async function deleteLiveListing(id) {
       localStorage.setItem('binmar_custom_listings', JSON.stringify(filtered));
     }
   } catch {}
+
+  invalidateAdminCache();
 
   try {
     return await apiRequest(`/api/admin/listings/${id}`, {

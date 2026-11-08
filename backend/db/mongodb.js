@@ -282,7 +282,16 @@ async function createListing(data) {
 async function updateListing(id, updates) {
   if (isConnected()) {
     try {
-      const doc = await Listing.findByIdAndUpdate(id, updates, { new: true }).lean();
+      let doc = null;
+      if (mongoose.isValidObjectId(id)) {
+        doc = await Listing.findByIdAndUpdate(id, updates, { new: true }).lean();
+      } else {
+        doc = await Listing.findOneAndUpdate(
+          { $or: [{ id: String(id) }, { _id: id }] },
+          updates,
+          { new: true }
+        ).lean();
+      }
       if (doc) {
         const result = { ...doc, id: doc._id.toString() };
         const idx = inMemoryListings.findIndex(l => String(l.id) === String(id) || String(l._id) === String(id));
@@ -307,7 +316,11 @@ async function updateListing(id, updates) {
 async function deleteListing(id) {
   if (isConnected()) {
     try {
-      await Listing.findByIdAndDelete(id);
+      if (mongoose.isValidObjectId(id)) {
+        await Listing.findByIdAndDelete(id);
+      } else {
+        await Listing.deleteOne({ $or: [{ id: String(id) }, { _id: id }] });
+      }
     } catch (e) {}
   }
   inMemoryListings = inMemoryListings.filter(l => String(l.id) !== String(id) && String(l._id) !== String(id));
@@ -371,17 +384,26 @@ async function upsertUser(email, data) {
 async function updateUser(id, updates) {
   if (isConnected()) {
     try {
-      const doc = await User.findByIdAndUpdate(id, updates, { new: true }).lean();
+      let doc = null;
+      if (mongoose.isValidObjectId(id)) {
+        doc = await User.findByIdAndUpdate(id, updates, { new: true }).lean();
+      } else {
+        doc = await User.findOneAndUpdate(
+          { $or: [{ id: String(id) }, { identity_id: String(id) }, { _id: id }] },
+          updates,
+          { new: true }
+        ).lean();
+      }
       if (doc) {
         const res = { ...doc, id: doc._id.toString() };
-        const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id));
+        const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id) || String(u.identity_id) === String(id));
         if (idx !== -1) inMemoryUsers[idx] = res;
         saveStoreToFile();
         return res;
       }
     } catch (e) {}
   }
-  const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id));
+  const idx = inMemoryUsers.findIndex(u => String(u.id) === String(id) || String(u._id) === String(id) || String(u.identity_id) === String(id));
   if (idx !== -1) {
     inMemoryUsers[idx] = { ...inMemoryUsers[idx], ...updates };
     saveStoreToFile();
@@ -393,10 +415,14 @@ async function updateUser(id, updates) {
 async function deleteUser(id) {
   if (isConnected()) {
     try {
-      await User.findByIdAndDelete(id);
+      if (mongoose.isValidObjectId(id)) {
+        await User.findByIdAndDelete(id);
+      } else {
+        await User.deleteOne({ $or: [{ id: String(id) }, { identity_id: String(id) }, { _id: id }] });
+      }
     } catch (e) {}
   }
-  inMemoryUsers = inMemoryUsers.filter(u => String(u.id) !== String(id) && String(u._id) !== String(id));
+  inMemoryUsers = inMemoryUsers.filter(u => String(u.id) !== String(id) && String(u._id) !== String(id) && String(u.identity_id) !== String(id));
   saveStoreToFile();
   return true;
 }
