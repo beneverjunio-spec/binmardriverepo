@@ -190,9 +190,9 @@ export default function RegistrationPage({
 
         // Send Real-Time Notifications to info@binmargroup.com and the newly registered seller
     sendAdminEmailNotification({
-      subject: `[BinmarDrive Action Required] New Seller Registration - Verification Needed (${displayName})`,
-      title: 'New Seller Awaiting Administrative Verification',
-      message: 'A new seller/dealer has registered on BinmarDrive and requires admin verification before they can post live vehicles:',
+      subject: 'New Seller Registration',
+      title: 'New Seller Registration',
+      message: 'A new seller has registered. Please review the registration and approve or reject the account.',
       details: {
         'Seller Full Name': displayName,
         'Account Type': regAccountType === 'company' ? 'Commercial Dealer' : 'Individual Seller',
@@ -208,9 +208,9 @@ export default function RegistrationPage({
 
     sendSellerEmailNotification({
       to: regEmail.trim(),
-      subject: '[BinmarDrive] Registration Received - Awaiting Verification',
+      subject: 'Registration Received — Welcome to BinmarDrive!',
       title: 'Welcome to BinmarDrive!',
-      message: `Hello ${displayName},\n\nThank you for registering as a seller on BinmarDrive. Your account has been received and is currently undergoing administrative verification.\n\nYou will receive an email confirmation as soon as your account is approved and activated by our team.`,
+      message: `Hello Seller,\n\nThank you for registering with BinmarDrive! Your registration is currently pending admin approval. You will be notified once your account has been approved.\n\nBest regards,\nBinmarDrive Team`,
       details: {
         'Seller Name': displayName,
         'Account Type': regAccountType === 'company' ? 'Commercial Dealer' : 'Individual Seller',

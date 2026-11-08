@@ -496,9 +496,9 @@ export default function SellerPortalPage({
             // Send notification emails for listing update
       const sellerMail = updatedItem.seller_email || (currentUser ? currentUser.email : '');
       sendAdminEmailNotification({
-        subject: `[BinmarDrive] Vehicle Listing Updated & Pending Verification: ${updatedItem.title}`,
-        title: 'Vehicle Listing Updated for Admin Verification',
-        message: 'A registered seller has updated vehicle details and resubmitted the listing for administrative moderation:',
+        subject: 'New Listing Submitted',
+        title: 'New Listing Submitted',
+        message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
         details: {
           'Vehicle Title': updatedItem.title,
           'Make & Model': `${updatedItem.make} ${updatedItem.model} (${updatedItem.year})`,
@@ -516,9 +516,9 @@ export default function SellerPortalPage({
       if (sellerMail) {
         sendSellerEmailNotification({
           to: sellerMail,
-          subject: `[BinmarDrive] Vehicle Listing Update Received: ${updatedItem.title}`,
-          title: 'Listing Updated Successfully',
-          message: `Hello ${updatedItem.seller_name || 'Seller'},\n\nYour changes to "${updatedItem.title}" have been saved and sent to the BinmarDrive moderation queue for verification.\n\nYou will be notified via email as soon as your updated vehicle listing is approved.`,
+          subject: 'Listing Submitted — Pending Approval',
+          title: 'Listing Submitted — Pending Approval',
+          message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
           details: {
             'Vehicle': updatedItem.title,
             'Price': `${updatedItem.currency || 'AED'} ${Number(updatedItem.price).toLocaleString()}`,
@@ -777,9 +777,9 @@ export default function SellerPortalPage({
         // Send notification emails for new vehicle submitted in Seller Studio
     const newSellerMail = newVehicle.seller_email || (currentUser ? currentUser.email : '');
     sendAdminEmailNotification({
-      subject: `[BinmarDrive Action Required] New Vehicle Listing Pending Moderation: ${newVehicle.title}`,
-      title: 'Vehicle Listing Submitted For Admin Approval',
-      message: 'A seller has posted a new vehicle listing awaiting administrative moderation before appearing live on the marketplace:',
+      subject: 'New Listing Submitted',
+      title: 'New Listing Submitted',
+      message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
       details: {
         'Vehicle Title': newVehicle.title,
         'Make & Model': `${newVehicle.make} ${newVehicle.model} (${newVehicle.year})`,
@@ -797,9 +797,9 @@ export default function SellerPortalPage({
     if (newSellerMail) {
       sendSellerEmailNotification({
         to: newSellerMail,
-        subject: `[BinmarDrive] Vehicle Listing Received - Moderation In Progress`,
-        title: 'Vehicle Listing Submitted for Approval',
-        message: `Hello ${newVehicle.seller_name},\n\nYour listing "${newVehicle.title}" has been successfully submitted and is currently in the BinmarDrive moderation queue.\n\nOur operations team will review your vehicle details and documents. You will receive an email notification as soon as your listing is approved and live on the marketplace.`,
+        subject: 'Listing Submitted — Pending Approval',
+        title: 'Listing Submitted — Pending Approval',
+        message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
         details: {
           'Vehicle Title': newVehicle.title,
           'Price': `${newVehicle.currency} ${Number(newVehicle.price).toLocaleString()}`,

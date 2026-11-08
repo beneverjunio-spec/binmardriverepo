@@ -489,9 +489,9 @@ export async function resolveModerationListing(id, approve, reason = '') {
 
     // Dispatch real-time email notifications
     sendAdminEmailNotification({
-      subject: `[BinmarDrive] Listing ${approve ? 'Approved & Published' : 'Rejected'}: ${foundTitle}`,
-      title: `Listing Moderation ${approve ? 'Approved' : 'Rejected'}`,
-      message: `Admin has ${approve ? 'approved and published' : 'rejected'} the listing "${foundTitle}".`,
+      subject: approve ? 'New Listing Submitted' : `Listing Rejected: ${foundTitle}`,
+      title: approve ? 'New Listing Submitted' : 'Listing Rejected',
+      message: approve ? 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.' : `The listing "${foundTitle}" has been rejected.`,
       details: {
         'Vehicle Title': foundTitle,
         'Seller Email': sellerEmail || 'N/A',
@@ -504,11 +504,12 @@ export async function resolveModerationListing(id, approve, reason = '') {
     if (sellerEmail) {
       sendSellerEmailNotification({
         to: sellerEmail,
-        subject: approve ? `[BinmarDrive] Your listing is now LIVE: ${foundTitle}` : `[BinmarDrive] Update on your listing: ${foundTitle}`,
-        title: approve ? 'Your Vehicle Listing is Live on BinmarDrive!' : 'Vehicle Listing Requires Revisions',
+        subject: approve ? 'Approved' : 'Rejected',
+        title: approve ? 'Listing Approved' : 'Listing Rejected',
         message: approve
-          ? `Congratulations! Your vehicle "${foundTitle}" has passed moderation and is now publicly visible to buyers and renters on BinmarDrive.`
-          : `Dear Seller,\n\nYour vehicle listing "${foundTitle}" was reviewed but could not be approved at this time.\nReason: ${reason || 'Details require revision'}.\n\nPlease log in to your Seller Studio to update and resubmit.`,
+          ? `Hello Seller,\n\nGood news! Your vehicle listing has been successfully approved and is now published on BinmarDrive.\n\nYour listing is now visible to potential buyers or renters.\n\nThank you for using BinmarDrive!\n\nBest regards,\nBinmarDrive Team`
+          : `Hello Seller,\n\nUnfortunately, your vehicle listing has not been approved by our admin team.\n\nReason: ${reason || 'Please contact info@binmargroup.com for details.'}
+\nPlease review the feedback and make the necessary corrections before resubmitting your listing.\n\nThank you for your understanding.\n\nBest regards,\nBinmarDrive Team`,
         details: {
           'Vehicle Title': foundTitle,
           'Status': approve ? 'Live on Marketplace' : 'Rejected / Needs Revision',
@@ -604,9 +605,9 @@ export async function resolveDealerApplication(id, verify) {
 
     // Dispatch real-time email notifications
     sendAdminEmailNotification({
-      subject: `[BinmarDrive] Seller Application ${verify ? 'Approved & Verified' : 'Rejected'}: ${dealerName}`,
-      title: `Seller Verification ${verify ? 'Approved' : 'Rejected'}`,
-      message: `Admin has ${verify ? 'verified and activated' : 'rejected'} the seller registration for ${dealerName}.`,
+      subject: verify ? 'New Seller Registration' : `Seller Registration Rejected: ${dealerName}`,
+      title: verify ? 'New Seller Registration' : 'Seller Registration Rejected',
+      message: verify ? 'A new seller has registered. Please review the registration and approve or reject the account.' : `The seller application from ${dealerName} has been rejected.`,
       details: {
         'Seller Name': dealerName,
         'Email Address': dealerEmail || 'N/A',
@@ -618,11 +619,11 @@ export async function resolveDealerApplication(id, verify) {
     if (dealerEmail) {
       sendSellerEmailNotification({
         to: dealerEmail,
-        subject: verify ? '[BinmarDrive] Congratulations! Your Seller Account is Verified' : '[BinmarDrive] Update on Your Seller Registration',
-        title: verify ? 'Your Seller Account is Now Active!' : 'Seller Application Status',
+        subject: verify ? 'Seller Account Approved' : 'Seller Account Not Approved',
+        title: verify ? 'Seller Account Approved' : 'Seller Application Not Approved',
         message: verify
-          ? `Great news, ${dealerName}! Your seller account has been approved and verified by BinmarDrive. You can now log in to Seller Studio and post your vehicles live on the marketplace.`
-          : `Dear ${dealerName},\n\nThank you for your interest in BinmarDrive. Unfortunately, your seller application was not approved at this time. If you believe this was an error, please reply to this email or contact info@binmargroup.com.`,
+          ? 'Hello Seller,\n\nCongratulations! Your registration has been successfully approved by the admin.\n\nYou can now access your BinmarDrive account and start submitting your vehicle listings for rent or sale.\n\nThank you for joining us!\n\nBest regards,\nBinmarDrive Team'
+          : 'Hello Seller,\n\nThank you for registering with BinmarDrive. Unfortunately, your seller account application was not approved at this time.\n\nPlease contact us at info@binmargroup.com for further assistance.\n\nBest regards,\nBinmarDrive Team',
         details: {
           'Seller': dealerName,
           'Account Status': verify ? 'Verified & Active' : 'Not Approved',

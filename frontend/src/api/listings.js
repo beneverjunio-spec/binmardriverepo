@@ -321,9 +321,9 @@ export async function createListing(payload) {
 
     // Send Real-Time Notification Emails to info@binmargroup.com and Seller
   sendAdminEmailNotification({
-    subject: `[BinmarDrive Action Required] New Vehicle Listing Pending Moderation: ${newListing.title}`,
-    title: 'Vehicle Listing Submitted For Admin Approval',
-    message: 'A seller has posted a new vehicle listing awaiting administrative moderation before appearing live on the marketplace:',
+    subject: 'New Listing Submitted',
+    title: 'New Listing Submitted',
+    message: 'A seller has submitted a new vehicle listing. Please review and approve or reject the listing.',
     details: {
       'Vehicle Title': newListing.title,
       'Make & Model': `${newListing.make} ${newListing.model} (${newListing.year})`,
@@ -341,9 +341,9 @@ export async function createListing(payload) {
   if (newListing.seller_email) {
     sendSellerEmailNotification({
       to: newListing.seller_email,
-      subject: `[BinmarDrive] Vehicle Listing Received - Moderation In Progress`,
-      title: 'Vehicle Listing Submitted for Approval',
-      message: `Hello ${newListing.seller_name},\n\nYour listing "${newListing.title}" has been successfully submitted and is currently in the BinmarDrive moderation queue.\n\nOur operations team will review your vehicle details and documents. You will receive an email notification as soon as your listing is approved and live on the marketplace.`,
+      subject: 'Listing Submitted — Pending Approval',
+      title: 'Listing Submitted — Pending Approval',
+      message: `Hello Seller,\n\nThank you for submitting your vehicle listing to BinmarDrive.\n\nYour listing has been successfully submitted and is currently pending admin review. You will be notified once it has been approved or rejected.\n\nBest regards,\nBinmarDrive Team`,
       details: {
         'Vehicle Title': newListing.title,
         'Price': `${newListing.currency} ${Number(newListing.price).toLocaleString()}`,
