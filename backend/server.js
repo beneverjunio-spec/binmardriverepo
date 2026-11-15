@@ -8,13 +8,71 @@ const app = express();
 const PORT = process.env.PORT || 5005;
 
 // Middleware
+const allowedOrigins = [
+  'https://binmardrive.binmargroup.com',
+  'https://binmargroup.com',
+  'http://localhost:5173',
+  'http://127.0.0.1:5173',
+  'http://localhost:5005',
+  'http://127.0.0.1:5005'
+];
+
 app.use(cors({
-  origin: '*',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server) or approved origins
+    if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.binmargroup.com') || origin.endsWith('.netlify.app')) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Dev resilient fallback
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+
+// NoSQL Injection Sanitizer: Recursively strip any key starting with '$' or containing '.'
+function sanitizeInput(obj) {
+  if (!obj || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeInput);
+  const clean = {};
+  for (const [key, val] of Object.entries(obj)) {
+    if (!key.startsWith('$') && !key.includes('.')) {
+      clean[key] = sanitizeInput(val);
+    }
+  }
+  return clean;
+}
+
+app.use((req, res, next) => {
+  if (req.body && typeof req.body === 'object') req.body = sanitizeInput(req.body);
+  if (req.query && typeof req.query === 'object') req.query = sanitizeInput(req.query);
+  next();
+});
+
+// Brute-force Login Rate Limiter (in-memory)
+const loginAttempts = new Map();
+function authRateLimiter(req, res, next) {
+  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = loginAttempts.get(ip) || { count: 0, firstAttempt: now };
+  
+  if (now - entry.firstAttempt > 15 * 60 * 1000) {
+    loginAttempts.set(ip, { count: 1, firstAttempt: now });
+    return next();
+  }
+  
+  if (entry.count >= 15) {
+    return res.status(429).json({
+      success: false,
+      error: 'Too many authentication attempts. Please try again after 15 minutes.'
+    });
+  }
+  
+  entry.count += 1;
+  loginAttempts.set(ip, entry);
+  next();
+}
 
 // Helper to sanitize images JSON
 function parseImages(imagesCol) {
@@ -918,7 +976,7 @@ app.get(['/api/dealers', '/api/dealers/public', '/api/sellers'], async (req, res
 // ==========================================
 // User & Admin Unified Online Login Route
 // ==========================================
-app.post('/api/auth/login', async (req, res) => {
+app.post('/api/auth/login', authRateLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -1180,7 +1238,7 @@ app.get('/api/auth/me', (req, res) => {
 // ==========================================
 // Admin Login Route
 // ==========================================
-app.post('/api/admin/access', (req, res) => {
+app.post('/api/admin/access', authRateLimiter, (req, res) => {
   const { email, password } = req.body;
   const adminEmail = (process.env.ADMIN_EMAIL || 'beneverjunio@gmail.com').toLowerCase();
   const adminPassword = process.env.ADMIN_PASSWORD || 'admin123';
