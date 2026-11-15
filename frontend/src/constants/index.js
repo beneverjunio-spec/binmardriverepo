@@ -343,6 +343,7 @@ export const DEFAULT_ADMIN_DATA = {
       id: 3,
       name: 'Benever Junio',
       email: 'beneverjunio@gmail.com',
+      password: '12345678',
       role: 'Super Admin',
       department: 'Operations',
       country: 'United Arab Emirates',
