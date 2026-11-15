@@ -2,7 +2,7 @@ import { randomUUID, scryptSync, timingSafeEqual } from 'node:crypto';
 import { admin, getUser, type User } from '@netlify/identity';
 import { getStore } from '@netlify/blobs';
 import type { Config } from '@netlify/functions';
-import { generateVehicleSlug, extractListingIdFromSlug, generateVehicleSchema, getVehicleCanonicalUrl } from '../utils/seo.js';
+import { generateVehicleSlug, extractListingIdFromSlug, generateVehicleSchema, getVehicleCanonicalUrl, generateSellerSlug } from '../utils/seo.js';
 
 function reply(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { 'Cache-Control': 'no-store' } });
@@ -643,6 +643,17 @@ export default async (request: Request) => {
         xml += '  <url>\n    <loc>' + canonicalUrl + '</loc>\n    <lastmod>' + lastmod + '</lastmod>\n    <changefreq>' + changefreq + '</changefreq>\n    <priority>' + priority + '</priority>\n  </url>\n';
       }
 
+      // Include unique seller slug pages in sitemap
+      const sellerSlugs = new Set<string>();
+      for (const listing of approvedListings) {
+        const sSlug = generateSellerSlug(listing.seller_name);
+        if (sSlug) sellerSlugs.add(sSlug);
+      }
+      for (const sSlug of sellerSlugs) {
+        const sUrl = `https://binmardrive.binmargroup.com/seller/${sSlug}`;
+        xml += '  <url>\n    <loc>' + sUrl + '</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.7</priority>\n  </url>\n';
+      }
+
       xml += '</urlset>';
 
       return new Response(xml, {
@@ -676,12 +687,21 @@ export default async (request: Request) => {
       const seller = url.searchParams.get('seller');
       if (seller) {
         const s = seller.trim().toLowerCase();
-        filtered = filtered.filter(l =>
-          (l.seller_name || '').toLowerCase() === s ||
-          (l.seller_name || '').toLowerCase().includes(s) ||
-          (l.seller_email || '').toLowerCase() === s ||
-          s.includes((l.seller_name || '').toLowerCase())
-        );
+        const sUnslug = s.replace(/-/g, ' ');
+        filtered = filtered.filter(l => {
+          const sName = (l.seller_name || '').toLowerCase();
+          const sEmail = (l.seller_email || '').toLowerCase();
+          const sSlug = generateSellerSlug(l.seller_name);
+          return (
+            sSlug === s ||
+            sName === s ||
+            sName === sUnslug ||
+            sName.includes(s) ||
+            sName.includes(sUnslug) ||
+            sEmail === s ||
+            s.includes(sName)
+          );
+        });
       }
 
       const maxPrice = url.searchParams.get('maxPrice');

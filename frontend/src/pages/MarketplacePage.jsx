@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
+import { Share2, ExternalLink, ShieldCheck, Building2, Check } from 'lucide-react';
 import HeroSection from '../components/marketplace/HeroSection';
 import TrustBanner from '../components/marketplace/TrustBanner';
 import CategoryStrip from '../components/marketplace/CategoryStrip';
 import ListingCard from '../components/marketplace/ListingCard';
+import GooglePlayBadge from '../components/common/GooglePlayBadge';
 import { useLanguage } from '../context/LanguageContext';
+import { generateSellerSlug, getSellerUrl } from '../utils/seo';
 
 export default function MarketplacePage({
   listings,
@@ -26,6 +29,7 @@ export default function MarketplacePage({
   onPostListingClick
 }) {
   const { t } = useLanguage();
+  const [copiedSellerLink, setCopiedSellerLink] = useState(false);
 
   // Combine registered sellers and active listing sellers to ensure comprehensive filter options
   const sellerOptions = useMemo(() => {
@@ -132,9 +136,73 @@ export default function MarketplacePage({
 
       {/* Vehicle Browse Grid */}
       <div className="browse" id="browse">
+        {/* Active Seller Showroom SEO Showcase Banner */}
+        {selectedSeller && (
+          <div className="seller-showcase-banner">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '16px', position: 'relative', zIndex: 1 }}>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                  <span style={{
+                    fontSize: '0.74rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.08em',
+                    color: 'var(--gold-bright)',
+                    fontWeight: 800,
+                    background: 'rgba(212, 175, 55, 0.2)',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    border: '1px solid rgba(212, 175, 55, 0.45)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px'
+                  }}>
+                    <ShieldCheck size={13} />
+                    {t('seller_canonical_label') || 'Verified Seller Showroom'}
+                  </span>
+                  <span style={{ fontSize: '0.82rem', color: '#cbd5e1', fontWeight: 600 }}>
+                    /seller/{generateSellerSlug(selectedSeller)}
+                  </span>
+                </div>
+                <h1 style={{ fontSize: '2rem', fontWeight: 800, margin: '4px 0 8px 0', color: '#ffffff', fontFamily: "'Fraunces', serif" }}>
+                  {selectedSeller}
+                </h1>
+                <p style={{ margin: 0, fontSize: '0.88rem', color: '#cbd5e1' }}>
+                  {t('showing_verified', { count: listings.length })}
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const fullUrl = `${window.location.origin}${getSellerUrl(selectedSeller)}`;
+                    navigator.clipboard?.writeText(fullUrl);
+                    setCopiedSellerLink(true);
+                    setTimeout(() => setCopiedSellerLink(false), 2500);
+                  }}
+                  className="btn-outline-gold"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '0.84rem' }}
+                >
+                  {copiedSellerLink ? <Check size={14} /> : <Share2 size={14} />}
+                  <span>{copiedSellerLink ? (t('seller_link_copied') || 'Copied!') : (t('seller_copy_link') || 'Copy Showroom Link')}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedSeller('')}
+                  className="btn-gold"
+                  style={{ fontSize: '0.84rem' }}
+                >
+                  {t('seller_show_all') || 'View All Vehicles'} &times;
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="browse-head">
           <div>
-            <h2>{t('browse_title')}</h2>
+            <h2>{selectedSeller ? `${selectedSeller} — ${t('seller_showroom_title') || 'Showroom Inventory'}` : t('browse_title')}</h2>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <p style={{ margin: 0 }}>{t('showing_verified', { count: listings.length })}</p>
               {selectedSeller && (
@@ -182,6 +250,7 @@ export default function MarketplacePage({
                 listing={listing}
                 index={index}
                 onSelect={onSelectListing}
+                onSelectSeller={setSelectedSeller}
               />
             ))
           ) : (
@@ -191,15 +260,26 @@ export default function MarketplacePage({
                 {t('no_listings_title')}
               </h3>
               <p style={{ color: 'var(--ink-soft)', maxWidth: '420px', margin: '0 auto 1.5rem', fontSize: '0.92rem', lineHeight: '1.5' }}>
-                {selectedMake || selectedCountry || selectedType || selectedCategory || maxPrice
+                {selectedMake || selectedCountry || selectedType || selectedCategory || maxPrice || selectedSeller
                   ? (t('no_listings_desc'))
                   : (t('no_listings_desc'))}
               </p>
-              <button className="btn-gold" onClick={onPostListingClick}>
-                {t('nav_post_listing')}
-              </button>
+              {selectedSeller ? (
+                <button className="btn-gold" onClick={() => setSelectedSeller('')}>
+                  {t('seller_show_all') || 'View All Vehicles'}
+                </button>
+              ) : (
+                <button className="btn-gold" onClick={onPostListingClick}>
+                  {t('nav_post_listing')}
+                </button>
+              )}
             </div>
           )}
+        </div>
+
+        {/* Google Play Store Promotion on Marketplace & Seller Pages */}
+        <div style={{ marginTop: '3.5rem' }}>
+          <GooglePlayBadge variant="promo" />
         </div>
       </div>
     </div>

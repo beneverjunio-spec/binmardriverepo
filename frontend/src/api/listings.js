@@ -2,7 +2,7 @@ import { sendAdminEmailNotification, sendSellerEmailNotification } from './email
 import { apiRequest } from './client';
 import { DEFAULT_LISTINGS } from '../constants';
 import { isSameVehicle } from './admin';
-import { generateVehicleSlug, extractListingIdFromSlug } from '../utils/seo';
+import { generateVehicleSlug, extractListingIdFromSlug, generateSellerSlug } from '../utils/seo';
 
 const MAKE_FALLBACK_IMAGES = {
   Toyota: 'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80',
@@ -169,10 +169,20 @@ export async function fetchPublicListings(filters = {}) {
   }
   if (filters.seller) {
     const s = filters.seller.trim().toLowerCase();
+    const sUnslug = s.replace(/-/g, ' ');
     filtered = filtered.filter(item => {
       const sellerName = (item.seller_name || '').toLowerCase();
       const sellerEmail = (item.seller_email || '').toLowerCase();
-      return sellerName === s || sellerName.includes(s) || s.includes(sellerName) || sellerEmail === s;
+      const sellerSlug = generateSellerSlug(item.seller_name || '');
+      return (
+        sellerSlug === s ||
+        sellerName === s ||
+        sellerName === sUnslug ||
+        sellerName.includes(s) ||
+        sellerName.includes(sUnslug) ||
+        s.includes(sellerName) ||
+        sellerEmail === s
+      );
     });
   }
   if (filters.maxPrice && Number(filters.maxPrice) > 0) {

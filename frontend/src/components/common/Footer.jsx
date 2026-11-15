@@ -1,4 +1,5 @@
 import React from 'react';
+import GooglePlayBadge from './GooglePlayBadge';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function Footer({
@@ -66,6 +67,13 @@ export default function Footer({
             <a>{tCountry('Kuwait')}</a>
             <a>{tCountry('Bahrain')}</a>
             <a>{tCountry('Oman')}</a>
+          </div>
+          <div className="footer-col" style={{ maxWidth: '240px' }}>
+            <h4>{t('app_footer_title')}</h4>
+            <p style={{ fontSize: '0.82rem', color: 'var(--sage)', lineHeight: 1.5, margin: '0 0 12px 0' }}>
+              {t('app_footer_desc')}
+            </p>
+            <GooglePlayBadge variant="badge" />
           </div>
         </div>
       </div>

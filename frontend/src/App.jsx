@@ -24,12 +24,14 @@ import SellerPortalPage from './pages/SellerPortalPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfUsePage from './pages/TermsOfUsePage';
 import VehicleDetailPage from './pages/VehicleDetailPage';
-import { getVehicleUrl, extractListingIdFromSlug } from './utils/seo';
+import { getVehicleUrl, extractListingIdFromSlug, generateSellerSlug, getSellerUrl, extractSellerSlugFromPath } from './utils/seo';
 
 function getInitialPage() {
   try {
     const path = (window.location.pathname || '').toLowerCase();
     if (path.startsWith('/car/') || path === '/car') return 'vehicle-detail';
+    const sellerSlug = extractSellerSlugFromPath(path);
+    if (sellerSlug) return 'marketplace';
     if (path.includes('seller') || path.includes('studio')) return 'seller';
     if (path.includes('admin-login')) return 'admin-login';
     if (path.includes('admin')) return 'admin';
@@ -43,6 +45,15 @@ function getInitialPage() {
     if (path.includes('terms-of-use')) return 'terms-of-use';
   } catch {}
   return 'marketplace';
+}
+
+function getInitialSeller() {
+  try {
+    const path = window.location.pathname || '';
+    const slug = extractSellerSlugFromPath(path);
+    if (slug) return slug;
+  } catch {}
+  return '';
 }
 
 function getSavedUser() {
@@ -103,7 +114,7 @@ export default function App() {
   const [selectedMake, setSelectedMake] = useState('');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedType, setSelectedType] = useState('');
-  const [selectedSeller, setSelectedSeller] = useState('');
+  const [selectedSeller, setSelectedSeller] = useState(getInitialSeller);
   const [registeredSellers, setRegisteredSellers] = useState([]);
   const [maxPrice, setMaxPrice] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
@@ -246,6 +257,23 @@ export default function App() {
     }
   }, [currentPage, currentUser]);
 
+  // Match direct landing on /seller/{slug} with proper display name once sellers or listings load
+  useEffect(() => {
+    const path = window.location.pathname || '';
+    const slug = extractSellerSlugFromPath(path);
+    if (slug) {
+      const allCandidates = [
+        ...registeredSellers.map(s => s.company_name || s.name),
+        ...listings.map(l => l.seller_name || l.seller)
+      ].filter(Boolean);
+
+      const matched = allCandidates.find(name => generateSellerSlug(name) === slug);
+      if (matched && matched !== selectedSeller) {
+        setSelectedSeller(matched);
+      }
+    }
+  }, [registeredSellers, listings]);
+
   // Synchronize browser URL bar and scroll position
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'instant' });
@@ -269,6 +297,11 @@ export default function App() {
         if (window.location.pathname !== vehicleUrl) {
           window.history.pushState({ page: 'vehicle-detail', listingId: selectedListing.id }, '', vehicleUrl);
         }
+      } else if (currentPage === 'marketplace' && selectedSeller) {
+        const sellerUrl = getSellerUrl(selectedSeller);
+        if (window.location.pathname !== sellerUrl) {
+          window.history.pushState({ page: 'marketplace', seller: selectedSeller }, '', sellerUrl);
+        }
       } else {
         const targetPath = pageToPath[currentPage] || '/';
         if (window.location.pathname !== targetPath) {
@@ -276,7 +309,7 @@ export default function App() {
         }
       }
     } catch {}
-  }, [currentPage]);
+  }, [currentPage, selectedSeller, selectedListing]);
 
   // Handle browser back / forward navigation
   useEffect(() => {
@@ -292,8 +325,16 @@ export default function App() {
           }
         });
       } else {
-        setSelectedListing(null);
-        setCurrentPage(getInitialPage());
+        const sellerSlug = extractSellerSlugFromPath(path);
+        if (sellerSlug) {
+          setSelectedListing(null);
+          setSelectedSeller(sellerSlug);
+          setCurrentPage('marketplace');
+        } else {
+          setSelectedListing(null);
+          setSelectedSeller('');
+          setCurrentPage(getInitialPage());
+        }
       }
     };
     window.addEventListener('popstate', handlePopState);
@@ -407,6 +448,12 @@ export default function App() {
             isLoading={loadingListing}
             onBack={handleBackToMarketplace}
             onPostListingClick={handlePostListingClick}
+            onSelectSeller={(sellerName) => {
+              setSelectedListing(null);
+              setShowListingModal(false);
+              setSelectedSeller(sellerName);
+              setCurrentPage('marketplace');
+            }}
           />
         )}
 
@@ -551,6 +598,12 @@ export default function App() {
         <ListingDetailModal
           listing={selectedListing}
           onClose={handleCloseModal}
+          onSelectSeller={(sellerName) => {
+            handleCloseModal();
+            setSelectedListing(null);
+            setSelectedSeller(sellerName);
+            setCurrentPage('marketplace');
+          }}
         />
       )}
 

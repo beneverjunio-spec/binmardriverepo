@@ -45,6 +45,49 @@ export function slugifySegment(text: string): string {
 }
 
 /**
+ * Automatically generates a unique, SEO-friendly slug for a seller based on their name.
+ * Format: /seller/{seller-slug}
+ * Example: "ABC Motors" -> "abc-motors", "John Cars" -> "john-cars"
+ */
+export function generateSellerSlug(seller: string | { name?: string; company_name?: string; seller_name?: string; seller?: string; slug?: string } | null | undefined): string {
+  if (!seller) return '';
+  if (typeof seller === 'object' && seller.slug) return seller.slug;
+  const raw = typeof seller === 'string'
+    ? seller
+    : (seller.company_name || seller.name || seller.seller_name || seller.seller || '');
+  return slugifySegment(raw);
+}
+
+/**
+ * Returns the public canonical URL path for a seller: /seller/{seller-slug}
+ */
+export function getSellerUrl(seller: string | { name?: string; company_name?: string; seller_name?: string; seller?: string; slug?: string } | null | undefined): string {
+  const slug = generateSellerSlug(seller);
+  return slug ? `/seller/${slug}` : '/';
+}
+
+/**
+ * Returns the absolute canonical URL for a seller
+ */
+export function getSellerCanonicalUrl(seller: string | { name?: string; company_name?: string; seller_name?: string; seller?: string; slug?: string } | null | undefined, baseUrl = 'https://binmardrive.binmargroup.com'): string {
+  const path = getSellerUrl(seller);
+  return `${baseUrl.replace(/\/$/, '')}${path}`;
+}
+
+/**
+ * Extracts the seller slug from a path like /seller/abc-motors or /seller/abc-motors/
+ */
+export function extractSellerSlugFromPath(path: string): string | null {
+  if (!path) return null;
+  const clean = path.toLowerCase().trim().split('?')[0].split('#')[0];
+  const match = clean.match(/^\/seller\/([a-z0-9_-]+)\/?$/i);
+  if (!match || !match[1]) return null;
+  const slug = match[1].toLowerCase().trim();
+  if (slug === 'studio' || slug === 'login' || slug === 'register') return null;
+  return slug;
+}
+
+/**
  * Automatically generates a unique, SEO-friendly slug for a vehicle.
  * Pattern: {make}-{model}-{year}-{location}-{id}
  * Example: toyota-land-cruiser-2022-abu-dhabi-12345

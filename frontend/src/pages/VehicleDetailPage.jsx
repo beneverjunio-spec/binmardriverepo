@@ -21,8 +21,9 @@ import {
 } from 'lucide-react';
 import { CARD_GRADIENTS } from '../constants';
 import { WhatsAppIcon, getWhatsAppUrl, openGoogleMaps } from '../components/common/WhatsAppIcon';
+import GooglePlayBadge from '../components/common/GooglePlayBadge';
 import { useLanguage } from '../context/LanguageContext';
-import { getVehicleUrl, getVehicleCanonicalUrl, generateVehicleSlug } from '../utils/seo';
+import { getVehicleUrl, getVehicleCanonicalUrl, generateVehicleSlug, getSellerUrl } from '../utils/seo';
 
 // Branded SVGs for Social Sharing
 const FacebookIcon = ({ size = 16 }) => (
@@ -50,6 +51,7 @@ export default function VehicleDetailPage({
   isLoading = false,
   onBack,
   onSelectMake,
+  onSelectSeller,
   notify
 }) {
   const { t, isRTL } = useLanguage();
@@ -888,9 +890,24 @@ export default function VehicleDetailPage({
                 {isCompany ? <Building2 size={22} /> : <User size={22} />}
               </div>
               <div>
-                <div style={{ fontWeight: 800, color: '#12281F', fontSize: '1.08rem' }}>
-                  {listing.seller_name || listing.seller || 'Verified Dealer'}
-                </div>
+                <a
+                  href={getSellerUrl(listing.seller_name || listing.seller)}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    if (onSelectSeller) onSelectSeller(listing.seller_name || listing.seller);
+                  }}
+                  className="card-seller-link"
+                  style={{
+                    fontWeight: 800,
+                    color: '#12281F',
+                    fontSize: '1.08rem',
+                    textDecoration: 'none',
+                    display: 'inline-block'
+                  }}
+                  title={`View all listings by ${listing.seller_name || listing.seller}`}
+                >
+                  {listing.seller_name || listing.seller || 'Verified Dealer'} ↗
+                </a>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', flexWrap: 'wrap' }}>
                   <span style={{
                     fontSize: '0.72rem',
@@ -972,6 +989,30 @@ export default function VehicleDetailPage({
                 <span>Call {contactNumber}</span>
               </a>
             </div>
+          </div>
+
+          {/* Download App Promotion Card */}
+          <div
+            style={{
+              background: 'linear-gradient(135deg, #071e16 0%, #0d3829 100%)',
+              border: '1px solid rgba(212, 175, 55, 0.35)',
+              borderRadius: '14px',
+              padding: '16px 18px',
+              marginTop: '16px',
+              color: '#ffffff',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+            }}
+          >
+            <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gold-bright)', fontWeight: 700 }}>
+              {t('app_download_title')}
+            </div>
+            <div style={{ fontSize: '0.94rem', fontWeight: 800, marginTop: '2px', color: '#ffffff' }}>
+              {t('app_promo_title')}
+            </div>
+            <p style={{ margin: '4px 0 12px 0', fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.4 }}>
+              {t('app_promo_desc')}
+            </p>
+            <GooglePlayBadge variant="badge" />
           </div>
         </div>
       </div>

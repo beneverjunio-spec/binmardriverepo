@@ -3674,4 +3674,87 @@ tr:last-child td {
   margin-right: 0;
 }
 
+/* ==========================================
+   Google Play Store & App Download Styles
+   ========================================== */
+.btn-google-play-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.48rem 0.85rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(228, 195, 116, 0.45);
+  color: #ffffff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.btn-google-play-header:hover {
+  background: rgba(0, 0, 0, 0.7);
+  border-color: var(--gold-bright);
+  transform: translateY(-1px);
+  color: var(--gold-bright);
+}
+
+@media (max-width: 640px) {
+  .btn-google-play-header span {
+    font-size: 0.75rem;
+  }
+  .btn-google-play-header {
+    padding: 0.4rem 0.65rem;
+  }
+}
+
+.google-play-badge:hover {
+  border-color: rgba(228, 195, 116, 0.6) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45) !important;
+}
+
+/* ==========================================
+   Seller Showroom & SEO Slug Showcase Banner
+   ========================================== */
+.seller-showcase-banner {
+  background: linear-gradient(135deg, #09261c 0%, #103b2c 60%, #164f3c 100%);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  border-radius: 16px;
+  padding: 1.6rem 2rem;
+  margin-bottom: 2rem;
+  color: #ffffff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  position: relative;
+  overflow: hidden;
+}
+
+.seller-showcase-banner::after {
+  content: '';
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(228, 195, 116, 0.15) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.card-seller-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.card-seller-link:hover {
+  color: var(--gold-bright);
+  text-decoration: underline;
+}
+
+
 

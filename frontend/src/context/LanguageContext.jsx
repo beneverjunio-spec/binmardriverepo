@@ -399,6 +399,24 @@ export const translations = {
     notif_vehicle_sold_title: 'Vehicle Marked as Sold',
     notif_vehicle_rented_title: 'Vehicle Marked as Rented',
 
+    // Google Play Store & App Download
+    app_download_title: 'Download BinmarDrive App',
+    app_get_the_app: 'Get the App',
+    app_get_on_play: 'Get It on Google Play',
+    app_get_on_play_sub: 'GET IT ON',
+    app_footer_title: 'Download Our Mobile App',
+    app_footer_desc: 'Browse verified cars across the GCC, chat directly on WhatsApp, and post listings directly from your phone.',
+    app_promo_title: 'BinmarDrive on Google Play',
+    app_promo_desc: 'Get the official Android application on Google Play for instant vehicle alerts, faster browsing, and seamless direct contact with sellers.',
+
+    // Seller Showroom & SEO URL Slug
+    seller_show_all: 'Show All Vehicles',
+    seller_showroom_title: 'Seller Showroom & Inventory',
+    seller_canonical_label: 'Official Seller Showroom',
+    seller_copy_link: 'Copy Showroom Link',
+    seller_link_copied: 'Seller showroom link copied to clipboard!',
+    seller_view_showroom: 'View Seller Showroom',
+
     lang_current: 'English'
   },
 
@@ -797,6 +815,24 @@ export const translations = {
     marketplace_rented_out: 'هذه المركبة مؤجرة حالياً',
     notif_vehicle_sold_title: 'تم تحديد المركبة كـ مباعة',
     notif_vehicle_rented_title: 'تم تحديد المركبة كـ مؤجرة',
+
+    // Google Play Store & App Download
+    app_download_title: 'تحميل تطبيق بنمار درايف',
+    app_get_the_app: 'حمّل التطبيق',
+    app_get_on_play: 'احصل عليه من Google Play',
+    app_get_on_play_sub: 'احصل عليه من',
+    app_footer_title: 'حمّل تطبيقنا للهواتف المحمولة',
+    app_footer_desc: 'تصفح السيارات الموثقة في دول الخليج، وتواصل مباشرة عبر واتساب، وأضف إعلاناتك بسهولة من هاتفك.',
+    app_promo_title: 'بنمار درايف على Google Play',
+    app_promo_desc: 'احصل على تطبيق الأندرويد الرسمي من متجر Google Play لتنبيهات فورية وتصفح أسرع وتواصل مباشر مع البائعين.',
+
+    // Seller Showroom & SEO URL Slug
+    seller_show_all: 'عرض جميع المركبات',
+    seller_showroom_title: 'معرض ومركبات البائع',
+    seller_canonical_label: 'صفحة المعرض الموثق',
+    seller_copy_link: 'نسخ رابط المعرض',
+    seller_link_copied: 'تم نسخ رابط المعرض إلى الحافظة!',
+    seller_view_showroom: 'عرض معرض البائع',
 
     lang_current: 'العربية'
   }

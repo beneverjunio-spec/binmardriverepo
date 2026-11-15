@@ -395,6 +395,14 @@ function extractListingId(slug) {
   return segs[segs.length - 1] || cleaned;
 }
 
+function generateSellerSlug(seller) {
+  if (!seller) return '';
+  const raw = typeof seller === 'string'
+    ? seller
+    : (seller.company_name || seller.name || seller.seller_name || seller.seller || '');
+  return slugifySegment(raw);
+}
+
 app.get('/sitemap.xml', async (req, res) => {
   try {
     let listings = [];
@@ -410,11 +418,21 @@ app.get('/sitemap.xml', async (req, res) => {
     xml += '  <url><loc>https://binmardrive.binmargroup.com/how-it-works</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/contact</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
 
+    const sellerSlugs = new Set();
     listings.forEach(l => {
       const slug = generateVehicleSlug(l);
       const loc = 'https://binmardrive.binmargroup.com/car/' + slug + '/';
       xml += '  <url><loc>' + loc + '</loc><lastmod>' + today + '</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>\n';
+
+      const sSlug = generateSellerSlug(l.seller_name || l.company_name);
+      if (sSlug) sellerSlugs.add(sSlug);
     });
+
+    sellerSlugs.forEach(sSlug => {
+      const sLoc = 'https://binmardrive.binmargroup.com/seller/' + sSlug;
+      xml += '  <url><loc>' + sLoc + '</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>\n';
+    });
+
     xml += '</urlset>';
 
     res.header('Content-Type', 'application/xml; charset=utf-8');
@@ -451,11 +469,16 @@ app.get('/api/listings', async (req, res) => {
       if (type) filter.listing_type = new RegExp(`^${type.trim()}$`, 'i');
       if (category) filter.category = new RegExp(`^${category.trim()}$`, 'i');
       if (seller) {
-        const sRegex = new RegExp(seller.trim(), 'i');
+        const clean = seller.trim();
+        const unslug = clean.replace(/-/g, ' ');
+        const regexPattern = clean.replace(/-/g, '[-\\s]');
+        const sRegex = new RegExp(regexPattern, 'i');
         filter.$or = [
           { seller_name: sRegex },
-          { seller_email: sRegex },
-          { company_name: sRegex }
+          { seller_email: new RegExp(`^${clean}$`, 'i') },
+          { company_name: sRegex },
+          { seller_name: new RegExp(unslug, 'i') },
+          { company_name: new RegExp(unslug, 'i') }
         ];
       }
       if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {

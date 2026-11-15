@@ -2,7 +2,9 @@ import React, { useState } from 'react';
 import { X, MapPin, Phone, Link2, Check, Share2 } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, getWhatsAppUrl, openGoogleMaps } from '../common/WhatsAppIcon';
+import GooglePlayBadge from '../common/GooglePlayBadge';
 import { useLanguage } from '../../context/LanguageContext';
+import { getSellerUrl } from '../../utils/seo';
 
 // Branded SVGs for Social Media
 const FacebookIcon = ({ size = 16 }) => (
@@ -25,7 +27,7 @@ const TikTokIcon = ({ size = 16 }) => (
   </svg>
 );
 
-export default function ListingDetailModal({ listing, onClose }) {
+export default function ListingDetailModal({ listing, onClose, onSelectSeller }) {
   const [modalImageIndex, setModalImageIndex] = useState(0);
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
@@ -339,7 +341,21 @@ export default function ListingDetailModal({ listing, onClose }) {
           {/* Seller Contact Card */}
           <div className="modal-seller">
             <div>
-              <div className="modal-seller-name">{listing.seller_name || listing.seller}</div>
+              <a
+                href={getSellerUrl(listing.seller_name || listing.seller)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  if (onSelectSeller) {
+                    onClose();
+                    onSelectSeller(listing.seller_name || listing.seller);
+                  }
+                }}
+                className="modal-seller-name card-seller-link"
+                style={{ textDecoration: 'none', cursor: 'pointer', display: 'inline-block' }}
+                title={`View all listings by ${listing.seller_name || listing.seller}`}
+              >
+                {listing.seller_name || listing.seller} ↗
+              </a>
               <div className="modal-seller-sub">
                 WhatsApp: <strong dir="ltr">{contactNumber}</strong>
               </div>
@@ -364,6 +380,32 @@ export default function ListingDetailModal({ listing, onClose }) {
                 <span>{t('call_seller')}</span>
               </a>
             </div>
+          </div>
+
+          {/* Official Google Play Store App Promotion */}
+          <div
+            style={{
+              marginTop: '16px',
+              padding: '14px 16px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #071e16 0%, #0d3829 100%)',
+              border: '1px solid rgba(228, 195, 116, 0.35)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '12px',
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ flex: '1 1 200px' }}>
+              <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--gold-bright)', fontWeight: 700 }}>
+                {t('app_download_title')}
+              </div>
+              <div style={{ fontSize: '0.86rem', color: '#cbd5e1', marginTop: '2px', lineHeight: 1.35 }}>
+                {t('app_promo_desc')}
+              </div>
+            </div>
+            <GooglePlayBadge variant="button" />
           </div>
         </div>
       </div>

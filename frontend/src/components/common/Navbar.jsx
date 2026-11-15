@@ -1,6 +1,7 @@
 import React from 'react';
 import { Car, Building2, User, Store, ShieldCheck } from 'lucide-react';
 import LanguageSwitcher from './LanguageSwitcher';
+import GooglePlayBadge from './GooglePlayBadge';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function Navbar({
@@ -78,6 +79,9 @@ export default function Navbar({
       </div>
 
       <div className="nav-actions">
+        {/* Google Play Store App Download Button */}
+        <GooglePlayBadge variant="button" />
+
         {/* Language Selection Switcher */}
         <LanguageSwitcher />
 

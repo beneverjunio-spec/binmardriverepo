@@ -3,9 +3,9 @@ import { MapPin, Calendar, Gauge, Car, Tag } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import { useLanguage } from '../../context/LanguageContext';
-import { getVehicleUrl } from '../../utils/seo';
+import { getVehicleUrl, getSellerUrl } from '../../utils/seo';
 
-export default function ListingCard({ listing, index, onSelect }) {
+export default function ListingCard({ listing, index, onSelect, onSelectSeller }) {
   const { t, isRTL } = useLanguage();
   const rawList = typeof listing.images === 'string'
     ? JSON.parse(listing.images || '[]')
@@ -199,7 +199,19 @@ export default function ListingCard({ listing, index, onSelect }) {
           <span className={`card-cond ${listing.condition_type || listing.condition}`}>
             {condText}
           </span>
-          <span className="card-seller">{listing.seller_name || listing.seller}</span>
+          <span
+            className="card-seller card-seller-link"
+            onClick={(e) => {
+              if (onSelectSeller) {
+                e.preventDefault();
+                e.stopPropagation();
+                onSelectSeller(listing.seller_name || listing.seller);
+              }
+            }}
+            title={`View all listings by ${listing.seller_name || listing.seller}`}
+          >
+            {listing.seller_name || listing.seller}
+          </span>
         </div>
       </div>
     </a>

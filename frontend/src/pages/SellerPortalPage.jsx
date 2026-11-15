@@ -50,6 +50,7 @@ import { sendAdminEmailNotification, sendSellerEmailNotification } from '../api/
 import { apiRequest } from '../api/client';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { useLanguage } from '../context/LanguageContext';
+import { generateSellerSlug, getSellerUrl } from '../utils/seo';
 
 // Helper to compress images on the client side to keep uploads fast and avoid localStorage quota errors
 function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.8) {
@@ -1514,6 +1515,57 @@ export default function SellerPortalPage({
                     {t('profile_verified_badge')}
                   </span>
                 </div>
+
+                {/* Seller Live Showroom SEO Slug Card */}
+                {(profileForm.company_name || profileForm.name) && (
+                  <div
+                    style={{
+                      marginTop: '1rem',
+                      padding: '14px 16px',
+                      borderRadius: '10px',
+                      background: 'rgba(212, 175, 55, 0.08)',
+                      border: '1px solid rgba(212, 175, 55, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      flexWrap: 'wrap',
+                      gap: '12px'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#92400E', fontWeight: 700 }}>
+                        {t('seller_canonical_label') || 'Your Public Showroom URL'}
+                      </div>
+                      <div style={{ fontSize: '0.94rem', fontWeight: 700, color: '#12281F', marginTop: '2px' }}>
+                        binmardrive.com/seller/{generateSellerSlug(profileForm.company_name || profileForm.name)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const url = `${window.location.origin}/seller/${generateSellerSlug(profileForm.company_name || profileForm.name)}`;
+                          navigator.clipboard?.writeText(url);
+                          notify?.(t('seller_link_copied') || 'Showroom link copied to clipboard!');
+                        }}
+                        className="seller-btn-outline"
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '5px' }}
+                      >
+                        {t('seller_copy_link') || 'Copy Showroom Link'}
+                      </button>
+                      <a
+                        href={`/seller/${generateSellerSlug(profileForm.company_name || profileForm.name)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="seller-btn-outline"
+                        style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '5px', textDecoration: 'none' }}
+                      >
+                        <ExternalLink size={13} />
+                        {t('studio_view_public') || 'View Public'}
+                      </a>
+                    </div>
+                  </div>
+                )}
 
                 <form onSubmit={handleSaveProfile} className="mt-6 space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
