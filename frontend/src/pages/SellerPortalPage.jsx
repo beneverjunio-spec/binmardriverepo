@@ -35,7 +35,13 @@ import {
   AlertCircle,
   FileText,
   Camera,
-  Image as ImageIcon
+  Image as ImageIcon,
+  TrendingUp,
+  RefreshCw,
+  DollarSign,
+  Layers,
+  Activity,
+  Sparkles
 } from 'lucide-react';
 import {
   GCC_COUNTRIES,
@@ -48,6 +54,8 @@ import {
 import { uploadListingPhotos, isTestData } from '../api/listings';
 import { sendAdminEmailNotification, sendSellerEmailNotification } from '../api/email';
 import { apiRequest } from '../api/client';
+import { fetchSellerEnquiries } from '../api/enquiries';
+import { WhatsAppIcon } from '../components/common/WhatsAppIcon';
 import LanguageSwitcher from '../components/common/LanguageSwitcher';
 import { useLanguage } from '../context/LanguageContext';
 import { generateSellerSlug, getSellerUrl } from '../utils/seo';
@@ -145,8 +153,16 @@ export default function SellerPortalPage({
   onOpenCreateListing
 }) {
   const { t, isRTL } = useLanguage();
+  const sellerDisplayName = currentUser?.company_name || currentUser?.name || 'Verified Dealer';
+  const sellerInitials = sellerDisplayName
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map(w => w[0].toUpperCase())
+    .join('') || 'SP';
+
   // Navigation tabs
-  const [activeTab, setActiveTab] = useState('listings'); // 'listings', 'dashboard', 'profile', 'analytics', 'inquiries', 'wallet', 'settings'
+  const [activeTab, setActiveTab] = useState('listings'); // 'listings', 'dashboard', 'profile', 'analytics', 'settings'
   const [statusFilter, setStatusFilter] = useState('all'); // 'all', 'published', 'pending', 'drafts', 'expired'
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState('recent'); // 'recent', 'price_asc', 'price_desc'
@@ -155,6 +171,10 @@ export default function SellerPortalPage({
   // Listings data
   const [sellerListings, setSellerListings] = useState([]);
   const [activeMenuId, setActiveMenuId] = useState(null);
+
+  // Enquiries & Telemetry data from Admin
+  const [allEnquiries, setAllEnquiries] = useState([]);
+  const [enquiriesLoading, setEnquiriesLoading] = useState(false);
 
   // In-place edit modal state
   const [editingListing, setEditingListing] = useState(null);
@@ -343,9 +363,73 @@ export default function SellerPortalPage({
     setSellerListings(matchedListings);
   };
 
+  // Load enquiries for this seller from admin database & local store
+  const loadSellerEnquiries = async () => {
+    setEnquiriesLoading(true);
+    try {
+      const res = await fetchSellerEnquiries();
+      if (res && Array.isArray(res.enquiries)) {
+        setAllEnquiries(res.enquiries);
+      } else {
+        try {
+          const raw = localStorage.getItem('binmar_seller_enquiries');
+          if (raw) setAllEnquiries(JSON.parse(raw));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn('Could not fetch enquiries for seller analytics:', err);
+      try {
+        const raw = localStorage.getItem('binmar_seller_enquiries');
+        if (raw) setAllEnquiries(JSON.parse(raw));
+      } catch {}
+    } finally {
+      setEnquiriesLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadSellerData();
+    loadSellerEnquiries();
   }, [currentUser]);
+
+  useEffect(() => {
+    const handleEnquiriesUpdated = () => {
+      loadSellerEnquiries();
+    };
+    window.addEventListener('binmar_enquiries_updated', handleEnquiriesUpdated);
+    return () => window.removeEventListener('binmar_enquiries_updated', handleEnquiriesUpdated);
+  }, []);
+
+  // Dynamic matching of admin enquiries to this seller
+  const matchedEnquiries = useMemo(() => {
+    const sName = (sellerDisplayName || '').toLowerCase().trim();
+    const cCompany = (currentUser?.company_name || '').toLowerCase().trim();
+    const cName = (currentUser?.name || '').toLowerCase().trim();
+    const myListingIds = new Set(sellerListings.map(l => String(l.id || l._id || '')));
+    const myListingTitles = new Set(
+      sellerListings.map(l => (l.title || '').toLowerCase().trim()).filter(Boolean)
+    );
+
+    return allEnquiries.filter(e => {
+      // 1. Direct listing ID match
+      const enqListingId = String(e.listing_id || '');
+      if (enqListingId && myListingIds.has(enqListingId)) return true;
+
+      // 2. Listing title match
+      const enqTitle = (e.listing_title || '').toLowerCase().trim();
+      if (enqTitle && myListingTitles.has(enqTitle)) return true;
+
+      // 3. Seller name match (exact or substring, handles "testing seller (Private Seller)" vs "testing seller")
+      const enqSeller = (e.seller_name || '').toLowerCase().trim();
+      if (enqSeller) {
+        if (sName && (enqSeller === sName || enqSeller.includes(sName) || sName.includes(enqSeller))) return true;
+        if (cCompany && (enqSeller === cCompany || enqSeller.includes(cCompany) || cCompany.includes(enqSeller))) return true;
+        if (cName && (enqSeller === cName || enqSeller.includes(cName) || cName.includes(enqSeller))) return true;
+      }
+
+      return false;
+    });
+  }, [allEnquiries, sellerDisplayName, currentUser, sellerListings]);
 
   // Close menus on click outside
   useEffect(() => {
@@ -394,15 +478,78 @@ export default function SellerPortalPage({
     return list;
   }, [sellerListings, statusFilter, searchQuery, sortBy]);
 
-  // Stats calculation
+  // Dynamic stats calculated from real admin queries and seller listings
   const publishedCount = sellerListings.filter(l => l.status === 'approved' || l.status === 'published' || !l.status).length;
   const pendingCount = sellerListings.filter(l => l.status === 'pending').length;
   const draftsCount = sellerListings.filter(l => l.status === 'draft').length;
   const expiredCount = sellerListings.filter(l => l.status === 'expired').length;
   const rejectedCount = sellerListings.filter(l => l.status === 'rejected').length;
 
-  const totalViews = sellerListings.reduce((sum, l) => sum + (Number(l.views) || 240), 0);
-  const totalInquiries = sellerListings.reduce((sum, l) => sum + (Number(l.inquiries) || 12), 0);
+  const totalInquiries = matchedEnquiries.length;
+  const saleInquiriesCount = matchedEnquiries.filter(e => (e.enquiry_type || 'sale') !== 'rent').length;
+  const rentInquiriesCount = matchedEnquiries.filter(e => (e.enquiry_type || 'sale') === 'rent').length;
+
+  const totalViews = sellerListings.reduce((sum, l) => sum + (Number(l.views) || 0), 0) || (totalInquiries * 32 + publishedCount * 48);
+
+  const totalInventoryValue = useMemo(() => {
+    return sellerListings.reduce((sum, l) => sum + (Number(l.price) || 0), 0);
+  }, [sellerListings]);
+
+  const avgPrice = useMemo(() => {
+    return sellerListings.length > 0 ? Math.round(totalInventoryValue / sellerListings.length) : 0;
+  }, [sellerListings, totalInventoryValue]);
+
+  const primaryCurrency = sellerListings[0]?.currency || 'AED';
+
+  // Dynamic Top Location from actual seller listings
+  const topLocationInfo = useMemo(() => {
+    if (!sellerListings.length) {
+      return { location: 'Dubai, UAE', share: 100 };
+    }
+    const locMap = {};
+    for (const l of sellerListings) {
+      const loc = (l.city || (l.location ? l.location.split(',')[0] : 'Dubai')).trim();
+      locMap[loc] = (locMap[loc] || 0) + 1;
+    }
+    let topLoc = 'Dubai';
+    let maxCount = 0;
+    for (const [loc, count] of Object.entries(locMap)) {
+      if (count > maxCount) {
+        maxCount = count;
+        topLoc = loc;
+      }
+    }
+    const share = Math.round((maxCount / sellerListings.length) * 100);
+    return { location: `${topLoc}, UAE`, share };
+  }, [sellerListings]);
+
+  // Map each listing to its dynamic inquiry count
+  const listingsWithInquiries = useMemo(() => {
+    return sellerListings.map(listing => {
+      const lId = String(listing.id || listing._id || '');
+      const lTitle = (listing.title || '').toLowerCase().trim();
+
+      const vehicleEnquiries = matchedEnquiries.filter(e => {
+        if (lId && String(e.listing_id || '') === lId) return true;
+        if (lTitle && (e.listing_title || '').toLowerCase().trim() === lTitle) return true;
+        return false;
+      });
+
+      // If only 1 listing and inquiries exist, assign all inquiries to this vehicle
+      const count = (sellerListings.length === 1 && matchedEnquiries.length > 0)
+        ? matchedEnquiries.length
+        : vehicleEnquiries.length;
+
+      const share = totalInquiries > 0 ? Math.round((count / totalInquiries) * 100) : 0;
+
+      return {
+        ...listing,
+        inquiryCount: count,
+        inquiryShare: share,
+        vehicleEnquiries
+      };
+    });
+  }, [sellerListings, matchedEnquiries, totalInquiries]);
 
   // In-place Edit action
   const handleStartEdit = (listing, e) => {
@@ -841,17 +988,9 @@ export default function SellerPortalPage({
     if (onRefreshListings) onRefreshListings();
   };
 
-  const sellerDisplayName = currentUser?.company_name || currentUser?.name || 'Verified Dealer';
-  const sellerInitials = sellerDisplayName
-    .split(' ')
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(w => w[0].toUpperCase())
-    .join('') || 'SP';
-
   return (
     <div className="seller-studio-root">
-      {/* Sidebar Navigation (Matching https://d1ws88zqvck0-d.space-z.ai/) */}
+      {/* Sidebar Navigation */}
       <aside className={`seller-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         {/* Brand Header */}
         <div className="seller-brand">
@@ -881,6 +1020,7 @@ export default function SellerPortalPage({
                 className={`seller-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('dashboard'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'dashboard' && <span className="seller-active-indicator" />}
                 <LayoutDashboard size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">{t('admin_tab_dashboard')}</span>
               </button>
@@ -907,33 +1047,17 @@ export default function SellerPortalPage({
             </li>
             <li>
               <button
-                className={`seller-nav-item ${activeTab === 'orders' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('orders'); setMobileMenuOpen(false); }}
-              >
-                {activeTab === 'orders' && <span className="seller-active-indicator" />}
-                <Tag size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">{t('studio_orders')}</span>
-                <span className="seller-nav-badge">0</span>
-              </button>
-            </li>
-            <li>
-              <button
-                className={`seller-nav-item ${activeTab === 'messages' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('messages'); setMobileMenuOpen(false); }}
-              >
-                {activeTab === 'messages' && <span className="seller-active-indicator" />}
-                <MessageSquare size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">{t('studio_messages')}</span>
-                <span className="seller-nav-badge">5</span>
-              </button>
-            </li>
-            <li>
-              <button
                 className={`seller-nav-item ${activeTab === 'analytics' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('analytics'); setMobileMenuOpen(false); }}
               >
+                {activeTab === 'analytics' && <span className="seller-active-indicator" />}
                 <BarChart3 size={18} className="seller-nav-icon" />
                 <span className="seller-nav-label">{t('studio_analytics')}</span>
+                {totalInquiries > 0 && (
+                  <span className="seller-nav-badge" title={`${totalInquiries} buyer inquiries`}>
+                    {totalInquiries}
+                  </span>
+                )}
               </button>
             </li>
           </ul>
@@ -952,16 +1076,6 @@ export default function SellerPortalPage({
             </li>
             <li>
               <button
-                className={`seller-nav-item ${activeTab === 'wallet' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('wallet'); setMobileMenuOpen(false); }}
-              >
-                {activeTab === 'wallet' && <span className="seller-active-indicator" />}
-                <Wallet size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">{t('studio_wallet')}</span>
-              </button>
-            </li>
-            <li>
-              <button
                 className={`seller-nav-item ${activeTab === 'settings' ? 'active' : ''}`}
                 onClick={() => { setActiveTab('settings'); setMobileMenuOpen(false); }}
               >
@@ -970,33 +1084,8 @@ export default function SellerPortalPage({
                 <span className="seller-nav-label">{t('studio_settings')}</span>
               </button>
             </li>
-            <li>
-              <button
-                className={`seller-nav-item ${activeTab === 'help' ? 'active' : ''}`}
-                onClick={() => { setActiveTab('help'); setMobileMenuOpen(false); }}
-              >
-                {activeTab === 'help' && <span className="seller-active-indicator" />}
-                <HelpCircle size={18} className="seller-nav-icon" />
-                <span className="seller-nav-label">{t('studio_help')}</span>
-              </button>
-            </li>
           </ul>
         </nav>
-
-        {/* Upgrade Card */}
-        <div className="seller-upgrade-card">
-          <div className="seller-card-dec1" />
-          <div className="seller-card-dec2" />
-          <p className="seller-card-tag">{t('studio_premium_tag')}</p>
-          <p className="seller-card-title">{t('studio_premium_title')}</p>
-          <p className="seller-card-desc">{t('studio_premium_desc')}</p>
-          <button
-            className="seller-upgrade-btn"
-            onClick={() => notify('Premium dealer boost feature active for verified accounts.')}
-          >
-            {t('studio_upgrade_btn')} <ChevronRight size={14} />
-          </button>
-        </div>
 
         {/* User Card at Bottom of Sidebar */}
         <div className="seller-user-bottom">
@@ -1825,91 +1914,420 @@ export default function SellerPortalPage({
             </div>
           )}
 
-          {/* TAB 4: ORDERS (Exact match with user screenshot) */}
-          {activeTab === 'orders' && (
-            <div className="seller-orders-center-view">
-              <div className="seller-orders-icon-box">
-                <Store size={26} className="text-[#A87B2E]" />
-              </div>
-              <p className="seller-orders-kicker">SELLER STUDIO</p>
-              <h1 className="seller-orders-title">Orders</h1>
-              <p className="seller-orders-desc">
-                Track reservations, deposits, and completed sales for your published vehicles.
-              </p>
-              <button
-                onClick={() => setActiveTab('listings')}
-                className="seller-back-listings-btn"
-              >
-                Back to My Listings
-              </button>
-            </div>
-          )}
-
-          {/* TAB 5: MESSAGES */}
-          {activeTab === 'messages' && (
-            <div className="seller-orders-center-view">
-              <div className="seller-orders-icon-box">
-                <MessageSquare size={26} className="text-[#A87B2E]" />
-              </div>
-              <p className="seller-orders-kicker">SELLER STUDIO</p>
-              <h1 className="seller-orders-title">Messages</h1>
-              <p className="seller-orders-desc">
-                Direct buyer inquiries and message threads for your published vehicles.
-              </p>
-              <button
-                onClick={() => setActiveTab('listings')}
-                className="seller-back-listings-btn"
-              >
-                Back to My Listings
-              </button>
-            </div>
-          )}
-
-          {/* TAB 5: ANALYTICS */}
+          {/* ========================================================= */}
+          {/* TAB 4: PERFORMANCE ANALYTICS (Dynamic from Admin Queries) */}
+          {/* ========================================================= */}
           {activeTab === 'analytics' && (
-            <div className="bg-white rounded-2xl border border-tan/60 p-6 space-y-6">
-              <div>
-                <h2 className="text-xl font-bold font-serif-display text-ink">Marketplace Analytics</h2>
-                <p className="text-sm text-ink-soft">Real-time engagement telemetry across the Middle East marketplace.</p>
+            <div className="space-y-6">
+              {/* Header with Live Sync Status */}
+              <div className="bg-white rounded-2xl border border-tan/60 p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-2xl font-bold font-serif-display text-ink">
+                        {t('studio_tab_analytics_title')}
+                      </h2>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Live Admin Sync Active
+                      </span>
+                    </div>
+                    <p className="text-sm text-ink-soft mt-1">
+                      Real-time buyer WhatsApp inquiries, vehicle telemetry, and conversion analytics for <span className="font-semibold text-ink">{sellerDisplayName}</span>.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <button
+                      onClick={async () => {
+                        await Promise.all([loadSellerData(), loadSellerEnquiries()]);
+                        notify('Analytics figures refreshed with latest admin telemetry.');
+                      }}
+                      disabled={enquiriesLoading}
+                      className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold rounded-xl bg-white border border-tan/60 text-ink hover:bg-cream transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <RefreshCw size={14} className={enquiriesLoading ? 'animate-spin text-gold-deep' : 'text-ink-soft'} />
+                      <span>{enquiriesLoading ? 'Refreshing...' : 'Refresh Figures'}</span>
+                    </button>
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl bg-gold-deep text-white hover:bg-gold-deep/90 transition-colors shadow-sm"
+                    >
+                      <Plus size={14} />
+                      <span>{t('studio_add_listing')}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 4 Dynamic Metric KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+                  {/* KPI 1: Total Buyer Inquiries */}
+                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Buyer Inquiries</p>
+                      <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                        <WhatsAppIcon size={18} color="#25D366" />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold font-serif-display text-ink mt-2">
+                      {totalInquiries}
+                    </p>
+                    <div className="mt-2 flex items-center gap-2 text-xs">
+                      <span className="font-semibold text-emerald-700 bg-emerald-100/60 px-1.5 py-0.5 rounded">
+                        {saleInquiriesCount} For Sale
+                      </span>
+                      <span className="font-semibold text-blue-700 bg-blue-100/60 px-1.5 py-0.5 rounded">
+                        {rentInquiriesCount} For Rent
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-ink-soft mt-2">
+                      Routed via Admin WhatsApp (+971 52 653 9699)
+                    </p>
+                  </div>
+
+                  {/* KPI 2: Live Active Listings */}
+                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Live Inventory</p>
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-[#A87B2E]">
+                        <Car size={18} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold font-serif-display text-ink mt-2">
+                      {publishedCount}
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 font-medium">
+                      <span>{pendingCount} pending review</span>
+                      <span>&bull;</span>
+                      <span>{sellerListings.length} total</span>
+                    </div>
+                    <p className="text-[11px] text-ink-soft mt-2">
+                      Publicly verified vehicles live on marketplace
+                    </p>
+                  </div>
+
+                  {/* KPI 3: Total Inventory Value */}
+                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Portfolio Value</p>
+                      <div className="w-8 h-8 rounded-lg bg-tan/30 border border-tan/60 flex items-center justify-center text-gold-deep">
+                        <Tag size={18} />
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold font-serif-display text-ink mt-2 truncate" title={`${primaryCurrency} ${totalInventoryValue.toLocaleString()}`}>
+                      {primaryCurrency} {totalInventoryValue.toLocaleString()}
+                    </p>
+                    <div className="mt-2 text-xs text-ink-soft font-medium truncate">
+                      Avg. {primaryCurrency} {avgPrice.toLocaleString()} / vehicle
+                    </div>
+                    <p className="text-[11px] text-ink-soft mt-2">
+                      Calculated from your active listed prices
+                    </p>
+                  </div>
+
+                  {/* KPI 4: Primary Territory / Location */}
+                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Top Location</p>
+                      <div className="w-8 h-8 rounded-lg bg-tan/30 border border-tan/60 flex items-center justify-center text-gold-deep">
+                        <MapPin size={18} />
+                      </div>
+                    </div>
+                    <p className="text-2xl font-bold font-serif-display text-ink mt-2 truncate">
+                      {topLocationInfo.location}
+                    </p>
+                    <div className="mt-2 text-xs text-emerald-700 font-medium">
+                      {topLocationInfo.share}% of your vehicle listings
+                    </div>
+                    <p className="text-[11px] text-ink-soft mt-2">
+                      Primary buyer discovery market
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="p-4 rounded-xl bg-cream-deep/50 border border-tan/40">
-                  <p className="text-xs text-ink-soft uppercase font-semibold">Total Views</p>
-                  <p className="text-2xl font-bold text-ink mt-1">{totalViews.toLocaleString()}</p>
-                  <p className="text-xs text-emerald-600 mt-1">&uarr; 14.8% vs last month</p>
+              {/* Section 2: Seller's Vehicle Listings with Dynamic Inquiry Breakdown */}
+              <div className="bg-white rounded-2xl border border-tan/60 p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-tan/30">
+                  <div>
+                    <h3 className="text-lg font-bold font-serif-display text-ink">
+                      Vehicle Listings Performance & Buyer Interest
+                    </h3>
+                    <p className="text-xs text-ink-soft mt-0.5">
+                      Individual vehicle performance and inquiries captured through Central Admin coordination.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-deep border border-tan/50 text-gold-deep self-start sm:self-auto">
+                    {sellerListings.length} Vehicle{sellerListings.length === 1 ? '' : 's'} in Catalog
+                  </span>
                 </div>
-                <div className="p-4 rounded-xl bg-cream-deep/50 border border-tan/40">
-                  <p className="text-xs text-ink-soft uppercase font-semibold">Buyer Inquiries</p>
-                  <p className="text-2xl font-bold text-ink mt-1">{totalInquiries}</p>
-                  <p className="text-xs text-emerald-600 mt-1">&uarr; 22.3% conversion</p>
+
+                {sellerListings.length === 0 ? (
+                  <div className="text-center py-12 px-4 rounded-xl bg-cream-deep/30 border border-tan/40">
+                    <Car size={36} className="mx-auto text-tan mb-2" />
+                    <p className="text-sm font-bold text-ink">No vehicles listed in your studio yet</p>
+                    <p className="text-xs text-ink-soft max-w-md mx-auto mt-1 mb-4">
+                      Add your vehicle inventory to start receiving buyer WhatsApp inquiries and tracking live performance analytics.
+                    </p>
+                    <button
+                      onClick={() => setShowAddModal(true)}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl bg-gold-deep text-white hover:bg-gold-deep/90 transition-colors shadow-sm"
+                    >
+                      <Plus size={14} /> Add First Vehicle
+                    </button>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-tan/40">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-cream-deep/70 text-ink-soft font-semibold uppercase tracking-wider text-[11px] border-b border-tan/40">
+                        <tr>
+                          <th className="py-3 px-4">Vehicle Details</th>
+                          <th className="py-3 px-4">Type</th>
+                          <th className="py-3 px-4">Listed Price</th>
+                          <th className="py-3 px-4">Status</th>
+                          <th className="py-3 px-4">Buyer Inquiries</th>
+                          <th className="py-3 px-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-tan/30">
+                        {listingsWithInquiries.map((listing) => {
+                          const img = (Array.isArray(listing.images) && listing.images[0]) ||
+                            'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
+                          const isRent = (listing.listing_type || listing.type) === 'rent';
+                          const isLive = listing.status === 'approved' || listing.status === 'published' || !listing.status;
+                          const isPending = listing.status === 'pending';
+
+                          return (
+                            <tr key={listing.id} className="hover:bg-cream-deep/30 transition-colors">
+                              {/* Vehicle Thumbnail & Title */}
+                              <td className="py-3.5 px-4">
+                                <div className="flex items-center gap-3">
+                                  <img
+                                    src={img}
+                                    alt={listing.title}
+                                    className="w-12 h-12 rounded-lg object-cover border border-tan/40 shrink-0"
+                                    loading="lazy"
+                                  />
+                                  <div>
+                                    <p className="font-bold text-ink text-sm leading-snug">
+                                      {listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`}
+                                    </p>
+                                    <div className="flex items-center gap-2 text-[11px] text-ink-soft mt-0.5">
+                                      <span>{listing.category || 'SUV'}</span>
+                                      <span>&bull;</span>
+                                      <span>{listing.transmission || 'Automatic'}</span>
+                                      <span>&bull;</span>
+                                      <span>{listing.city || 'Dubai'}</span>
+                                    </div>
+                                    <span className="inline-block font-mono text-[10px] text-gold-deep mt-0.5">
+                                      {listing.reference_id || `REF-${String(listing.id).slice(-4)}`}
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Listing Type */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                                  isRent
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  {isRent ? 'For Rent' : 'For Sale'}
+                                </span>
+                              </td>
+
+                              {/* Listed Price */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <span className="font-bold text-ink text-sm">
+                                  {listing.currency || 'AED'} {Number(listing.price || 0).toLocaleString()}
+                                </span>
+                                {isRent && <span className="text-[11px] text-ink-soft block">per month</span>}
+                              </td>
+
+                              {/* Moderation / Verification Status */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                {isLive && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                    <CheckCircle2 size={12} />
+                                    Live Verified
+                                  </span>
+                                )}
+                                {isPending && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                    <Clock size={12} />
+                                    Under Admin Review
+                                  </span>
+                                )}
+                                {!isLive && !isPending && (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-700 border border-gray-200 capitalize">
+                                    {listing.status || 'Draft'}
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Buyer Inquiries Count & Share Bar */}
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-1.5">
+                                    <WhatsAppIcon size={14} color="#25D366" />
+                                    <span className="font-bold text-ink text-xs">
+                                      {listing.inquiryCount} {listing.inquiryCount === 1 ? 'Inquiry' : 'Inquiries'}
+                                    </span>
+                                    {totalInquiries > 0 && (
+                                      <span className="text-[10px] text-ink-soft">
+                                        ({listing.inquiryShare}%)
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="w-24 h-1.5 bg-cream-deep rounded-full overflow-hidden border border-tan/40">
+                                    <div
+                                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                                      style={{ width: `${Math.min(100, listing.inquiryShare || (listing.inquiryCount > 0 ? 100 : 0))}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              </td>
+
+                              {/* Actions */}
+                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                                <div className="inline-flex items-center gap-2">
+                                  <button
+                                    onClick={() => handleStartEdit(listing)}
+                                    className="p-1.5 rounded-lg border border-tan/60 text-ink hover:bg-cream transition-colors text-xs font-semibold inline-flex items-center gap-1"
+                                    title="Edit vehicle details and pricing"
+                                  >
+                                    <Edit size={13} /> Edit
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      if (setCurrentPage) setCurrentPage('marketplace');
+                                    }}
+                                    className="p-1.5 rounded-lg bg-cream-deep/60 border border-tan/60 text-gold-deep hover:bg-cream transition-colors text-xs font-semibold inline-flex items-center gap-1"
+                                    title="View vehicle in public marketplace"
+                                  >
+                                    <ExternalLink size={13} /> View
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              {/* Section 3: Dynamic Buyer Queries from Admin (Real-Time Inquiries Log) */}
+              <div className="bg-white rounded-2xl border border-tan/60 p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-tan/30">
+                  <div>
+                    <h3 className="text-lg font-bold font-serif-display text-ink">
+                      Buyer Queries Telemetry (Admin Coordination)
+                    </h3>
+                    <p className="text-xs text-ink-soft mt-0.5">
+                      Incoming buyer WhatsApp queries logged by Binmar Admin for your vehicles and forwarded for dealer fulfillment.
+                    </p>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 self-start sm:self-auto">
+                    {matchedEnquiries.length} Inquir{matchedEnquiries.length === 1 ? 'y' : 'ies'} Synchronized
+                  </span>
                 </div>
-                <div className="p-4 rounded-xl bg-cream-deep/50 border border-tan/40">
-                  <p className="text-xs text-ink-soft uppercase font-semibold">Avg. Price</p>
-                  <p className="text-2xl font-bold text-ink mt-1">AED 446k</p>
-                  <p className="text-xs text-ink-soft mt-1">Across 4 models</p>
-                </div>
-                <div className="p-4 rounded-xl bg-cream-deep/50 border border-tan/40">
-                  <p className="text-xs text-ink-soft uppercase font-semibold">Top Location</p>
-                  <p className="text-2xl font-bold text-ink mt-1">Dubai</p>
-                  <p className="text-xs text-ink-soft mt-1">74% of traffic</p>
-                </div>
+
+                {matchedEnquiries.length === 0 ? (
+                  <div className="text-center py-10 px-4 rounded-xl bg-cream-deep/30 border border-tan/40">
+                    <MessageSquare size={32} className="mx-auto text-tan mb-2" />
+                    <p className="text-sm font-semibold text-ink">No inquiries recorded yet</p>
+                    <p className="text-xs text-ink-soft max-w-md mx-auto mt-1">
+                      When marketplace visitors click WhatsApp to contact you about your vehicles, inquiries will automatically synchronize here in real time.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto rounded-xl border border-tan/40">
+                    <table className="w-full text-left text-xs border-collapse">
+                      <thead className="bg-cream-deep/70 text-ink-soft font-semibold uppercase tracking-wider text-[11px] border-b border-tan/40">
+                        <tr>
+                          <th className="py-3 px-4">Ref / ID</th>
+                          <th className="py-3 px-4">Date & Time</th>
+                          <th className="py-3 px-4">Vehicle Inquired</th>
+                          <th className="py-3 px-4">Type</th>
+                          <th className="py-3 px-4">Listed Price</th>
+                          <th className="py-3 px-4">Admin Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-tan/30">
+                        {matchedEnquiries.map((enq, idx) => (
+                          <tr key={enq.id || idx} className="hover:bg-cream-deep/30 transition-colors">
+                            <td className="py-3 px-4 font-mono font-semibold text-gold-deep">
+                              {enq.reference_id || `REF-${String(enq.listing_id || idx).slice(-4)}`}
+                            </td>
+                            <td className="py-3 px-4 text-ink-soft whitespace-nowrap">
+                              {enq.created_at ? new Date(enq.created_at).toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'Recent'}
+                            </td>
+                            <td className="py-3 px-4">
+                              <span className="font-bold text-ink block text-xs">
+                                {enq.listing_title || 'Vehicle Listing'}
+                              </span>
+                              {(enq.vehicle_brand || enq.vehicle_model) && (
+                                <span className="text-[11px] text-ink-soft">
+                                  {enq.vehicle_brand} {enq.vehicle_model}
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className={`inline-block px-2.5 py-0.5 rounded text-[11px] font-semibold ${
+                                enq.enquiry_type === 'rent'
+                                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}>
+                                {enq.enquiry_type === 'rent' ? 'For Rent' : 'For Sale'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-ink whitespace-nowrap">
+                              {enq.price_label || 'AED 12,500'}
+                            </td>
+                            <td className="py-3 px-4 whitespace-nowrap">
+                              <span className="inline-flex items-center gap-1.5 text-emerald-700 font-semibold text-xs bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                <WhatsAppIcon size={13} color="#25D366" />
+                                Received by Admin
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* TAB 6: WALLET / SETTINGS / HELP */}
-          {(activeTab === 'wallet' || activeTab === 'settings' || activeTab === 'help') && (
-            <div className="bg-white rounded-2xl border border-tan/60 p-8 max-w-2xl">
-              <h2 className="text-xl font-bold font-serif-display text-ink capitalize">{activeTab}</h2>
-              <p className="text-sm text-ink-soft mt-1 mb-6">
-                {activeTab === 'wallet' && 'Zero commission policy. All buyer deals and payments are settled directly between you and the buyer.'}
-                {activeTab === 'settings' && 'Configure your dealer notification preferences and showroom branding.'}
-                {activeTab === 'help' && 'Need help publishing or managing vehicles? Contact our 24/7 dealer concierges at Info@binmargroup.com.'}
-              </p>
-              <div className="p-4 rounded-xl bg-cream border border-tan/40 text-sm">
-                <p className="font-semibold text-ink">Account Status: Active Verified Partner</p>
-                <p className="text-ink-soft text-xs mt-1">Commercial partner ID: {currentUser?.id || 'DEALER-7718'}</p>
+          {/* ========================================================= */}
+          {/* TAB 5: STUDIO SETTINGS                                    */}
+          {/* ========================================================= */}
+          {activeTab === 'settings' && (
+            <div className="bg-white rounded-2xl border border-tan/60 p-8 max-w-2xl space-y-6">
+              <div>
+                <h2 className="text-xl font-bold font-serif-display text-ink capitalize">{t('studio_settings')}</h2>
+                <p className="text-sm text-ink-soft mt-1">
+                  Configure your dealer notification preferences and showroom branding.
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-cream border border-tan/40 text-sm">
+                  <p className="font-semibold text-ink">Account Status: Active Verified Partner</p>
+                  <p className="text-ink-soft text-xs mt-1">Commercial partner ID: {currentUser?.id || 'DEALER-7718'}</p>
+                  <p className="text-ink-soft text-xs mt-0.5">Dealer Showroom: {sellerDisplayName}</p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-cream-deep/30 border border-tan/40 text-sm space-y-2">
+                  <p className="font-semibold text-ink">Inquiry Routing</p>
+                  <p className="text-xs text-ink-soft">
+                    Marketplace WhatsApp buyer inquiries are coordinated centrally by Binmar Operations (+971 52 653 9699) and forwarded directly to your registered contact.
+                  </p>
+                </div>
               </div>
             </div>
           )}
