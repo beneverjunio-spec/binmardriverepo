@@ -102,7 +102,7 @@ export default function VehicleDetailPage({
   const typeLabel = isRent ? (t('for_rent') || 'For Rent') : (t('for_sale') || 'For Sale');
   const condLabel = displayCondition;
   const locationText = listing?.location || [listing?.city, listing?.country].filter(Boolean).join(', ') || `${listing?.city || 'Dubai'}, ${listing?.country || 'United Arab Emirates'}`;
-  const contactNumber = listing?.whatsapp_number || listing?.contact_phone || '+971 50 123 4567';
+  const contactNumber = '+971 52 653 9699';
 
   // Client-Side Meta Tags & Structured Data Injection
   useEffect(() => {
@@ -941,12 +941,11 @@ export default function VehicleDetailPage({
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '16px' }}>
               {/* WhatsApp Button */}
               <a
-                href={getWhatsAppUrl(contactNumber, `Hello, I am inquiring about the ${listing.title} listed on BinmarDrive (${canonicalUrl}). Is it still available?`)}
+                href={getWhatsAppUrl(listing)}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => openWhatsApp(listing, e, {
-                  source: 'detail_page',
-                  customMessage: `Hello, I am inquiring about the ${listing.title} listed on BinmarDrive (${canonicalUrl}). Is it still available?`
+                  source: 'detail_page'
                 })}
                 style={{
                   display: 'flex',
@@ -970,7 +969,7 @@ export default function VehicleDetailPage({
 
               {/* Direct Phone Call */}
               <a
-                href={`tel:${contactNumber}`}
+                href="tel:+971526539699"
                 style={{
                   display: 'flex',
                   alignItems: 'center',

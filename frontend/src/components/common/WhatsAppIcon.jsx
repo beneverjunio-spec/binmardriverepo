@@ -1,5 +1,12 @@
 import React from 'react';
 import { recordWhatsAppEnquiry } from '../../api/enquiries';
+import { generateVehicleSlug } from '../../utils/seo';
+
+// Official BinmarDrive Admin WhatsApp Number
+// Requirement: All marketplace listing inquiries route to this Admin WhatsApp receiver (+971 52 653 9699)
+// The admin reviews the customer inquiry and coordinates directly with the seller.
+export const ADMIN_WHATSAPP_NUMBER = '971526539699';
+export const ADMIN_WHATSAPP_DISPLAY = '+971 52 653 9699';
 
 export function WhatsAppIcon({ size = 18, color = 'currentColor', className = '' }) {
   return (
@@ -17,30 +24,49 @@ export function WhatsAppIcon({ size = 18, color = 'currentColor', className = ''
   );
 }
 
-export function getWhatsAppUrl(target, customMessage) {
+export function getWhatsAppUrl(target, customMessage, directPhone = false) {
   if (!target) return '#';
 
-  if (typeof target === 'string') {
+  // If a direct phone number is explicitly requested (e.g. Admin messaging customer/seller directly)
+  if (directPhone && typeof target === 'string') {
     const cleanNumber = target.replace(/[^0-9]/g, '');
-    const text = customMessage || 'Hello! I am inquiring about a vehicle listed on BinmarDrive.';
+    const text = customMessage || '';
     return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
   }
 
-  const rawNumber = target.whatsapp_number || target.contact_phone || '+971526539699';
-  const cleanNumber = String(rawNumber).replace(/[^0-9]/g, '');
+  // ALL marketplace vehicle inquiries route to Admin WhatsApp: +971 52 653 9699
+  const receiverNumber = ADMIN_WHATSAPP_NUMBER;
+
+  if (typeof target === 'string') {
+    const text = customMessage || 'Hello BinmarDrive! I am inquiring about a vehicle listed on BinmarDrive.';
+    return `https://wa.me/${receiverNumber}?text=${encodeURIComponent(text)}`;
+  }
+
   const title = target.title || `${target.year || ''} ${target.make || ''} ${target.model || ''}`.trim() || 'Vehicle';
   const typeText = (target.listing_type || target.type) === 'rent' ? 'For Rent' : 'For Sale';
-  const price = target.price_label || `${target.currency || 'AED'} ${Number(target.price || 0).toLocaleString()}`;
-  const location = [target.city, target.country].filter(Boolean).join(', ');
+  const price = target.price_label || `${target.currency || 'AED'} ${Number(target.price || 0).toLocaleString()}${target.listing_type === 'rent' ? ' / day' : ''}`;
+  const location = [target.city, target.country].filter(Boolean).join(', ') || 'United Arab Emirates';
+  const sellerName = target.seller_name || target.company_name || target.seller || 'Verified Seller';
+  const refId = target.id ? `REF-BMD-${target.id}` : '';
+  let vehicleSlug = target.slug;
+  if (!vehicleSlug) {
+    try {
+      vehicleSlug = generateVehicleSlug(target);
+    } catch {}
+  }
+  const listingUrl = vehicleSlug
+    ? `https://binmardrive.binmargroup.com/car/${vehicleSlug}`
+    : (target.id ? `https://binmardrive.binmargroup.com/?listing=${target.id}` : '');
 
-  const text = customMessage || `Hello! I am inquiring about your vehicle listed on BinmarDrive:
+  const text = customMessage || `Hello BinmarDrive! I am inquiring about this vehicle:
 🚗 *${title}* (${typeText})
 💰 Price: ${price}
-📍 Location: ${location || 'Middle East'}
-
+📍 Location: ${location}
+🏢 Seller: ${sellerName}
+${refId ? `🆔 Ref: ${refId}\n` : ''}${listingUrl ? `🔗 Link: ${listingUrl}\n` : ''}
 Is this vehicle still available?`;
 
-  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
+  return `https://wa.me/${receiverNumber}?text=${encodeURIComponent(text)}`;
 }
 
 export function openWhatsApp(listing, e, options = {}) {
@@ -51,7 +77,7 @@ export function openWhatsApp(listing, e, options = {}) {
     e.preventDefault();
   }
 
-  const url = getWhatsAppUrl(listing, options.customMessage);
+  const url = getWhatsAppUrl(listing, options.customMessage, options.directPhone);
 
   // Automatically record this enquiry for the seller in the admin dashboard
   if (listing && typeof listing === 'object') {

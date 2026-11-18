@@ -42,7 +42,7 @@ export default function ListingDetailModal({ listing, onClose, onSelectSeller })
   const hasRealImages = modalImages && modalImages.length > 0;
   const locationText = listing.location || [listing.city, listing.country].filter(Boolean).join(', ') || `${listing.city || 'Dubai'}, ${listing.country || 'United Arab Emirates'}`;
 
-  const contactNumber = listing.whatsapp_number || listing.contact_phone || '+971 50 123 4567';
+  const contactNumber = '+971 52 653 9699';
 
   // Construct absolute canonical share URL for this vehicle
   const shareUrl = typeof window !== 'undefined'
@@ -357,7 +357,7 @@ export default function ListingDetailModal({ listing, onClose, onSelectSeller })
                 {listing.seller_name || listing.seller} ↗
               </a>
               <div className="modal-seller-sub">
-                WhatsApp: <strong dir="ltr">{contactNumber}</strong>
+                Inquiry WhatsApp: <strong dir="ltr">+971 52 653 9699</strong>
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -373,12 +373,12 @@ export default function ListingDetailModal({ listing, onClose, onSelectSeller })
                 <span>{t('chat_whatsapp')}</span>
               </a>
               <a
-                href={`tel:${contactNumber.replace(/[^0-9+]/g, '')}`}
+                href="tel:+971526539699"
                 className="btn-call-modal"
-                title={t('call_seller')}
+                title="Call Inquiry (+971 52 653 9699)"
               >
                 <Phone size={15} />
-                <span>{t('call_seller')}</span>
+                <span>Call Inquiry</span>
               </a>
             </div>
           </div>
