@@ -41,29 +41,15 @@ function isTestData(item) {
   if (!item) return false;
   const idStr = String(item.id || item._id || '');
   const email = (item.email || '').toLowerCase();
-  // Filter out any mock sample dealers
+  // Only filter known mock/seed test accounts — never by title keywords
   if (
     email === 'almajid@test.com' ||
     email === 'contact@desertstarauto.ae' ||
     idStr === 'dealer_pending_1' ||
     idStr === 'dealer_verified_1'
-  ) {
-    return true;
-  }
-  // Real registered users or user listings always have timestamp, dealer_, or usr_ IDs
-  if (idStr.startsWith('usr_') || idStr.length >= 12) return false;
-  if (Number(item.id) > 1000000000000) return false;
-  if (TEST_ITEM_IDS.includes(idStr)) return true;
-  const title = (item.title || '').toLowerCase();
-  if (
-    title.includes('toyota bmd') ||
-    title.includes('toyota 2002') ||
-    title.includes('toyota 2000') ||
-    title.includes('bmw 2000') ||
-    title.includes('nissan 2000')
-  ) {
-    return true;
-  }
+  ) return true;
+  // Legacy seed IDs (1–8) from removed SHOWCASE_LISTINGS
+  if (['1','2','3','4','5','6','7','8'].includes(idStr)) return true;
   return false;
 }
 

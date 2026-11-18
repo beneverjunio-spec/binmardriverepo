@@ -50,18 +50,10 @@ function sanitizeListing(item) {
 
 export function isTestData(item) {
   if (!item) return false;
-  const title = (item.title || '').toLowerCase();
-  if (
-    title.includes('toyota bmd') ||
-    title.includes('test car') ||
-    title.includes('dummy') ||
-    title.includes('toyota 2002') ||
-    title.includes('toyota 2000') ||
-    title.includes('bmw 2000') ||
-    title.includes('nissan 2000')
-  ) {
-    return true;
-  }
+  // Only filter known internal test/seed IDs — never filter by title keywords
+  // (title filters like 'test car' block real seller listings)
+  const idStr = String(item.id || item._id || '');
+  if (['1','2','3','4','5','6','7','8'].includes(idStr)) return true;
   return false;
 }
 
