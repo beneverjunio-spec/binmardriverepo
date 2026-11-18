@@ -86,219 +86,7 @@ function parseImages(imagesCol) {
   }
 }
 
-// Verified GCC Showcase Listings (Synchronized across Web, Backend, and Mobile)
-const SHOWCASE_LISTINGS = [
-  {
-    id: 1,
-    title: '2024 Toyota Land Cruiser GR-Sport',
-    make: 'Toyota',
-    model: 'Land Cruiser',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '12,500 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 345000,
-    currency: 'AED',
-    price_label: 'AED 345,000',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Binmar Royal Motors',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: 'Immaculate 2024 Land Cruiser GR Sport V6 Twin Turbo. GCC specs with full agency service history.',
-    images: [
-      'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?auto=format&fit=crop&w=800&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 2,
-    title: '2023 Mercedes-Benz G63 AMG Night Package',
-    make: 'Mercedes-Benz',
-    model: 'G63 AMG',
-    year: 2023,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '18,000 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'rent',
-    price: 1800,
-    currency: 'AED',
-    price_label: 'AED 1,800 / day',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Desert Star Luxury Fleet',
-    contact_phone: '+971559876543',
-    whatsapp_number: '+971559876543',
-    description: 'Iconic Mercedes-AMG G63 in Matte Black Night Package. Burmester 3D surround sound, carbon fiber interior.',
-    images: [
-      'https://images.unsplash.com/photo-1520031441872-265e4ff70366?auto=format&fit=crop&w=1000&q=80',
-      'https://images.unsplash.com/photo-1618843479313-40f5afb4bfc9?auto=format&fit=crop&w=800&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 3,
-    title: '2024 Nissan Patrol Titanium V8',
-    make: 'Nissan',
-    model: 'Patrol',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '8,200 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 285000,
-    currency: 'AED',
-    price_label: 'AED 285,000',
-    country: 'United Arab Emirates',
-    city: 'Abu Dhabi',
-    seller_name: 'Al Masaood Automobiles',
-    contact_phone: '+971523344556',
-    whatsapp_number: '+971523344556',
-    description: 'Legendary Desert Master Nissan Patrol 5.6L V8 Titanium edition. Tan diamond leather, adaptive suspension.',
-    images: [
-      'https://images.unsplash.com/photo-1533473359331-0135ef1b58bf?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 4,
-    title: '2024 Lexus LX 600 VIP 4-Seater',
-    make: 'Lexus',
-    model: 'LX 600',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '5,000 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 590000,
-    currency: 'SAR',
-    price_label: 'SAR 590,000',
-    country: 'Saudi Arabia',
-    city: 'Riyadh',
-    seller_name: 'Abdul Latif Jameel Motors',
-    contact_phone: '+966501122334',
-    whatsapp_number: '+966501122334',
-    description: 'Flagship Lexus LX 600 Ultra Luxury 4-Seater. Executive rear Ottoman seating, Mark Levinson Reference audio.',
-    images: [
-      'https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 5,
-    title: '2024 Porsche 911 GT3 RS Weissach Package',
-    make: 'Porsche',
-    model: '911 GT3 RS',
-    year: 2024,
-    category: 'Coupe',
-    fuel: 'Petrol',
-    mileage: '2,400 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'rent',
-    price: 3500,
-    currency: 'AED',
-    price_label: 'AED 3,500 / day',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Binmar Royal Motors',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: 'Pure motorsport engineering. Weissach Package with carbon aero kit, magnesium wheels, bucket seats.',
-    images: [
-      'https://images.unsplash.com/photo-1614162692292-7ac56d7f7f1e?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 6,
-    title: '2024 Land Rover Defender 110 V8 Carpathian Edition',
-    make: 'Land Rover',
-    model: 'Defender 110',
-    year: 2024,
-    category: 'SUV',
-    fuel: 'Petrol',
-    mileage: '6,100 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 420000,
-    currency: 'AED',
-    price_label: 'AED 420,000',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Al Tayer Prestige Motors',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: '5.0L Supercharged V8 518 HP Defender 110 Carpathian Edition. Matrix LED, Meridian surround sound.',
-    images: [
-      'https://images.unsplash.com/photo-1506015391300-4802dc74de2e?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 7,
-    title: '2024 Ford F-150 Raptor R 5.2L Supercharged V8',
-    make: 'Ford',
-    model: 'F-150 Raptor R',
-    year: 2024,
-    category: 'Pickup',
-    fuel: 'Petrol',
-    mileage: '4,200 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'sale',
-    price: 395000,
-    currency: 'AED',
-    price_label: 'AED 395,000',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Desert Star Luxury Fleet',
-    contact_phone: '+971559876543',
-    whatsapp_number: '+971559876543',
-    description: 'Unleashed 5.2L Supercharged V8 Predator engine delivering 700 HP. FOX Live Valve shocks, Recaro carbon interior.',
-    images: [
-      'https://images.unsplash.com/photo-1559416523-140ddc3d238c?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  },
-  {
-    id: 8,
-    title: '2023 BMW M4 Competition M TwinPower Turbo',
-    make: 'BMW',
-    model: 'M4 Competition',
-    year: 2023,
-    category: 'Coupe',
-    fuel: 'Petrol',
-    mileage: '9,800 km',
-    transmission: 'Automatic',
-    condition_type: 'used',
-    listing_type: 'rent',
-    price: 2200,
-    currency: 'AED',
-    price_label: 'AED 2,200 / day',
-    country: 'United Arab Emirates',
-    city: 'Dubai',
-    seller_name: 'Binmar Royal Motors',
-    contact_phone: '+971501234567',
-    whatsapp_number: '+971501234567',
-    description: '503 HP 3.0L BMW M TwinPower Turbo inline-6. Isle of Man Green metallic, Kyalami Orange Merino leather.',
-    images: [
-      'https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=1000&q=80'
-    ],
-    status: 'approved'
-  }
-];
+
 
 
 // ==========================================
@@ -557,26 +345,10 @@ app.get('/api/listings', async (req, res) => {
         location: `${row.city || 'Dubai'}, ${row.country || 'United Arab Emirates'}`
       }));
     } catch (dbErr) {
-      console.warn('MSSQL query failed, using verified showcase listings:', dbErr.message);
+      console.warn('MSSQL query failed, returning empty listings:', dbErr.message);
     }
 
-    if (!listings || listings.length === 0) {
-      listings = SHOWCASE_LISTINGS.map(item => ({
-        ...item,
-        location: `${item.city || 'Dubai'}, ${item.country || 'United Arab Emirates'}`
-      }));
-
-      // Apply in-memory query filters if served from fallback
-      if (make) listings = listings.filter(l => l.make.toLowerCase() === make.toLowerCase());
-      if (country) listings = listings.filter(l => l.country.toLowerCase() === country.toLowerCase());
-      if (type) listings = listings.filter(l => (l.listing_type || '').toLowerCase() === type.toLowerCase());
-      if (category) listings = listings.filter(l => (l.category || '').toLowerCase() === category.toLowerCase());
-      if (maxPrice && !isNaN(Number(maxPrice)) && Number(maxPrice) > 0) {
-        listings = listings.filter(l => Number(l.price) <= Number(maxPrice));
-      }
-      if (sort === 'low') listings.sort((a, b) => Number(a.price) - Number(b.price));
-      else if (sort === 'high') listings.sort((a, b) => Number(b.price) - Number(a.price));
-    }
+    // No fallback demo listings — return empty array when no real listings found
 
     res.json({
       success: true,
@@ -587,8 +359,8 @@ app.get('/api/listings', async (req, res) => {
     console.error('Error in /api/listings:', err);
     res.json({
       success: true,
-      count: SHOWCASE_LISTINGS.length,
-      listings: SHOWCASE_LISTINGS
+      count: 0,
+      listings: []
     });
   }
 });

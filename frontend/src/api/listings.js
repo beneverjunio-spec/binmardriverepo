@@ -148,10 +148,7 @@ export async function fetchPublicListings(filters = {}) {
     }
   }
 
-  // Ensure default curated listings are always present as baseline
-  if (baseListings.length === 0) {
-    baseListings = DEFAULT_LISTINGS.filter(l => !deletedListingIds.includes(String(l.id)) && !disabledListingIds.includes(String(l.id))).map(sanitizeListing);
-  }
+    // No fallback demo listings — marketplace shows empty state when no real listings exist
 
   let filtered = [...baseListings];
 
@@ -501,13 +498,7 @@ export async function fetchListingById(idOrSlug) {
     if (match) return sanitizeListing(match);
   } catch {}
 
-  // 4. Check DEFAULT_LISTINGS
-  const defMatch = DEFAULT_LISTINGS.find(item =>
-    String(item.id) === String(extractedId) ||
-    generateVehicleSlug(item) === rawCleaned ||
-    String(item.id) === String(rawCleaned)
-  );
-  if (defMatch) return sanitizeListing(defMatch);
+  // No fallback to demo listings
 
   return null;
 }
