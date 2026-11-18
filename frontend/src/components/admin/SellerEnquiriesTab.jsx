@@ -93,7 +93,7 @@ export default function SellerEnquiriesTab({
       total: currentSellerEnquiries.length,
       saleCount: currentSellerEnquiries.filter(e => e.enquiry_type === 'sale').length,
       rentCount: currentSellerEnquiries.filter(e => e.enquiry_type === 'rent').length,
-      seller_phone: currentSellerEnquiries[0]?.seller_phone || '+971501234567'
+      seller_phone: currentSellerEnquiries[0]?.seller_phone || '+971526539699'
     };
   }, [sellerSummaries, selectedSellerName, currentSellerEnquiries]);
 
@@ -202,7 +202,7 @@ export default function SellerEnquiriesTab({
   // ----------------------------------------------------
   const handleOpenShareModal = (sellerItem) => {
     const sName = sellerItem.seller || sellerItem.seller_name;
-    const sPhone = sellerItem.seller_phone || '+971501234567';
+    const sPhone = sellerItem.seller_phone || '+971526539699';
     const sellerRecords = enquiries.filter(
       e => (e.seller_name || '').toLowerCase().trim() === sName.toLowerCase().trim()
     );

@@ -1,6 +1,7 @@
 import { apiRequest } from './client';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 import { sendAdminEmailNotification, sendSellerEmailNotification } from './email';
+import { invalidateListingsCache } from './listings';
 
 const TEST_ITEM_IDS = ['1', '2', '3', '4', '5', '6', '101', '102', '103', '104', '201', '202'];
 
@@ -180,6 +181,23 @@ export async function resolveModerationListing(id, approve, reason = '') {
   let foundTitle = 'Vehicle';
   let sellerEmail = '';
 
+  // ── STEP 1: Call the server FIRST so the status is persisted in Netlify Blobs / MongoDB ──
+  try {
+    await apiRequest(`/api/admin/moderation/${id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: approve ? 'approve' : 'reject', reason })
+    });
+  } catch (serverErr) {
+    console.warn('[Admin] Server moderation resolve failed:', serverErr.message);
+    // Surface the error so the admin knows – do NOT silently swallow it
+    throw new Error('Server update failed. Please check your connection and try again.');
+  }
+
+  // ── STEP 2: Invalidate the public listings cache so marketplace sees the change immediately ──
+  invalidateListingsCache();
+
+  // ── STEP 3: Update localStorage mirror ──
   // Mark as permanently resolved in localStorage so it never comes back
   try {
     let resolved = [];
@@ -309,13 +327,12 @@ export async function resolveModerationListing(id, approve, reason = '') {
     }
 
     invalidateAdminCache();
-    const res = await apiRequest(`/api/admin/moderation/${id}/resolve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: approve ? 'approve' : 'reject', reason, email: sellerEmail, title: foundTitle })
-    });
-    return res;
-  } catch {
+    return {
+      success: true,
+      message: `"${foundTitle}" has been ${approve ? 'approved and is now LIVE on public listings!' : 'rejected with remarks recorded.'}`
+    };
+  } catch (e) {
+    console.warn('[Admin] Post-approval notification error (non-critical):', e);
     invalidateAdminCache();
     return {
       success: true,

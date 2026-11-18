@@ -25,8 +25,8 @@ const listingSchema = new mongoose.Schema({
   seller_name: { type: String, default: 'Owner' },
   seller_email: { type: String, default: 'seller@binmardrive.com' },
   contact_preference: { type: String, default: 'WhatsApp' },
-  contact_phone: { type: String, default: '+971501234567' },
-  whatsapp_number: { type: String, default: '+971501234567' },
+  contact_phone: { type: String, default: '+971526539699' },
+  whatsapp_number: { type: String, default: '+971526539699' },
   description: { type: String, default: '' },
   images: { type: [String], default: [] },
   document_name: { type: String },
@@ -102,7 +102,7 @@ notificationSchema.set('toObject', { virtuals: true });
 
 const enquirySchema = new mongoose.Schema({
   seller_name: { type: String, required: true, index: true },
-  seller_phone: { type: String, default: '+971501234567' },
+  seller_phone: { type: String, default: '+971526539699' },
   listing_id: { type: String, required: true, index: true },
   listing_title: { type: String, required: true },
   vehicle_brand: { type: String, default: '' },
@@ -196,7 +196,7 @@ function buildDefaultEnquiries() {
       id: `enq_binmar_${i}`,
       _id: `enq_binmar_${i}`,
       seller_name: 'Binmar Motors',
-      seller_phone: '+971501234567',
+      seller_phone: '+971526539699',
       listing_id: String(100 + (i % 5)),
       listing_title: preset.title,
       vehicle_brand: preset.brand,

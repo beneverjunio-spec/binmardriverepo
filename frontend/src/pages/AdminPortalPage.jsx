@@ -135,7 +135,7 @@ export default function AdminPortalPage({
     try {
       const targetItem = moderationQueue.find(item => item.id === id);
       const data = await resolveModerationListing(id, approve, reason);
-      notify(data.message);
+      notify(data?.message || (approve ? 'Listing approved and is now LIVE!' : 'Listing rejected.'));
       setModerationQueue(prev => prev.filter(item => item.id !== id));
       if (approve && targetItem) {
         const approvedItem = {
@@ -150,6 +150,8 @@ export default function AdminPortalPage({
         pendingModeration: Math.max(0, prev.pendingModeration - 1),
         liveListings: approve ? prev.liveListings + 1 : prev.liveListings
       }));
+      // Reload admin data from server so live listings tab reflects the change
+      setTimeout(() => loadAdminData(true), 1500);
       if (onRefreshListings) onRefreshListings();
     } catch (err) {
       notify(err.message || 'Unable to update moderation. Please try again.');

@@ -633,7 +633,7 @@ function buildDefaultEnquiries(): EnquiryItem[] {
     list.push({
       id: `enq_binmar_${i}`,
       seller_name: 'Binmar Motors',
-      seller_phone: '+971501234567',
+      seller_phone: '+971526539699',
       listing_id: String(100 + (i % 5)),
       listing_title: preset.title,
       vehicle_brand: preset.brand,
@@ -1637,8 +1637,8 @@ export default async (request: Request) => {
         city: body.city || 'Dubai',
         seller_name: body.seller_name || 'Verified Seller',
         seller_email: body.seller_email || '',
-        contact_phone: body.whatsapp_number || body.contact_phone || '+971501234567',
-        whatsapp_number: body.whatsapp_number || body.contact_phone || '+971501234567',
+        contact_phone: body.whatsapp_number || body.contact_phone || '+971526539699',
+        whatsapp_number: body.whatsapp_number || body.contact_phone || '+971526539699',
         description: body.description || '',
         images: Array.isArray(body.images) ? body.images : [],
         document_name: body.document_name || body.document_file || 'Mulkiya_Registration.pdf',
@@ -1709,7 +1709,7 @@ export default async (request: Request) => {
       const newEnquiry: EnquiryItem = {
         id: `enq_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
         seller_name: (body.seller_name || 'Binmar Motors').trim(),
-        seller_phone: body.seller_phone || '+971501234567',
+        seller_phone: body.seller_phone || '+971526539699',
         listing_id: String(body.listing_id || ''),
         listing_title: body.listing_title || 'Vehicle Listing',
         vehicle_brand: body.vehicle_brand || '',

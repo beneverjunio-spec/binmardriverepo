@@ -25,7 +25,7 @@ export async function recordWhatsAppEnquiry(listing, options = {}) {
 
   const enquiryPayload = {
     seller_name: sellerName,
-    seller_phone: listing.whatsapp_number || listing.contact_phone || '+971501234567',
+    seller_phone: listing.whatsapp_number || listing.contact_phone || '+971526539699',
     listing_id: listingId,
     listing_title: listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`.trim() || 'Vehicle Listing',
     vehicle_brand: listing.make || '',

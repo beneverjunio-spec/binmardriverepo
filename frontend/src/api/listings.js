@@ -42,8 +42,8 @@ function sanitizeListing(item) {
     longitude: item.longitude || null,
     maps_url: item.maps_url || (item.latitude && item.longitude ? `https://www.google.com/maps?q=${item.latitude},${item.longitude}` : null),
     images,
-    whatsapp_number: item.whatsapp_number || item.contact_phone || '+971501234567',
-    contact_phone: item.whatsapp_number || item.contact_phone || '+971501234567',
+    whatsapp_number: item.whatsapp_number || item.contact_phone || '+971526539699',
+    contact_phone: item.whatsapp_number || item.contact_phone || '+971526539699',
     slug: item.slug || generateVehicleSlug(item)
   };
 }

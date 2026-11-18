@@ -393,7 +393,7 @@ app.post('/api/listings', async (req, res) => {
     const city = b.city || 'Dubai';
     const seller_name = b.seller_name || 'Car Owner';
     const contact_preference = b.contact_preference || 'WhatsApp';
-    const whatsapp_number = b.whatsapp_number || b.contact_phone || '+971501234567';
+    const whatsapp_number = b.whatsapp_number || b.contact_phone || '+971526539699';
     const contact_phone = whatsapp_number;
     const description = b.description || '';
     const images = Array.isArray(b.images) ? b.images : [];
@@ -1371,7 +1371,7 @@ app.post('/api/enquiries', async (req, res) => {
     const cleanType = String(enquiry_type).toLowerCase() === 'rent' ? 'rent' : 'sale';
     const enquiryData = {
       seller_name: (seller_name || 'Binmar Motors').trim(),
-      seller_phone: seller_phone || '+971501234567',
+      seller_phone: seller_phone || '+971526539699',
       listing_id: String(listing_id),
       listing_title: listing_title || 'Vehicle Listing',
       vehicle_brand: vehicle_brand || '',

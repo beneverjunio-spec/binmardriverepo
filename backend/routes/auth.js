@@ -85,7 +85,7 @@ router.post('/login', async (req, res) => {
         user_type: isCompany ? 'company' : 'individual',
         name: identifier.includes('@') ? identifier.split('@')[0] : identifier,
         email: identifier.includes('@') ? identifier : `${identifier}@binmar.com`,
-        phone: !identifier.includes('@') ? identifier : '+971501234567',
+        phone: !identifier.includes('@') ? identifier : '+971526539699',
         status: 'approved',
         country: 'United Arab Emirates'
       };

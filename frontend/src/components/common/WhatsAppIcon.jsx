@@ -26,7 +26,7 @@ export function getWhatsAppUrl(target, customMessage) {
     return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
   }
 
-  const rawNumber = target.whatsapp_number || target.contact_phone || '+971501234567';
+  const rawNumber = target.whatsapp_number || target.contact_phone || '+971526539699';
   const cleanNumber = String(rawNumber).replace(/[^0-9]/g, '');
   const title = target.title || `${target.year || ''} ${target.make || ''} ${target.model || ''}`.trim() || 'Vehicle';
   const typeText = (target.listing_type || target.type) === 'rent' ? 'For Rent' : 'For Sale';
