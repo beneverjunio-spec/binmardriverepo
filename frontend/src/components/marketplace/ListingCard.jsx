@@ -4,6 +4,7 @@ import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import { useLanguage } from '../../context/LanguageContext';
 import { getVehicleUrl, getSellerUrl } from '../../utils/seo';
+import { recordListingView } from '../../api/listings';
 
 export default function ListingCard({ listing, index, onSelect, onSelectSeller }) {
   const { t, isRTL } = useLanguage();
@@ -46,9 +47,11 @@ export default function ListingCard({ listing, index, onSelect, onSelectSeller }
   const handleClick = (e) => {
     // If user clicked with Ctrl/Cmd/middle click, let default browser navigation happen (open in new tab)
     if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) {
+      recordListingView(listing);
       return;
     }
     e.preventDefault();
+    recordListingView(listing);
     if (onSelect) onSelect(listing);
   };
 

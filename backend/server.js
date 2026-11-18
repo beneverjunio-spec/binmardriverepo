@@ -246,6 +246,28 @@ app.get('/api/listings/:idOrSlug', async (req, res) => {
   }
 });
 
+// Dynamic view increment endpoint when browsing or clicking vehicle
+app.post('/api/listings/:id/view', async (req, res) => {
+  try {
+    const { id } = req.params;
+    let newViews = 1;
+    if (USE_MONGO) {
+      if (mongoDB.incrementListingViews) {
+        newViews = await mongoDB.incrementListingViews(id);
+      } else if (mongoDB.findListingById && mongoDB.updateListing) {
+        const listing = await mongoDB.findListingById(id);
+        if (listing) {
+          newViews = (Number(listing.views) || 0) + 1;
+          await mongoDB.updateListing(id, { views: newViews });
+        }
+      }
+    }
+    return res.json({ success: true, listing_id: id, views: newViews });
+  } catch (err) {
+    return res.json({ success: true, listing_id: req.params.id, views: 1 });
+  }
+});
+
 app.get('/api/listings', async (req, res) => {
   try {
     const { make, country, type, category, maxPrice, sort, seller } = req.query;

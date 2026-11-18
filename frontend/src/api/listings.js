@@ -494,3 +494,77 @@ export async function fetchListingById(idOrSlug) {
 
   return null;
 }
+
+/**
+ * Record a dynamic view when a visitor clicks or browses a listing
+ */
+export function recordListingView(listingOrId) {
+  if (!listingOrId) return;
+  const listingId = String(typeof listingOrId === 'object' ? (listingOrId.id || listingOrId._id || '') : listingOrId);
+  const listingTitle = typeof listingOrId === 'object' ? (listingOrId.title || '') : '';
+  if (!listingId && !listingTitle) return;
+
+  try {
+    const raw = localStorage.getItem('binmar_listing_views') || '{}';
+    let viewsMap = {};
+    try { viewsMap = JSON.parse(raw); } catch { viewsMap = {}; }
+    
+    const currentIdCount = Number(viewsMap[listingId] || 0) + 1;
+    viewsMap[listingId] = currentIdCount;
+    if (listingTitle) {
+      const cleanTitleKey = listingTitle.toLowerCase().trim();
+      viewsMap[cleanTitleKey] = (Number(viewsMap[cleanTitleKey] || 0) + 1);
+    }
+    localStorage.setItem('binmar_listing_views', JSON.stringify(viewsMap));
+
+    // Also increment in custom listings if present locally
+    const rawCustom = localStorage.getItem('binmar_custom_listings');
+    if (rawCustom) {
+      try {
+        const customList = JSON.parse(rawCustom);
+        let changed = false;
+        const updated = customList.map(item => {
+          if (String(item.id) === listingId || (listingTitle && (item.title || '').toLowerCase().trim() === listingTitle.toLowerCase().trim())) {
+            changed = true;
+            return { ...item, views: (Number(item.views) || 0) + 1 };
+          }
+          return item;
+        });
+        if (changed) {
+          localStorage.setItem('binmar_custom_listings', JSON.stringify(updated));
+        }
+      } catch {}
+    }
+
+    // Dispatch global event for instant reactive update in Seller Portal & elsewhere
+    window.dispatchEvent(new CustomEvent('binmar_views_updated', {
+      detail: { listingId, listingTitle, views: currentIdCount }
+    }));
+
+    // Non-blocking ping to server endpoint
+    if (listingId) {
+      fetch(`/api/listings/${encodeURIComponent(listingId)}/view`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        keepalive: true
+      }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn('Record view warning:', err);
+  }
+}
+
+/**
+ * Retrieve dynamic view count for a vehicle
+ */
+export function getListingViews(listingId, listingTitle) {
+  try {
+    const raw = localStorage.getItem('binmar_listing_views') || '{}';
+    const viewsMap = JSON.parse(raw);
+    const byId = listingId ? Number(viewsMap[String(listingId)] || 0) : 0;
+    const byTitle = listingTitle ? Number(viewsMap[String(listingTitle).toLowerCase().trim()] || 0) : 0;
+    return Math.max(byId, byTitle);
+  } catch {
+    return 0;
+  }
+}

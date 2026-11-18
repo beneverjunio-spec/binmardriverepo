@@ -24,6 +24,7 @@ import { WhatsAppIcon, getWhatsAppUrl, openWhatsApp, openGoogleMaps } from '../c
 import GooglePlayBadge from '../components/common/GooglePlayBadge';
 import { useLanguage } from '../context/LanguageContext';
 import { getVehicleUrl, getVehicleCanonicalUrl, generateVehicleSlug, getSellerUrl } from '../utils/seo';
+import { recordListingView } from '../api/listings';
 
 // Branded SVGs for Social Sharing
 const FacebookIcon = ({ size = 16 }) => (
@@ -58,6 +59,12 @@ export default function VehicleDetailPage({
   const [activePhotoIdx, setActivePhotoIdx] = useState(0);
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
+
+  useEffect(() => {
+    if (listing) {
+      recordListingView(listing);
+    }
+  }, [listing?.id]);
 
   // Extract photos safely
   const rawImages = typeof listing?.images === 'string'

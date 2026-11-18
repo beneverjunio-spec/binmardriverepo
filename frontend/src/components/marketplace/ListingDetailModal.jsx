@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, MapPin, Phone, Link2, Check, Share2 } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
 import { WhatsAppIcon, getWhatsAppUrl, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import GooglePlayBadge from '../common/GooglePlayBadge';
 import { useLanguage } from '../../context/LanguageContext';
 import { getSellerUrl } from '../../utils/seo';
+import { recordListingView } from '../../api/listings';
 
 // Branded SVGs for Social Media
 const FacebookIcon = ({ size = 16 }) => (
@@ -32,6 +33,12 @@ export default function ListingDetailModal({ listing, onClose, onSelectSeller })
   const [copiedLink, setCopiedLink] = useState(false);
   const [shareFeedback, setShareFeedback] = useState('');
   const { t, isRTL } = useLanguage();
+
+  useEffect(() => {
+    if (listing) {
+      recordListingView(listing);
+    }
+  }, [listing?.id]);
 
   if (!listing) return null;
 

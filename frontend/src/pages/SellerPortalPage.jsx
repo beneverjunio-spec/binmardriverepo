@@ -51,7 +51,7 @@ import {
   FUEL_TYPES,
   TRANSMISSION_TYPES
 } from '../constants';
-import { uploadListingPhotos, isTestData } from '../api/listings';
+import { uploadListingPhotos, isTestData, getListingViews, recordListingView } from '../api/listings';
 import { sendAdminEmailNotification, sendSellerEmailNotification } from '../api/email';
 import { apiRequest } from '../api/client';
 import { fetchSellerEnquiries } from '../api/enquiries';
@@ -175,6 +175,13 @@ export default function SellerPortalPage({
   // Enquiries & Telemetry data from Admin
   const [allEnquiries, setAllEnquiries] = useState([]);
   const [enquiriesLoading, setEnquiriesLoading] = useState(false);
+
+  // Dynamic Views & Real-Time Telemetry tick
+  const [viewsTick, setViewsTick] = useState(0);
+
+  // Vehicle Details View Modal state (for clicking to view all details of a catalog item)
+  const [viewingVehicleDetails, setViewingVehicleDetails] = useState(null);
+  const [viewingPhotoIdx, setViewingPhotoIdx] = useState(0);
 
   // In-place edit modal state
   const [editingListing, setEditingListing] = useState(null);
@@ -396,8 +403,15 @@ export default function SellerPortalPage({
     const handleEnquiriesUpdated = () => {
       loadSellerEnquiries();
     };
+    const handleViewsUpdated = () => {
+      setViewsTick(v => v + 1);
+    };
     window.addEventListener('binmar_enquiries_updated', handleEnquiriesUpdated);
-    return () => window.removeEventListener('binmar_enquiries_updated', handleEnquiriesUpdated);
+    window.addEventListener('binmar_views_updated', handleViewsUpdated);
+    return () => {
+      window.removeEventListener('binmar_enquiries_updated', handleEnquiriesUpdated);
+      window.removeEventListener('binmar_views_updated', handleViewsUpdated);
+    };
   }, []);
 
   // Dynamic matching of admin enquiries to this seller
@@ -489,7 +503,14 @@ export default function SellerPortalPage({
   const saleInquiriesCount = matchedEnquiries.filter(e => (e.enquiry_type || 'sale') !== 'rent').length;
   const rentInquiriesCount = matchedEnquiries.filter(e => (e.enquiry_type || 'sale') === 'rent').length;
 
-  const totalViews = sellerListings.reduce((sum, l) => sum + (Number(l.views) || 0), 0) || (totalInquiries * 32 + publishedCount * 48);
+  // Dynamic views calculated directly from actual browsing & clicking on listings
+  const totalViews = useMemo(() => {
+    return sellerListings.reduce((sum, l) => {
+      const recorded = getListingViews(l.id, l.title);
+      const base = Number(l.views) || 0;
+      return sum + Math.max(base, recorded);
+    }, 0);
+  }, [sellerListings, viewsTick]);
 
   const totalInventoryValue = useMemo(() => {
     return sellerListings.reduce((sum, l) => sum + (Number(l.price) || 0), 0);
@@ -523,7 +544,7 @@ export default function SellerPortalPage({
     return { location: `${topLoc}, UAE`, share };
   }, [sellerListings]);
 
-  // Map each listing to its dynamic inquiry count
+  // Map each listing to its dynamic inquiry and browsing view metrics
   const listingsWithInquiries = useMemo(() => {
     return sellerListings.map(listing => {
       const lId = String(listing.id || listing._id || '');
@@ -541,15 +562,18 @@ export default function SellerPortalPage({
         : vehicleEnquiries.length;
 
       const share = totalInquiries > 0 ? Math.round((count / totalInquiries) * 100) : 0;
+      const recordedViews = getListingViews(listing.id, listing.title);
+      const dynamicViews = Math.max(Number(listing.views) || 0, recordedViews);
 
       return {
         ...listing,
+        views: dynamicViews,
         inquiryCount: count,
         inquiryShare: share,
         vehicleEnquiries
       };
     });
-  }, [sellerListings, matchedEnquiries, totalInquiries]);
+  }, [sellerListings, matchedEnquiries, totalInquiries, viewsTick]);
 
   // In-place Edit action
   const handleStartEdit = (listing, e) => {
@@ -1961,7 +1985,27 @@ export default function SellerPortalPage({
 
                 {/* 4 Dynamic Metric KPI Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
-                  {/* KPI 1: Total Buyer Inquiries */}
+                  {/* KPI 1: Total Views (Dynamic from Browsing & Clicking) */}
+                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Total Views</p>
+                      <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-[#A87B2E]">
+                        <Eye size={18} />
+                      </div>
+                    </div>
+                    <p className="text-3xl font-bold font-serif-display text-ink mt-2">
+                      {totalViews.toLocaleString()}
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700 font-medium">
+                      <TrendingUp size={13} className="text-emerald-600" />
+                      <span>Dynamic browsing & clicks</span>
+                    </div>
+                    <p className="text-[11px] text-ink-soft mt-2">
+                      Live visitor views across your published catalog
+                    </p>
+                  </div>
+
+                  {/* KPI 2: Total Buyer Inquiries (Dynamic from Admin Queries) */}
                   <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Buyer Inquiries</p>
@@ -1985,27 +2029,6 @@ export default function SellerPortalPage({
                     </p>
                   </div>
 
-                  {/* KPI 2: Live Active Listings */}
-                  <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-ink-soft uppercase font-semibold tracking-wider">Live Inventory</p>
-                      <div className="w-8 h-8 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-[#A87B2E]">
-                        <Car size={18} />
-                      </div>
-                    </div>
-                    <p className="text-3xl font-bold font-serif-display text-ink mt-2">
-                      {publishedCount}
-                    </p>
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-amber-700 font-medium">
-                      <span>{pendingCount} pending review</span>
-                      <span>&bull;</span>
-                      <span>{sellerListings.length} total</span>
-                    </div>
-                    <p className="text-[11px] text-ink-soft mt-2">
-                      Publicly verified vehicles live on marketplace
-                    </p>
-                  </div>
-
                   {/* KPI 3: Total Inventory Value */}
                   <div className="p-4 rounded-xl bg-cream-deep/40 border border-tan/50 relative overflow-hidden">
                     <div className="flex items-center justify-between">
@@ -2018,10 +2041,10 @@ export default function SellerPortalPage({
                       {primaryCurrency} {totalInventoryValue.toLocaleString()}
                     </p>
                     <div className="mt-2 text-xs text-ink-soft font-medium truncate">
-                      Avg. {primaryCurrency} {avgPrice.toLocaleString()} / vehicle
+                      {publishedCount} live &bull; Avg. {primaryCurrency} {avgPrice.toLocaleString()}
                     </div>
                     <p className="text-[11px] text-ink-soft mt-2">
-                      Calculated from your active listed prices
+                      Across {sellerListings.length} vehicle{sellerListings.length === 1 ? '' : 's'} in inventory
                     </p>
                   </div>
 
@@ -2046,19 +2069,19 @@ export default function SellerPortalPage({
                 </div>
               </div>
 
-              {/* Section 2: Seller's Vehicle Listings with Dynamic Inquiry Breakdown */}
+              {/* Section 2: Refined Vehicle Catalog with Small Images & Full Details Viewer */}
               <div className="bg-white rounded-2xl border border-tan/60 p-6 space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pb-3 border-b border-tan/30">
                   <div>
                     <h3 className="text-lg font-bold font-serif-display text-ink">
-                      Vehicle Listings Performance & Buyer Interest
+                      Vehicle Catalog & Engagement
                     </h3>
                     <p className="text-xs text-ink-soft mt-0.5">
-                      Individual vehicle performance and inquiries captured through Central Admin coordination.
+                      Compact catalog view with live browsing telemetry. Click any vehicle to inspect its complete details.
                     </p>
                   </div>
                   <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-cream-deep border border-tan/50 text-gold-deep self-start sm:self-auto">
-                    {sellerListings.length} Vehicle{sellerListings.length === 1 ? '' : 's'} in Catalog
+                    {sellerListings.length} Vehicle{sellerListings.length === 1 ? '' : 's'} Listed
                   </span>
                 </div>
 
@@ -2077,144 +2100,109 @@ export default function SellerPortalPage({
                     </button>
                   </div>
                 ) : (
-                  <div className="overflow-x-auto rounded-xl border border-tan/40">
-                    <table className="w-full text-left text-xs border-collapse">
-                      <thead className="bg-cream-deep/70 text-ink-soft font-semibold uppercase tracking-wider text-[11px] border-b border-tan/40">
-                        <tr>
-                          <th className="py-3 px-4">Vehicle Details</th>
-                          <th className="py-3 px-4">Type</th>
-                          <th className="py-3 px-4">Listed Price</th>
-                          <th className="py-3 px-4">Status</th>
-                          <th className="py-3 px-4">Buyer Inquiries</th>
-                          <th className="py-3 px-4 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-tan/30">
-                        {listingsWithInquiries.map((listing) => {
-                          const img = (Array.isArray(listing.images) && listing.images[0]) ||
-                            'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
-                          const isRent = (listing.listing_type || listing.type) === 'rent';
-                          const isLive = listing.status === 'approved' || listing.status === 'published' || !listing.status;
-                          const isPending = listing.status === 'pending';
+                  <div className="space-y-3">
+                    {listingsWithInquiries.map((listing) => {
+                      const img = (Array.isArray(listing.images) && listing.images[0]) ||
+                        'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
+                      const isRent = (listing.listing_type || listing.type) === 'rent';
+                      const isLive = listing.status === 'approved' || listing.status === 'published' || !listing.status;
+                      const isPending = listing.status === 'pending';
 
-                          return (
-                            <tr key={listing.id} className="hover:bg-cream-deep/30 transition-colors">
-                              {/* Vehicle Thumbnail & Title */}
-                              <td className="py-3.5 px-4">
-                                <div className="flex items-center gap-3">
-                                  <img
-                                    src={img}
-                                    alt={listing.title}
-                                    className="w-12 h-12 rounded-lg object-cover border border-tan/40 shrink-0"
-                                    loading="lazy"
-                                  />
-                                  <div>
-                                    <p className="font-bold text-ink text-sm leading-snug">
-                                      {listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`}
-                                    </p>
-                                    <div className="flex items-center gap-2 text-[11px] text-ink-soft mt-0.5">
-                                      <span>{listing.category || 'SUV'}</span>
-                                      <span>&bull;</span>
-                                      <span>{listing.transmission || 'Automatic'}</span>
-                                      <span>&bull;</span>
-                                      <span>{listing.city || 'Dubai'}</span>
-                                    </div>
-                                    <span className="inline-block font-mono text-[10px] text-gold-deep mt-0.5">
-                                      {listing.reference_id || `REF-${String(listing.id).slice(-4)}`}
-                                    </span>
-                                  </div>
-                                </div>
-                              </td>
-
-                              {/* Listing Type */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <span className={`inline-block px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                      return (
+                        <div
+                          key={listing.id}
+                          onClick={() => { setViewingVehicleDetails(listing); setViewingPhotoIdx(0); }}
+                          className="group p-3.5 sm:p-4 rounded-xl border border-tan/50 bg-white hover:bg-cream-deep/20 hover:border-gold-deep/50 transition-all duration-200 cursor-pointer shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4"
+                        >
+                          {/* Left: Small image + Title + Specs */}
+                          <div className="flex items-center gap-3.5 min-w-0">
+                            <img
+                              src={img}
+                              alt={listing.title}
+                              className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl object-cover border border-tan/40 shrink-0 shadow-xs group-hover:scale-105 transition-transform duration-200"
+                              loading="lazy"
+                            />
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className="font-bold text-ink text-sm sm:text-base leading-snug truncate group-hover:text-gold-deep transition-colors">
+                                  {listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`}
+                                </h4>
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase ${
                                   isRent
                                     ? 'bg-blue-50 text-blue-700 border border-blue-200'
                                     : 'bg-amber-50 text-amber-700 border border-amber-200'
                                 }`}>
                                   {isRent ? 'For Rent' : 'For Sale'}
                                 </span>
-                              </td>
-
-                              {/* Listed Price */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <span className="font-bold text-ink text-sm">
-                                  {listing.currency || 'AED'} {Number(listing.price || 0).toLocaleString()}
-                                </span>
-                                {isRent && <span className="text-[11px] text-ink-soft block">per month</span>}
-                              </td>
-
-                              {/* Moderation / Verification Status */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
                                 {isLive && (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                    <CheckCircle2 size={12} />
-                                    Live Verified
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                    <CheckCircle2 size={11} /> Live Verified
                                   </span>
                                 )}
                                 {isPending && (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
-                                    <Clock size={12} />
-                                    Under Admin Review
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200">
+                                    <Clock size={11} /> Under Admin Review
                                   </span>
                                 )}
-                                {!isLive && !isPending && (
-                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-50 text-gray-700 border border-gray-200 capitalize">
-                                    {listing.status || 'Draft'}
-                                  </span>
-                                )}
-                              </td>
+                              </div>
+                              <div className="flex items-center gap-2 text-xs text-ink-soft mt-1 flex-wrap">
+                                <span>{listing.year || '2025'}</span>
+                                <span>&bull;</span>
+                                <span>{listing.category || 'SUV'}</span>
+                                <span>&bull;</span>
+                                <span>{listing.transmission || 'Automatic'}</span>
+                                <span>&bull;</span>
+                                <span>{listing.city || 'Dubai'}</span>
+                                <span className="font-mono text-[10px] text-gold-deep px-1.5 py-0.5 rounded bg-cream-deep border border-tan/30">
+                                  {listing.reference_id || `REF-${String(listing.id).slice(-4)}`}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
 
-                              {/* Buyer Inquiries Count & Share Bar */}
-                              <td className="py-3.5 px-4 whitespace-nowrap">
-                                <div className="space-y-1">
-                                  <div className="flex items-center gap-1.5">
-                                    <WhatsAppIcon size={14} color="#25D366" />
-                                    <span className="font-bold text-ink text-xs">
-                                      {listing.inquiryCount} {listing.inquiryCount === 1 ? 'Inquiry' : 'Inquiries'}
-                                    </span>
-                                    {totalInquiries > 0 && (
-                                      <span className="text-[10px] text-ink-soft">
-                                        ({listing.inquiryShare}%)
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="w-24 h-1.5 bg-cream-deep rounded-full overflow-hidden border border-tan/40">
-                                    <div
-                                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                                      style={{ width: `${Math.min(100, listing.inquiryShare || (listing.inquiryCount > 0 ? 100 : 0))}%` }}
-                                    />
-                                  </div>
-                                </div>
-                              </td>
+                          {/* Right: Metrics + Price + Actions */}
+                          <div className="flex items-center justify-between md:justify-end gap-3 sm:gap-4 shrink-0 pt-2 md:pt-0 border-t md:border-t-0 border-tan/30">
+                            {/* Dynamic Telemetry Pills */}
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-ink-soft bg-cream-deep/60 px-2.5 py-1 rounded-lg border border-tan/40" title="Dynamic Views from Browsing & Clicks">
+                                <Eye size={13} className="text-gold-deep" />
+                                <span className="font-bold text-ink">{listing.views}</span> views
+                              </span>
+                              <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200" title="Buyer Inquiries via Admin WhatsApp">
+                                <WhatsAppIcon size={13} color="#25D366" />
+                                <span className="font-bold text-emerald-700">{listing.inquiryCount}</span> {listing.inquiryCount === 1 ? 'inquiry' : 'inquiries'}
+                              </span>
+                            </div>
 
-                              {/* Actions */}
-                              <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                                <div className="inline-flex items-center gap-2">
-                                  <button
-                                    onClick={() => handleStartEdit(listing)}
-                                    className="p-1.5 rounded-lg border border-tan/60 text-ink hover:bg-cream transition-colors text-xs font-semibold inline-flex items-center gap-1"
-                                    title="Edit vehicle details and pricing"
-                                  >
-                                    <Edit size={13} /> Edit
-                                  </button>
-                                  <button
-                                    onClick={() => {
-                                      if (setCurrentPage) setCurrentPage('marketplace');
-                                    }}
-                                    className="p-1.5 rounded-lg bg-cream-deep/60 border border-tan/60 text-gold-deep hover:bg-cream transition-colors text-xs font-semibold inline-flex items-center gap-1"
-                                    title="View vehicle in public marketplace"
-                                  >
-                                    <ExternalLink size={13} /> View
-                                  </button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                            {/* Listed Price */}
+                            <div className="text-right whitespace-nowrap min-w-[5.5rem]">
+                              <p className="font-bold text-ink text-sm sm:text-base">
+                                {listing.currency || 'AED'} {Number(listing.price || 0).toLocaleString()}
+                              </p>
+                              {isRent && <p className="text-[10px] text-ink-soft">per month</p>}
+                            </div>
+
+                            {/* Action Buttons */}
+                            <div className="flex items-center gap-1.5" onClick={e => e.stopPropagation()}>
+                              <button
+                                onClick={() => { setViewingVehicleDetails(listing); setViewingPhotoIdx(0); }}
+                                className="px-3 py-1.5 rounded-lg bg-cream-deep border border-tan/60 text-ink hover:bg-gold-deep hover:text-white transition-colors text-xs font-semibold inline-flex items-center gap-1 shadow-xs"
+                                title="View all specifications, gallery & telemetry"
+                              >
+                                <Eye size={13} /> View
+                              </button>
+                              <button
+                                onClick={() => handleStartEdit(listing)}
+                                className="p-1.5 rounded-lg border border-tan/60 text-ink-soft hover:text-ink hover:bg-cream transition-colors text-xs font-semibold"
+                                title="Edit vehicle details"
+                              >
+                                <Edit size={13} />
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -2333,6 +2321,251 @@ export default function SellerPortalPage({
           )}
         </div>
       </main>
+
+      {/* ========================================================= */}
+      {/* VIEW ALL VEHICLE DETAILS MODAL (Catalog Viewer)            */}
+      {/* ========================================================= */}
+      {viewingVehicleDetails && (() => {
+        const item = viewingVehicleDetails;
+        const rawImages = typeof item.images === 'string'
+          ? JSON.parse(item.images || '[]')
+          : (Array.isArray(item.images) ? item.images : []);
+        const photos = (rawImages || []).filter(url => typeof url === 'string' && url.trim().length > 0);
+        const mainPhoto = photos[viewingPhotoIdx] || photos[0] ||
+          'https://images.unsplash.com/photo-1594502184342-2e12f877aa73?w=800&fit=crop';
+        const isRent = (item.listing_type || item.type) === 'rent';
+        const isLive = item.status === 'approved' || item.status === 'published' || !item.status;
+        const isPending = item.status === 'pending';
+
+        // Vehicle specific inquiries
+        const thisVehicleEnquiries = matchedEnquiries.filter(e => {
+          if (String(e.listing_id || '') === String(item.id || '')) return true;
+          if ((e.listing_title || '').toLowerCase().trim() === (item.title || '').toLowerCase().trim()) return true;
+          return false;
+        });
+
+        return (
+          <div className="seller-modal-backdrop" onClick={() => setViewingVehicleDetails(null)}>
+            <div
+              className="seller-modal-card"
+              style={{ maxHeight: '92vh', maxWidth: '44rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="seller-modal-header" style={{ flexShrink: 0 }}>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs uppercase tracking-wider text-gold-deep font-semibold">Vehicle Details & Telemetry</p>
+                    <span className="font-mono text-[10px] text-ink-soft bg-cream-deep px-1.5 py-0.5 rounded border border-tan/30">
+                      {item.reference_id || `REF-${String(item.id).slice(-4)}`}
+                    </span>
+                  </div>
+                  <h2 className="font-serif-display text-xl font-bold text-ink leading-tight mt-0.5">
+                    {item.title || `${item.year || ''} ${item.make || ''} ${item.model || ''}`}
+                  </h2>
+                </div>
+                <button
+                  className="seller-modal-close"
+                  onClick={() => setViewingVehicleDetails(null)}
+                  title="Close details"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="seller-modal-body space-y-5" style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '1.25rem 1.5rem' }}>
+                {/* Photo Showcase & Thumbnail Strip */}
+                <div className="space-y-2">
+                  <div className="relative rounded-xl overflow-hidden border border-tan/40 bg-ink-soft/5 h-60 sm:h-72">
+                    <img
+                      src={mainPhoto}
+                      alt={item.title}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm ${
+                      isRent
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-[#A87B2E] text-white'
+                    }`}>
+                      {isRent ? 'For Rent' : 'For Sale'}
+                    </span>
+                    <span className="absolute top-3 right-3 px-2.5 py-1 rounded-full text-xs font-semibold shadow-sm bg-black/60 text-white backdrop-blur-xs">
+                      {item.condition_type === 'new' ? 'Brand New' : 'Used'}
+                    </span>
+                  </div>
+
+                  {photos.length > 1 && (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
+                      {photos.map((pUrl, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setViewingPhotoIdx(idx)}
+                          className={`w-14 h-14 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
+                            viewingPhotoIdx === idx ? 'border-gold-deep scale-105 shadow-sm' : 'border-tan/40 opacity-70 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={pUrl} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Key Metrics Banner */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3 rounded-xl bg-cream-deep/40 border border-tan/40">
+                    <p className="text-[10px] font-semibold uppercase text-ink-soft">Listed Price</p>
+                    <p className="text-base sm:text-lg font-bold text-ink mt-0.5">
+                      {item.currency || 'AED'} {Number(item.price || 0).toLocaleString()}
+                    </p>
+                    <p className="text-[10px] text-ink-soft">{isRent ? 'Monthly rental' : 'Direct sale'}</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200/60">
+                    <p className="text-[10px] font-semibold uppercase text-amber-800">Dynamic Views</p>
+                    <p className="text-base sm:text-lg font-bold text-ink mt-0.5 flex items-center gap-1">
+                      <Eye size={15} className="text-gold-deep" />
+                      {item.views || 0}
+                    </p>
+                    <p className="text-[10px] text-amber-700">Marketplace visits</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/60">
+                    <p className="text-[10px] font-semibold uppercase text-emerald-800">WhatsApp Leads</p>
+                    <p className="text-base sm:text-lg font-bold text-emerald-800 mt-0.5 flex items-center gap-1">
+                      <WhatsAppIcon size={15} color="#25D366" />
+                      {item.inquiryCount || thisVehicleEnquiries.length || 0}
+                    </p>
+                    <p className="text-[10px] text-emerald-700">Via central admin</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-cream-deep/40 border border-tan/40">
+                    <p className="text-[10px] font-semibold uppercase text-ink-soft">Status</p>
+                    <div className="mt-1">
+                      {isLive && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <CheckCircle2 size={11} /> Live Verified
+                        </span>
+                      )}
+                      {isPending && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                          <Clock size={11} /> Under Review
+                        </span>
+                      )}
+                      {!isLive && !isPending && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200 capitalize">
+                          {item.status || 'Draft'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Complete Specifications Grid */}
+                <div className="space-y-2">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Vehicle Specifications</h4>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Make</span>
+                      <span className="font-semibold text-ink">{item.make || 'Toyota'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Model</span>
+                      <span className="font-semibold text-ink">{item.model || 'Test car'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Year</span>
+                      <span className="font-semibold text-ink">{item.year || '2025'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Body Type</span>
+                      <span className="font-semibold text-ink">{item.category || 'SUV'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Transmission</span>
+                      <span className="font-semibold text-ink">{item.transmission || 'Automatic'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Fuel Type</span>
+                      <span className="font-semibold text-ink">{item.fuel || 'Petrol'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Mileage</span>
+                      <span className="font-semibold text-ink">{item.mileage ? (String(item.mileage).includes('km') ? item.mileage : `${item.mileage} km`) : '0 km'}</span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-cream border border-tan/30">
+                      <span className="text-ink-soft block text-[11px]">Location</span>
+                      <span className="font-semibold text-ink">{item.city || 'Dubai'}, {item.country || 'UAE'}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Description Box */}
+                <div className="space-y-1.5">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-ink-soft">Vehicle Description</h4>
+                  <div className="p-3.5 rounded-xl bg-cream/70 border border-tan/40 text-xs text-ink leading-relaxed">
+                    {item.description ? item.description : (
+                      <span className="text-ink-soft italic">
+                        Certified vehicle listed on Binmar Marketplace. Fully inspected and ready for immediate handover.
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dealer & Routing Information */}
+                <div className="p-3.5 rounded-xl bg-cream-deep/30 border border-tan/40 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <span className="text-ink-soft block text-[11px]">Registered Showroom / Seller</span>
+                    <span className="font-bold text-ink">{item.seller_name || sellerDisplayName}</span>
+                  </div>
+                  <div>
+                    <span className="text-ink-soft block text-[11px]">Inquiry Coordinator</span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                      <WhatsAppIcon size={12} color="#25D366" />
+                      Binmar Central Admin (+971 52 653 9699)
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="seller-modal-footer" style={{ flexShrink: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <button
+                  type="button"
+                  className="seller-modal-cancel-btn"
+                  onClick={() => setViewingVehicleDetails(null)}
+                >
+                  Close
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewingVehicleDetails(null);
+                      handleStartEdit(item);
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-white border border-tan/60 text-ink hover:bg-cream transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <Edit size={13} /> Edit Vehicle
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setViewingVehicleDetails(null);
+                      if (setCurrentPage) setCurrentPage('marketplace');
+                    }}
+                    className="px-3.5 py-2 text-xs font-semibold rounded-xl bg-gold-deep text-white hover:bg-gold-deep/90 transition-colors inline-flex items-center gap-1.5"
+                  >
+                    <ExternalLink size={13} /> Marketplace Page
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ========================================================= */}
       {/* IN-PLACE EDIT LISTING MODAL (Directly updates vehicle)     */}

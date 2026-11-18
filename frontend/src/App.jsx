@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { getUser, handleAuthCallback, logout, onAuthChange } from '@netlify/identity';
 import { authErrorMessage, loadProfile } from './api/auth';
-import { fetchPublicListings, fetchRegisteredSellers, fetchListingById } from './api/listings';
+import { fetchPublicListings, fetchRegisteredSellers, fetchListingById, recordListingView } from './api/listings';
 
 // Common Components
 import Toast from './components/common/Toast';
@@ -130,6 +130,7 @@ export default function App() {
   };
 
   const handleSelectListing = (listing) => {
+    recordListingView(listing);
     setSelectedListing(listing);
     setCurrentPage('vehicle-detail');
     setShowListingModal(true);
