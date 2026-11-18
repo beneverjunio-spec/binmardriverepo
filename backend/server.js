@@ -1550,6 +1550,185 @@ app.post('/api/notifications', async (req, res) => {
   }
 });
 
+// ==========================================
+// Seller WhatsApp Enquiries Management
+// ==========================================
+const recentEnquiryClicks = new Map();
+
+// Public: Capture WhatsApp Enquiry Event
+app.post('/api/enquiries', async (req, res) => {
+  try {
+    const {
+      seller_name,
+      seller_phone,
+      listing_id,
+      listing_title,
+      vehicle_brand,
+      vehicle_model,
+      reference_id,
+      enquiry_type = 'sale',
+      price_label,
+      customer_name,
+      customer_phone,
+      whatsapp_link,
+      source = 'marketplace'
+    } = req.body || {};
+
+    if (!listing_id || !seller_name) {
+      return res.status(400).json({ success: false, error: 'listing_id and seller_name are required' });
+    }
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
+    const dedupKey = `${ip}_${listing_id}_${enquiry_type}`;
+    const now = Date.now();
+    const lastClick = recentEnquiryClicks.get(dedupKey);
+
+    // Prevent duplicate records within 15 seconds from the same visitor & listing
+    if (lastClick && (now - lastClick < 15000)) {
+      return res.json({ success: true, deduplicated: true, message: 'Enquiry already recorded recently' });
+    }
+    recentEnquiryClicks.set(dedupKey, now);
+
+    // Cleanup old click timestamps
+    if (recentEnquiryClicks.size > 2000) {
+      for (const [k, time] of recentEnquiryClicks.entries()) {
+        if (now - time > 60000) recentEnquiryClicks.delete(k);
+      }
+    }
+
+    const cleanType = String(enquiry_type).toLowerCase() === 'rent' ? 'rent' : 'sale';
+    const enquiryData = {
+      seller_name: (seller_name || 'Binmar Motors').trim(),
+      seller_phone: seller_phone || '+971501234567',
+      listing_id: String(listing_id),
+      listing_title: listing_title || 'Vehicle Listing',
+      vehicle_brand: vehicle_brand || '',
+      vehicle_model: vehicle_model || '',
+      reference_id: reference_id || `REF-${listing_id}`,
+      enquiry_type: cleanType,
+      price_label: price_label || '',
+      customer_name: customer_name || null,
+      customer_phone: customer_phone || null,
+      whatsapp_link: whatsapp_link || '',
+      source: source || 'marketplace',
+      ip,
+      created_at: new Date()
+    };
+
+    let savedEnquiry = enquiryData;
+    if (USE_MONGO && mongoDB.createEnquiry) {
+      savedEnquiry = await mongoDB.createEnquiry(enquiryData);
+      try {
+        const typeBadge = cleanType === 'rent' ? 'For Rent' : 'For Sale';
+        await mongoDB.createNotification(
+          `New WhatsApp Enquiry (${typeBadge})`,
+          `Visitor enquired on "${listing_title}" (${seller_name}). Reference: ${reference_id || listing_id}`
+        );
+      } catch {}
+    } else {
+      if (!global.inMemoryEnquiries) global.inMemoryEnquiries = [];
+      savedEnquiry.id = `enq_${Date.now()}`;
+      global.inMemoryEnquiries.unshift(savedEnquiry);
+    }
+
+    res.json({ success: true, enquiry: savedEnquiry });
+  } catch (err) {
+    console.error('[Enquiries Error]', err.message);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Get All Enquiries and Grouped Stats by Seller
+app.get('/api/admin/enquiries', async (req, res) => {
+  try {
+    const { seller, type, search } = req.query || {};
+
+    if (USE_MONGO && mongoDB.getEnquiryStats) {
+      const stats = await mongoDB.getEnquiryStats();
+      let filtered = stats.enquiries;
+
+      if (seller) {
+        const s = String(seller).toLowerCase().trim();
+        filtered = filtered.filter(e => (e.seller_name || '').toLowerCase().trim() === s);
+      }
+      if (type && type !== 'all') {
+        const t = String(type).toLowerCase();
+        filtered = filtered.filter(e => (e.enquiry_type || 'sale').toLowerCase() === t);
+      }
+      if (search) {
+        const q = String(search).toLowerCase().trim();
+        filtered = filtered.filter(e =>
+          (e.seller_name && e.seller_name.toLowerCase().includes(q)) ||
+          (e.listing_title && e.listing_title.toLowerCase().includes(q)) ||
+          (e.vehicle_brand && e.vehicle_brand.toLowerCase().includes(q)) ||
+          (e.vehicle_model && e.vehicle_model.toLowerCase().includes(q)) ||
+          (e.reference_id && e.reference_id.toLowerCase().includes(q)) ||
+          (e.customer_name && e.customer_name.toLowerCase().includes(q)) ||
+          (e.customer_phone && e.customer_phone.toLowerCase().includes(q))
+        );
+      }
+
+      return res.json({
+        success: true,
+        totalEnquiries: stats.totalEnquiries,
+        totalSale: stats.totalSale,
+        totalRent: stats.totalRent,
+        totalSellers: stats.totalSellers,
+        sellerSummaries: stats.sellerSummaries,
+        enquiries: filtered
+      });
+    }
+
+    const fallbackList = global.inMemoryEnquiries || [];
+    res.json({
+      success: true,
+      totalEnquiries: fallbackList.length,
+      totalSale: fallbackList.filter(e => e.enquiry_type === 'sale').length,
+      totalRent: fallbackList.filter(e => e.enquiry_type === 'rent').length,
+      totalSellers: 1,
+      sellerSummaries: [{ seller: 'Binmar Motors', total: fallbackList.length, saleCount: 0, rentCount: 0 }],
+      enquiries: fallbackList
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Delete an Enquiry
+app.delete('/api/admin/enquiries/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (USE_MONGO && mongoDB.deleteEnquiry) {
+      await mongoDB.deleteEnquiry(id);
+      return res.json({ success: true, message: `Enquiry #${id} deleted.` });
+    }
+    if (global.inMemoryEnquiries) {
+      global.inMemoryEnquiries = global.inMemoryEnquiries.filter(e => String(e.id) !== String(id));
+    }
+    res.json({ success: true, message: `Enquiry #${id} deleted.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Clear All Enquiries for a Seller
+app.delete('/api/admin/enquiries/seller/:seller', async (req, res) => {
+  try {
+    const { seller } = req.params;
+    if (USE_MONGO && mongoDB.deleteEnquiriesBySeller) {
+      await mongoDB.deleteEnquiriesBySeller(seller);
+      return res.json({ success: true, message: `Enquiries for ${seller} cleared.` });
+    }
+    if (global.inMemoryEnquiries) {
+      const s = String(seller).toLowerCase().trim();
+      global.inMemoryEnquiries = global.inMemoryEnquiries.filter(e => (e.seller_name || '').toLowerCase().trim() !== s);
+    }
+    res.json({ success: true, message: `Enquiries for ${seller} cleared.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 app.post('/api/notifications/mark-all-read', async (req, res) => {
   try {
     if (USE_MONGO) {

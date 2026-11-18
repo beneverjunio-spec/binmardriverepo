@@ -1,4 +1,5 @@
 import React from 'react';
+import { recordWhatsAppEnquiry } from '../../api/enquiries';
 
 export function WhatsAppIcon({ size = 18, color = 'currentColor', className = '' }) {
   return (
@@ -16,16 +17,23 @@ export function WhatsAppIcon({ size = 18, color = 'currentColor', className = ''
   );
 }
 
-export function getWhatsAppUrl(listing) {
-  if (!listing) return '#';
-  const rawNumber = listing.whatsapp_number || listing.contact_phone || '+971501234567';
-  const cleanNumber = String(rawNumber).replace(/[^0-9]/g, '');
-  const title = listing.title || `${listing.year || ''} ${listing.make || ''} ${listing.model || ''}`.trim() || 'Vehicle';
-  const typeText = (listing.listing_type || listing.type) === 'rent' ? 'For Rent' : 'For Sale';
-  const price = listing.price_label || `${listing.currency || 'AED'} ${Number(listing.price || 0).toLocaleString()}`;
-  const location = [listing.city, listing.country].filter(Boolean).join(', ');
+export function getWhatsAppUrl(target, customMessage) {
+  if (!target) return '#';
 
-  const text = `Hello! I am inquiring about your vehicle listed on BinmarDrive:
+  if (typeof target === 'string') {
+    const cleanNumber = target.replace(/[^0-9]/g, '');
+    const text = customMessage || 'Hello! I am inquiring about a vehicle listed on BinmarDrive.';
+    return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
+  }
+
+  const rawNumber = target.whatsapp_number || target.contact_phone || '+971501234567';
+  const cleanNumber = String(rawNumber).replace(/[^0-9]/g, '');
+  const title = target.title || `${target.year || ''} ${target.make || ''} ${target.model || ''}`.trim() || 'Vehicle';
+  const typeText = (target.listing_type || target.type) === 'rent' ? 'For Rent' : 'For Sale';
+  const price = target.price_label || `${target.currency || 'AED'} ${Number(target.price || 0).toLocaleString()}`;
+  const location = [target.city, target.country].filter(Boolean).join(', ');
+
+  const text = customMessage || `Hello! I am inquiring about your vehicle listed on BinmarDrive:
 🚗 *${title}* (${typeText})
 💰 Price: ${price}
 📍 Location: ${location || 'Middle East'}
@@ -35,11 +43,24 @@ Is this vehicle still available?`;
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(text)}`;
 }
 
-export function openWhatsApp(listing, e) {
+export function openWhatsApp(listing, e, options = {}) {
   if (e && e.stopPropagation) {
     e.stopPropagation();
   }
-  const url = getWhatsAppUrl(listing);
+  if (e && e.preventDefault) {
+    e.preventDefault();
+  }
+
+  const url = getWhatsAppUrl(listing, options.customMessage);
+
+  // Automatically record this enquiry for the seller in the admin dashboard
+  if (listing && typeof listing === 'object') {
+    recordWhatsAppEnquiry(listing, {
+      ...options,
+      whatsapp_link: url
+    }).catch(() => {});
+  }
+
   window.open(url, '_blank', 'noopener,noreferrer');
 }
 

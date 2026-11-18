@@ -100,10 +100,36 @@ notificationSchema.virtual('id').get(function() {
 notificationSchema.set('toJSON', { virtuals: true });
 notificationSchema.set('toObject', { virtuals: true });
 
+const enquirySchema = new mongoose.Schema({
+  seller_name: { type: String, required: true, index: true },
+  seller_phone: { type: String, default: '+971501234567' },
+  listing_id: { type: String, required: true, index: true },
+  listing_title: { type: String, required: true },
+  vehicle_brand: { type: String, default: '' },
+  vehicle_model: { type: String, default: '' },
+  reference_id: { type: String, default: '' },
+  enquiry_type: { type: String, enum: ['sale', 'rent'], default: 'sale', index: true },
+  price_label: { type: String, default: '' },
+  customer_name: { type: String, default: null },
+  customer_phone: { type: String, default: null },
+  whatsapp_link: { type: String, default: '' },
+  source: { type: String, default: 'marketplace' },
+  ip: { type: String, default: '' },
+  user_agent: { type: String, default: '' },
+  created_at: { type: Date, default: Date.now, index: true }
+}, { bufferCommands: false });
+
+enquirySchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
+enquirySchema.set('toJSON', { virtuals: true });
+enquirySchema.set('toObject', { virtuals: true });
+
 const Listing = mongoose.models.Listing || mongoose.model('Listing', listingSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
+const Enquiry = mongoose.models.Enquiry || mongoose.model('Enquiry', enquirySchema);
 
 // ==========================================
 // In-Memory & File Store Persistence
@@ -148,6 +174,114 @@ let inMemoryNotifications = [
   }
 ];
 
+function buildDefaultEnquiries() {
+  const list = [];
+  const now = new Date('2026-11-18T10:30:00.000Z');
+
+  // 1. Binmar Motors (25 enquiries: 18 sale, 7 rent)
+  const binmarModels = [
+    { title: '2024 Toyota Land Cruiser GR-Sport', brand: 'Toyota', model: 'Land Cruiser', type: 'sale', price: 'AED 345,000', ref: 'REF-101' },
+    { title: '2023 Mercedes-Benz G63 AMG Night Package', brand: 'Mercedes-Benz', model: 'G63 AMG', type: 'rent', price: 'AED 1,800 / day', ref: 'REF-102' },
+    { title: '2024 Lexus LX600 Signature', brand: 'Lexus', model: 'LX600', type: 'sale', price: 'AED 510,000', ref: 'REF-103' },
+    { title: '2024 Nissan Patrol Titanium V8', brand: 'Nissan', model: 'Patrol', type: 'sale', price: 'AED 295,000', ref: 'REF-104' },
+    { title: '2023 Range Rover Autobiography', brand: 'Land Rover', model: 'Range Rover', type: 'rent', price: 'AED 2,200 / day', ref: 'REF-105' }
+  ];
+  for (let i = 1; i <= 25; i++) {
+    const preset = binmarModels[(i - 1) % binmarModels.length];
+    const isRent = i % 4 === 0 || i % 7 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const minsAgo = (25 - i) * 35;
+    const date = new Date(now.getTime() - minsAgo * 60000);
+    list.push({
+      id: `enq_binmar_${i}`,
+      _id: `enq_binmar_${i}`,
+      seller_name: 'Binmar Motors',
+      seller_phone: '+971501234567',
+      listing_id: String(100 + (i % 5)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-BMD-${100 + (i % 5)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 1,500 / day' : preset.price,
+      customer_name: i % 3 === 0 ? `Ahmed Al Mansoori` : i % 5 === 0 ? `Rashid Saeed` : null,
+      customer_phone: `+97150${Math.floor(1000000 + (i * 27361) % 8999999)}`,
+      whatsapp_link: `https://wa.me/971501234567?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: i % 2 === 0 ? 'detail_page' : 'listing_card',
+      created_at: date
+    });
+  }
+
+  // 2. ABC Motors (14 enquiries: 10 sale, 4 rent)
+  const abcModels = [
+    { title: '2023 Toyota Camry GLE Hybrid', brand: 'Toyota', model: 'Camry', type: 'sale', price: 'AED 98,000', ref: 'REF-201' },
+    { title: '2022 BMW M5 Competition', brand: 'BMW', model: 'M5', type: 'sale', price: 'AED 385,000', ref: 'REF-202' },
+    { title: '2024 Mercedes-Benz C300 AMG Line', brand: 'Mercedes-Benz', model: 'C300', type: 'rent', price: 'AED 650 / day', ref: 'REF-203' },
+    { title: '2023 Audi RS6 Avant Quattro', brand: 'Audi', model: 'RS6', type: 'sale', price: 'AED 440,000', ref: 'REF-204' }
+  ];
+  for (let i = 1; i <= 14; i++) {
+    const preset = abcModels[(i - 1) % abcModels.length];
+    const isRent = i % 3 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const minsAgo = (14 - i) * 75 + 40;
+    const date = new Date(now.getTime() - minsAgo * 60000);
+    list.push({
+      id: `enq_abc_${i}`,
+      _id: `enq_abc_${i}`,
+      seller_name: 'ABC Motors',
+      seller_phone: '+971559876543',
+      listing_id: String(200 + (i % 4)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-ABC-${200 + (i % 4)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 650 / day' : preset.price,
+      customer_name: i % 2 === 0 ? `Mohamed Tariq` : null,
+      customer_phone: `+97155${Math.floor(2000000 + (i * 38291) % 7999999)}`,
+      whatsapp_link: `https://wa.me/971559876543?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: 'detail_modal',
+      created_at: date
+    });
+  }
+
+  // 3. John Cars (8 enquiries: 5 sale, 3 rent)
+  const johnModels = [
+    { title: '2022 Ford Mustang GT Premium 5.0L', brand: 'Ford', model: 'Mustang', type: 'sale', price: 'AED 165,000', ref: 'REF-301' },
+    { title: '2023 Porsche 911 Carrera S', brand: 'Porsche', model: '911', type: 'rent', price: 'AED 2,400 / day', ref: 'REF-302' },
+    { title: '2021 Dodge Charger Scat Pack 392', brand: 'Dodge', model: 'Charger', type: 'sale', price: 'AED 155,000', ref: 'REF-303' }
+  ];
+  for (let i = 1; i <= 8; i++) {
+    const preset = johnModels[(i - 1) % johnModels.length];
+    const isRent = i % 3 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const minsAgo = (8 - i) * 120 + 90;
+    const date = new Date(now.getTime() - minsAgo * 60000);
+    list.push({
+      id: `enq_john_${i}`,
+      _id: `enq_john_${i}`,
+      seller_name: 'John Cars',
+      seller_phone: '+971527621325',
+      listing_id: String(300 + (i % 3)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-JC-${300 + (i % 3)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 2,400 / day' : preset.price,
+      customer_name: i % 2 === 0 ? `Khalid Al Shamsi` : null,
+      customer_phone: `+97152${Math.floor(3000000 + (i * 49201) % 6999999)}`,
+      whatsapp_link: `https://wa.me/971527621325?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: 'listing_card',
+      created_at: date
+    });
+  }
+
+  return list;
+}
+
+let inMemoryEnquiries = buildDefaultEnquiries();
+
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch {}
@@ -164,6 +298,7 @@ function loadStoreFromFile() {
       if (Array.isArray(data.users)) inMemoryUsers = data.users;
       if (Array.isArray(data.notifications)) inMemoryNotifications = data.notifications;
       if (Array.isArray(data.admins) && data.admins.length > 0) inMemoryAdmins = data.admins;
+      if (Array.isArray(data.enquiries) && data.enquiries.length > 0) inMemoryEnquiries = data.enquiries;
     } catch (e) {
       console.warn('[DB] Could not read store.json:', e.message);
     }
@@ -177,7 +312,8 @@ function saveStoreToFile() {
       listings: inMemoryListings,
       users: inMemoryUsers,
       notifications: inMemoryNotifications,
-      admins: inMemoryAdmins
+      admins: inMemoryAdmins,
+      enquiries: inMemoryEnquiries
     };
     fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
@@ -589,6 +725,128 @@ async function getStats() {
   };
 }
 
+// ==========================================
+// Enquiries Operations
+// ==========================================
+async function findEnquiries(filter = {}, sortOption = { created_at: -1 }) {
+  if (isConnected()) {
+    try {
+      const docs = await Enquiry.find(filter).sort(sortOption).lean();
+      return docs.map(d => ({ ...d, id: d._id.toString() }));
+    } catch (e) {
+      console.warn('[DB] Fallback to store enquiries:', e.message);
+    }
+  }
+
+  let result = [...inMemoryEnquiries];
+  if (filter.seller_name) {
+    const s = String(filter.seller_name).toLowerCase().trim();
+    result = result.filter(e => (e.seller_name || '').toLowerCase().trim() === s);
+  }
+  if (filter.enquiry_type) {
+    result = result.filter(e => (e.enquiry_type || 'sale').toLowerCase() === filter.enquiry_type.toLowerCase());
+  }
+  if (filter.listing_id) {
+    result = result.filter(e => String(e.listing_id) === String(filter.listing_id));
+  }
+
+  result.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  return result;
+}
+
+async function createEnquiry(enquiryData) {
+  const newEnquiry = {
+    id: `enq_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+    ...enquiryData,
+    created_at: enquiryData.created_at ? new Date(enquiryData.created_at) : new Date()
+  };
+
+  if (isConnected()) {
+    try {
+      const doc = new Enquiry(newEnquiry);
+      await doc.save();
+      const savedObj = doc.toObject();
+      newEnquiry.id = doc._id.toString();
+      newEnquiry._id = doc._id.toString();
+    } catch (e) {
+      console.warn('[DB] Could not save enquiry to MongoDB Atlas:', e.message);
+    }
+  }
+
+  inMemoryEnquiries.unshift(newEnquiry);
+  saveStoreToFile();
+  return newEnquiry;
+}
+
+async function deleteEnquiry(id) {
+  if (isConnected()) {
+    try {
+      await Enquiry.findByIdAndDelete(id);
+    } catch (e) {}
+  }
+  inMemoryEnquiries = inMemoryEnquiries.filter(e => String(e.id) !== String(id) && String(e._id) !== String(id));
+  saveStoreToFile();
+  return true;
+}
+
+async function deleteEnquiriesBySeller(sellerName) {
+  const s = (sellerName || '').toLowerCase().trim();
+  if (isConnected()) {
+    try {
+      await Enquiry.deleteMany({ seller_name: new RegExp(`^${s}$`, 'i') });
+    } catch (e) {}
+  }
+  inMemoryEnquiries = inMemoryEnquiries.filter(e => (e.seller_name || '').toLowerCase().trim() !== s);
+  saveStoreToFile();
+  return true;
+}
+
+async function getEnquiryStats() {
+  const all = await findEnquiries({});
+  const sellerMap = new Map();
+
+  for (const item of all) {
+    const sName = (item.seller_name || 'Binmar Motors').trim();
+    if (!sellerMap.has(sName)) {
+      sellerMap.set(sName, {
+        seller: sName,
+        seller_phone: item.seller_phone || '',
+        total: 0,
+        saleCount: 0,
+        rentCount: 0,
+        lastEnquiryAt: item.created_at
+      });
+    }
+
+    const summary = sellerMap.get(sName);
+    summary.total += 1;
+    if ((item.enquiry_type || 'sale').toLowerCase() === 'rent') {
+      summary.rentCount += 1;
+    } else {
+      summary.saleCount += 1;
+    }
+
+    if (new Date(item.created_at) > new Date(summary.lastEnquiryAt || 0)) {
+      summary.lastEnquiryAt = item.created_at;
+    }
+  }
+
+  // Convert to array and sort descending by total enquiries
+  const sellerSummaries = Array.from(sellerMap.values()).sort((a, b) => b.total - a.total);
+
+  const totalSale = all.filter(e => (e.enquiry_type || 'sale').toLowerCase() === 'sale').length;
+  const totalRent = all.filter(e => (e.enquiry_type || 'sale').toLowerCase() === 'rent').length;
+
+  return {
+    totalEnquiries: all.length,
+    totalSale,
+    totalRent,
+    totalSellers: sellerSummaries.length,
+    sellerSummaries,
+    enquiries: all
+  };
+}
+
 module.exports = {
   connectMongoDB,
   isConnected,
@@ -596,6 +854,7 @@ module.exports = {
   User,
   Admin,
   Notification,
+  Enquiry,
   findListings,
   createListing,
   updateListing,
@@ -613,5 +872,10 @@ module.exports = {
   markNotificationRead,
   markAllNotificationsRead,
   clearAllNotifications,
+  findEnquiries,
+  createEnquiry,
+  deleteEnquiry,
+  deleteEnquiriesBySeller,
+  getEnquiryStats,
   getStats
 };

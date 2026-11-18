@@ -7,6 +7,7 @@ import DealersTab from '../components/admin/DealersTab';
 import LiveListingsTab from '../components/admin/LiveListingsTab';
 import AdminsTab from '../components/admin/AdminsTab';
 import NotificationsTab from '../components/admin/NotificationsTab';
+import SellerEnquiriesTab from '../components/admin/SellerEnquiriesTab';
 import {
   fetchAdminPortalData,
   resolveModerationListing,
@@ -15,6 +16,7 @@ import {
   deleteLiveListing,
   toggleDisableLiveListing
 } from '../api/admin';
+import { fetchSellerEnquiries } from '../api/enquiries';
 import { DEFAULT_ADMIN_DATA } from '../constants';
 
 export default function AdminPortalPage({
@@ -35,6 +37,14 @@ export default function AdminPortalPage({
   const [adminListings, setAdminListings] = useState([]);
   const [admins, setAdmins] = useState(DEFAULT_ADMIN_DATA.admins || []);
   const [notifications, setNotifications] = useState([]);
+  const [enquiriesData, setEnquiriesData] = useState({
+    enquiries: [],
+    sellerSummaries: [],
+    totalEnquiries: 0,
+    totalSale: 0,
+    totalRent: 0,
+    totalSellers: 0
+  });
   const [adminSearch, setAdminSearch] = useState('');
   const [adminDataError, setAdminDataError] = useState('');
 
@@ -63,6 +73,21 @@ export default function AdminPortalPage({
           if (staffData.success && Array.isArray(staffData.admins)) {
             setAdmins(staffData.admins);
           }
+        }
+      } catch {}
+
+      // Load seller WhatsApp enquiries from API
+      try {
+        const enqRes = await fetchSellerEnquiries();
+        if (enqRes && enqRes.success) {
+          setEnquiriesData({
+            enquiries: enqRes.enquiries || [],
+            sellerSummaries: enqRes.sellerSummaries || [],
+            totalEnquiries: enqRes.totalEnquiries || 0,
+            totalSale: enqRes.totalSale || 0,
+            totalRent: enqRes.totalRent || 0,
+            totalSellers: enqRes.totalSellers || 0
+          });
         }
       } catch {}
     } catch (e) {
@@ -97,10 +122,12 @@ export default function AdminPortalPage({
     window.addEventListener('focus', handleSync);
     window.addEventListener('storage', handleSync);
     window.addEventListener('binmar_listings_updated', handleSync);
+    window.addEventListener('binmar_enquiries_updated', handleSync);
     return () => {
       window.removeEventListener('focus', handleSync);
       window.removeEventListener('storage', handleSync);
       window.removeEventListener('binmar_listings_updated', handleSync);
+      window.removeEventListener('binmar_enquiries_updated', handleSync);
     };
   }, []);
 
@@ -358,6 +385,7 @@ export default function AdminPortalPage({
         moderationCount={moderationQueue.length}
         dealerCount={dealerQueue.length}
         listingsCount={adminListings.length}
+        enquiryCount={enquiriesData.totalEnquiries}
         notificationCount={notifications.filter(n => !n.is_read).length}
         adminCount={admins.length}
         onExit={onExit}
@@ -415,6 +443,20 @@ export default function AdminPortalPage({
             onRemoveListing={handleRemoveListing}
             onToggleDisableListing={handleToggleDisableListing}
             onRemoveAllListings={handleRemoveAllListings}
+          />
+        )}
+
+        {adminTab === 'enquiries' && (
+          <SellerEnquiriesTab
+            enquiries={enquiriesData.enquiries}
+            sellerSummaries={enquiriesData.sellerSummaries}
+            totalEnquiries={enquiriesData.totalEnquiries}
+            totalSale={enquiriesData.totalSale}
+            totalRent={enquiriesData.totalRent}
+            totalSellers={enquiriesData.totalSellers}
+            onRefresh={() => loadAdminData(false)}
+            isRefreshing={isRefreshing}
+            notify={notify}
           />
         )}
 

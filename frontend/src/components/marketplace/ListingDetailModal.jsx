@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, MapPin, Phone, Link2, Check, Share2 } from 'lucide-react';
 import { CARD_GRADIENTS } from '../../constants';
-import { WhatsAppIcon, getWhatsAppUrl, openGoogleMaps } from '../common/WhatsAppIcon';
+import { WhatsAppIcon, getWhatsAppUrl, openWhatsApp, openGoogleMaps } from '../common/WhatsAppIcon';
 import GooglePlayBadge from '../common/GooglePlayBadge';
 import { useLanguage } from '../../context/LanguageContext';
 import { getSellerUrl } from '../../utils/seo';
@@ -365,6 +365,7 @@ export default function ListingDetailModal({ listing, onClose, onSelectSeller })
                 href={getWhatsAppUrl(listing)}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => openWhatsApp(listing, e, { source: 'detail_modal' })}
                 className="btn-whatsapp-modal"
                 title={t('chat_whatsapp')}
               >

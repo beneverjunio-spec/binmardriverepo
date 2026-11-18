@@ -20,7 +20,7 @@ import {
   Sparkles
 } from 'lucide-react';
 import { CARD_GRADIENTS } from '../constants';
-import { WhatsAppIcon, getWhatsAppUrl, openGoogleMaps } from '../components/common/WhatsAppIcon';
+import { WhatsAppIcon, getWhatsAppUrl, openWhatsApp, openGoogleMaps } from '../components/common/WhatsAppIcon';
 import GooglePlayBadge from '../components/common/GooglePlayBadge';
 import { useLanguage } from '../context/LanguageContext';
 import { getVehicleUrl, getVehicleCanonicalUrl, generateVehicleSlug, getSellerUrl } from '../utils/seo';
@@ -944,6 +944,10 @@ export default function VehicleDetailPage({
                 href={getWhatsAppUrl(contactNumber, `Hello, I am inquiring about the ${listing.title} listed on BinmarDrive (${canonicalUrl}). Is it still available?`)}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={(e) => openWhatsApp(listing, e, {
+                  source: 'detail_page',
+                  customMessage: `Hello, I am inquiring about the ${listing.title} listed on BinmarDrive (${canonicalUrl}). Is it still available?`
+                })}
                 style={{
                   display: 'flex',
                   alignItems: 'center',

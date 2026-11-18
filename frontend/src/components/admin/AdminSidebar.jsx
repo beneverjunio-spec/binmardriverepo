@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Clock, ShieldCheck, CheckCircle2, Users, Bell, ArrowLeft } from 'lucide-react';
+import { Car, Clock, ShieldCheck, CheckCircle2, MessageSquare, Users, Bell, ArrowLeft } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminSidebar({
@@ -8,6 +8,7 @@ export default function AdminSidebar({
   moderationCount = 0,
   dealerCount = 0,
   listingsCount = 0,
+  enquiryCount = 0,
   adminCount = 0,
   notificationCount = 0,
   onExit
@@ -49,6 +50,20 @@ export default function AdminSidebar({
         <CheckCircle2 size={18} />
         <span>{t('admin_tab_live_listings')}</span>
         <span className="admin-nav-count">{listingsCount}</span>
+      </div>
+
+      <div
+        className={`admin-nav-item ${adminTab === 'enquiries' ? 'active' : ''}`}
+        onClick={() => setAdminTab('enquiries')}
+      >
+        <MessageSquare size={18} />
+        <span>{t('admin_tab_enquiries')}</span>
+        <span
+          className="admin-nav-count"
+          style={enquiryCount > 0 ? { background: '#10b981', color: '#fff' } : {}}
+        >
+          {enquiryCount}
+        </span>
       </div>
 
       <div

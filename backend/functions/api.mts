@@ -429,6 +429,24 @@ export interface NotificationItem {
   type?: string;
 }
 
+export interface EnquiryItem {
+  id: number | string;
+  seller_name: string;
+  seller_phone?: string;
+  listing_id: string;
+  listing_title: string;
+  vehicle_brand?: string;
+  vehicle_model?: string;
+  reference_id?: string;
+  enquiry_type: 'sale' | 'rent' | string;
+  price_label?: string;
+  customer_name?: string | null;
+  customer_phone?: string | null;
+  whatsapp_link?: string;
+  source?: string;
+  created_at: string;
+}
+
 // In-Memory caches initialized with real system administrators
 let inMemoryAdmins: AdminItem[] = [
   {
@@ -591,6 +609,132 @@ async function saveNotifications(notificationsList: NotificationItem[]): Promise
   if (store) {
     try {
       await store.setJSON('notifications', notificationsList);
+    } catch {}
+  }
+}
+
+function buildDefaultEnquiries(): EnquiryItem[] {
+  const list: EnquiryItem[] = [];
+  const now = new Date('2026-11-18T10:30:00.000Z');
+
+  // Binmar Motors (25 enquiries)
+  const binmarModels = [
+    { title: '2024 Toyota Land Cruiser GR-Sport', brand: 'Toyota', model: 'Land Cruiser', type: 'sale', price: 'AED 345,000' },
+    { title: '2023 Mercedes-Benz G63 AMG Night Package', brand: 'Mercedes-Benz', model: 'G63 AMG', type: 'rent', price: 'AED 1,800 / day' },
+    { title: '2024 Lexus LX600 Signature', brand: 'Lexus', model: 'LX600', type: 'sale', price: 'AED 510,000' },
+    { title: '2024 Nissan Patrol Titanium V8', brand: 'Nissan', model: 'Patrol', type: 'sale', price: 'AED 295,000' },
+    { title: '2023 Range Rover Autobiography', brand: 'Land Rover', model: 'Range Rover', type: 'rent', price: 'AED 2,200 / day' }
+  ];
+  for (let i = 1; i <= 25; i++) {
+    const preset = binmarModels[(i - 1) % binmarModels.length];
+    const isRent = i % 4 === 0 || i % 7 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const date = new Date(now.getTime() - (25 - i) * 35 * 60000).toISOString();
+    list.push({
+      id: `enq_binmar_${i}`,
+      seller_name: 'Binmar Motors',
+      seller_phone: '+971501234567',
+      listing_id: String(100 + (i % 5)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-BMD-${100 + (i % 5)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 1,500 / day' : preset.price,
+      customer_name: i % 3 === 0 ? 'Ahmed Al Mansoori' : i % 5 === 0 ? 'Rashid Saeed' : null,
+      customer_phone: `+97150${Math.floor(1000000 + (i * 27361) % 8999999)}`,
+      whatsapp_link: `https://wa.me/971501234567?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: i % 2 === 0 ? 'detail_page' : 'listing_card',
+      created_at: date
+    });
+  }
+
+  // ABC Motors (14 enquiries)
+  const abcModels = [
+    { title: '2023 Toyota Camry GLE Hybrid', brand: 'Toyota', model: 'Camry', type: 'sale', price: 'AED 98,000' },
+    { title: '2022 BMW M5 Competition', brand: 'BMW', model: 'M5', type: 'sale', price: 'AED 385,000' },
+    { title: '2024 Mercedes-Benz C300 AMG Line', brand: 'Mercedes-Benz', model: 'C300', type: 'rent', price: 'AED 650 / day' },
+    { title: '2023 Audi RS6 Avant Quattro', brand: 'Audi', model: 'RS6', type: 'sale', price: 'AED 440,000' }
+  ];
+  for (let i = 1; i <= 14; i++) {
+    const preset = abcModels[(i - 1) % abcModels.length];
+    const isRent = i % 3 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const date = new Date(now.getTime() - ((14 - i) * 75 + 40) * 60000).toISOString();
+    list.push({
+      id: `enq_abc_${i}`,
+      seller_name: 'ABC Motors',
+      seller_phone: '+971559876543',
+      listing_id: String(200 + (i % 4)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-ABC-${200 + (i % 4)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 650 / day' : preset.price,
+      customer_name: i % 2 === 0 ? 'Mohamed Tariq' : null,
+      customer_phone: `+97155${Math.floor(2000000 + (i * 38291) % 7999999)}`,
+      whatsapp_link: `https://wa.me/971559876543?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: 'detail_modal',
+      created_at: date
+    });
+  }
+
+  // John Cars (8 enquiries)
+  const johnModels = [
+    { title: '2022 Ford Mustang GT Premium 5.0L', brand: 'Ford', model: 'Mustang', type: 'sale', price: 'AED 165,000' },
+    { title: '2023 Porsche 911 Carrera S', brand: 'Porsche', model: '911', type: 'rent', price: 'AED 2,400 / day' },
+    { title: '2021 Dodge Charger Scat Pack 392', brand: 'Dodge', model: 'Charger', type: 'sale', price: 'AED 155,000' }
+  ];
+  for (let i = 1; i <= 8; i++) {
+    const preset = johnModels[(i - 1) % johnModels.length];
+    const isRent = i % 3 === 0;
+    const type = isRent ? 'rent' : 'sale';
+    const date = new Date(now.getTime() - ((8 - i) * 120 + 90) * 60000).toISOString();
+    list.push({
+      id: `enq_john_${i}`,
+      seller_name: 'John Cars',
+      seller_phone: '+971527621325',
+      listing_id: String(300 + (i % 3)),
+      listing_title: preset.title,
+      vehicle_brand: preset.brand,
+      vehicle_model: preset.model,
+      reference_id: `REF-JC-${300 + (i % 3)}`,
+      enquiry_type: type,
+      price_label: type === 'rent' ? 'AED 2,400 / day' : preset.price,
+      customer_name: i % 2 === 0 ? 'Khalid Al Shamsi' : null,
+      customer_phone: `+97152${Math.floor(3000000 + (i * 49201) % 6999999)}`,
+      whatsapp_link: `https://wa.me/971527621325?text=${encodeURIComponent('Hello! I am inquiring about ' + preset.title + ' on BinmarDrive.')}`,
+      source: 'listing_card',
+      created_at: date
+    });
+  }
+
+  return list;
+}
+
+let inMemoryEnquiries: EnquiryItem[] = buildDefaultEnquiries();
+
+async function loadEnquiries(): Promise<EnquiryItem[]> {
+  const store = getCloudStore();
+  if (store) {
+    try {
+      const data = await store.get('enquiries', { type: 'json' }) as EnquiryItem[];
+      if (Array.isArray(data) && data.length > 0) {
+        inMemoryEnquiries = data;
+        return inMemoryEnquiries;
+      }
+    } catch {}
+  }
+  return inMemoryEnquiries;
+}
+
+async function saveEnquiries(enquiriesList: EnquiryItem[]): Promise<void> {
+  inMemoryEnquiries = enquiriesList;
+  const store = getCloudStore();
+  if (store) {
+    try {
+      await store.setJSON('enquiries', enquiriesList);
     } catch {}
   }
 }
@@ -1553,6 +1697,132 @@ export default async (request: Request) => {
       }).catch(err => console.warn('Email dispatch warning:', err));
 
       return reply({ success: true, id: newListing.id, listingId: newListing.id, message: 'Listing submitted for moderation.' }, 201);
+    }
+
+    // ----------------------------------------------------
+    // WhatsApp Enquiries Management
+    // ----------------------------------------------------
+    if (path === '/api/enquiries' && method === 'POST') {
+      const body = await request.json();
+      const allEnquiries = await loadEnquiries();
+
+      const newEnquiry: EnquiryItem = {
+        id: `enq_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+        seller_name: (body.seller_name || 'Binmar Motors').trim(),
+        seller_phone: body.seller_phone || '+971501234567',
+        listing_id: String(body.listing_id || ''),
+        listing_title: body.listing_title || 'Vehicle Listing',
+        vehicle_brand: body.vehicle_brand || '',
+        vehicle_model: body.vehicle_model || '',
+        reference_id: body.reference_id || `REF-${body.listing_id || '001'}`,
+        enquiry_type: String(body.enquiry_type).toLowerCase() === 'rent' ? 'rent' : 'sale',
+        price_label: body.price_label || '',
+        customer_name: body.customer_name || null,
+        customer_phone: body.customer_phone || null,
+        whatsapp_link: body.whatsapp_link || '',
+        source: body.source || 'marketplace',
+        created_at: new Date().toISOString()
+      };
+
+      await saveEnquiries([newEnquiry, ...allEnquiries]);
+
+      // Add admin notification
+      const notifs = await loadNotifications();
+      const notifItem: NotificationItem = {
+        id: Date.now(),
+        title: `New WhatsApp Enquiry (${newEnquiry.enquiry_type === 'rent' ? 'For Rent' : 'For Sale'})`,
+        message: `Visitor enquired on "${newEnquiry.listing_title}" (${newEnquiry.seller_name}).`,
+        is_read: false,
+        created_at: new Date().toISOString()
+      };
+      await saveNotifications([notifItem, ...notifs]);
+
+      return reply({ success: true, enquiry: newEnquiry }, 201);
+    }
+
+    if (path === '/api/admin/enquiries' && method === 'GET') {
+      const all = await loadEnquiries();
+      const seller = url.searchParams.get('seller');
+      const type = url.searchParams.get('type');
+      const search = url.searchParams.get('search');
+
+      const sellerMap = new Map<string, { seller: string; seller_phone: string; total: number; saleCount: number; rentCount: number; lastEnquiryAt: string }>();
+
+      for (const item of all) {
+        const sName = (item.seller_name || 'Binmar Motors').trim();
+        if (!sellerMap.has(sName)) {
+          sellerMap.set(sName, {
+            seller: sName,
+            seller_phone: item.seller_phone || '',
+            total: 0,
+            saleCount: 0,
+            rentCount: 0,
+            lastEnquiryAt: item.created_at
+          });
+        }
+        const summary = sellerMap.get(sName)!;
+        summary.total += 1;
+        if (item.enquiry_type === 'rent') {
+          summary.rentCount += 1;
+        } else {
+          summary.saleCount += 1;
+        }
+        if (new Date(item.created_at) > new Date(summary.lastEnquiryAt || 0)) {
+          summary.lastEnquiryAt = item.created_at;
+        }
+      }
+
+      const sellerSummaries = Array.from(sellerMap.values()).sort((a, b) => b.total - a.total);
+
+      let filtered = all;
+      if (seller) {
+        const s = seller.toLowerCase().trim();
+        filtered = filtered.filter(e => (e.seller_name || '').toLowerCase().trim() === s);
+      }
+      if (type && type !== 'all') {
+        const t = type.toLowerCase();
+        filtered = filtered.filter(e => (e.enquiry_type || 'sale').toLowerCase() === t);
+      }
+      if (search) {
+        const q = search.toLowerCase().trim();
+        filtered = filtered.filter(e =>
+          (e.seller_name && e.seller_name.toLowerCase().includes(q)) ||
+          (e.listing_title && e.listing_title.toLowerCase().includes(q)) ||
+          (e.vehicle_brand && e.vehicle_brand.toLowerCase().includes(q)) ||
+          (e.vehicle_model && e.vehicle_model.toLowerCase().includes(q)) ||
+          (e.reference_id && e.reference_id.toLowerCase().includes(q)) ||
+          (e.customer_name && e.customer_name.toLowerCase().includes(q)) ||
+          (e.customer_phone && e.customer_phone.toLowerCase().includes(q))
+        );
+      }
+
+      return reply({
+        success: true,
+        totalEnquiries: all.length,
+        totalSale: all.filter(e => e.enquiry_type === 'sale').length,
+        totalRent: all.filter(e => e.enquiry_type === 'rent').length,
+        totalSellers: sellerSummaries.length,
+        sellerSummaries,
+        enquiries: filtered
+      });
+    }
+
+    const enqDeleteMatch = path.match(/^\/api\/admin\/enquiries\/([^\/]+)$/);
+    if (enqDeleteMatch && method === 'DELETE') {
+      const enqId = enqDeleteMatch[1];
+      const all = await loadEnquiries();
+      const updated = all.filter(e => String(e.id) !== String(enqId));
+      await saveEnquiries(updated);
+      return reply({ success: true, message: `Enquiry #${enqId} deleted.` });
+    }
+
+    const enqSellerClearMatch = path.match(/^\/api\/admin\/enquiries\/seller\/([^\/]+)$/);
+    if (enqSellerClearMatch && method === 'DELETE') {
+      const targetSeller = decodeURIComponent(enqSellerClearMatch[1]).toLowerCase().trim();
+      const all = await loadEnquiries();
+      const updated = all.filter(e => (e.seller_name || '').toLowerCase().trim() !== targetSeller);
+      await saveEnquiries(updated);
+      return reply({ success: true, message: `Enquiries for ${targetSeller} cleared.` });
     }
 
     // ----------------------------------------------------
