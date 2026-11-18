@@ -157,18 +157,60 @@ export async function deleteEnquiry(id) {
  * Clear all enquiries for a selected seller
  */
 export async function clearSellerEnquiries(sellerName) {
-  try {
-    await apiRequest(`/api/admin/enquiries/seller/${encodeURIComponent(sellerName)}`, { method: 'DELETE' });
-  } catch (err) {
-    console.warn('Clear seller enquiries server warning:', err?.message);
-  }
+  return clearMultipleSellersEnquiries([sellerName]);
+}
 
-  // Also remove from localStorage
+/**
+ * Clear all enquiries for multiple selected sellers
+ */
+export async function clearMultipleSellersEnquiries(sellerNames = []) {
+  if (!sellerNames || !sellerNames.length) return { success: true };
+
+  // Call server for each seller in parallel
+  await Promise.all(
+    sellerNames.map(name =>
+      apiRequest(`/api/admin/enquiries/seller/${encodeURIComponent(name)}`, { method: 'DELETE' }).catch(err => {
+        console.warn(`Clear seller enquiries warning for ${name}:`, err?.message);
+      })
+    )
+  );
+
+  // Also remove from localStorage in one batch
   try {
-    const s = String(sellerName).toLowerCase().trim();
+    const lowerNames = new Set(sellerNames.map(s => String(s).toLowerCase().trim()));
     const raw = localStorage.getItem('binmar_seller_enquiries');
     if (raw) {
-      const list = JSON.parse(raw).filter(e => (e.seller_name || '').toLowerCase().trim() !== s);
+      const list = JSON.parse(raw).filter(e => !lowerNames.has((e.seller_name || '').toLowerCase().trim()));
+      localStorage.setItem('binmar_seller_enquiries', JSON.stringify(list));
+    }
+  } catch {}
+
+  window.dispatchEvent(new Event('binmar_enquiries_updated'));
+  return { success: true };
+}
+
+/**
+ * Delete multiple enquiries by IDs
+ */
+export async function deleteMultipleEnquiries(ids = []) {
+  if (!ids || !ids.length) return { success: true };
+
+  const idSet = new Set(ids.map(String));
+
+  // Call server for each enquiry in parallel
+  await Promise.all(
+    ids.map(id =>
+      apiRequest(`/api/admin/enquiries/${id}`, { method: 'DELETE' }).catch(err => {
+        console.warn(`Delete enquiry warning for ${id}:`, err?.message);
+      })
+    )
+  );
+
+  // Also remove from localStorage in one batch
+  try {
+    const raw = localStorage.getItem('binmar_seller_enquiries');
+    if (raw) {
+      const list = JSON.parse(raw).filter(e => !idSet.has(String(e.id || e._id)));
       localStorage.setItem('binmar_seller_enquiries', JSON.stringify(list));
     }
   } catch {}

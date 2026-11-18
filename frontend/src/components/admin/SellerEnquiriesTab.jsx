@@ -20,11 +20,17 @@ import {
   RefreshCw,
   Tag,
   CheckCircle2,
+  AlertTriangle,
   Car
 } from 'lucide-react';
 import { exportToExcel } from '../../utils/exportToExcel';
 import { WhatsAppIcon } from '../common/WhatsAppIcon';
-import { deleteEnquiry, clearSellerEnquiries } from '../../api/enquiries';
+import {
+  deleteEnquiry,
+  clearSellerEnquiries,
+  deleteMultipleEnquiries,
+  clearMultipleSellersEnquiries
+} from '../../api/enquiries';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function SellerEnquiriesTab({
@@ -47,6 +53,9 @@ export default function SellerEnquiriesTab({
   const [sellerSearch, setSellerSearch] = useState('');
   const [sellerTypeFilter, setSellerTypeFilter] = useState('all'); // 'all' | 'sale' | 'rent'
 
+  // Selection state for Sellers Overview (View 1)
+  const [selectedSellers, setSelectedSellers] = useState(new Set());
+
   // Search & Filter state for Detailed Enquiries view
   const [enquirySearch, setEnquirySearch] = useState('');
   const [enquiryTypeFilter, setEnquiryTypeFilter] = useState('all'); // 'all' | 'sale' | 'rent'
@@ -54,11 +63,36 @@ export default function SellerEnquiriesTab({
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
+  // Selection state for Detailed Enquiries view (View 2)
+  const [selectedEnquiryIds, setSelectedEnquiryIds] = useState(new Set());
+
+  // Dedicated Deletion Confirmation Modal state
+  const [confirmModalState, setConfirmModalState] = useState(null);
+
   // WhatsApp Share Modal state
   const [shareModalSeller, setShareModalSeller] = useState(null);
   const [sharePhone, setSharePhone] = useState('');
   const [shareMessageText, setShareMessageText] = useState('');
   const [copiedSuccess, setCopiedSuccess] = useState(false);
+
+  // ----------------------------------------------------
+  // Accurate Dashboard Figures (Directly derived from the current list)
+  // ----------------------------------------------------
+  const activeEnquiriesList = enquiries || [];
+  const displayTotalEnquiries = activeEnquiriesList.length;
+  const displayTotalSale = useMemo(() => {
+    return activeEnquiriesList.filter(e => (e.enquiry_type || 'sale').toLowerCase() === 'sale').length;
+  }, [activeEnquiriesList]);
+  const displayTotalRent = useMemo(() => {
+    return activeEnquiriesList.filter(e => (e.enquiry_type || '').toLowerCase() === 'rent').length;
+  }, [activeEnquiriesList]);
+  const displayTotalSellers = useMemo(() => {
+    if (sellerSummaries && sellerSummaries.length > 0) {
+      return sellerSummaries.filter(s => s.total > 0).length;
+    }
+    const set = new Set(activeEnquiriesList.map(e => (e.seller_name || '').trim().toLowerCase()).filter(Boolean));
+    return set.size;
+  }, [sellerSummaries, activeEnquiriesList]);
 
   // ----------------------------------------------------
   // Grouped Sellers Data Calculation
@@ -76,6 +110,37 @@ export default function SellerEnquiriesTab({
       return true;
     });
   }, [sellerSummaries, sellerSearch, sellerTypeFilter]);
+
+  // Sellers Selection Calculations
+  const isAllSellersSelected = useMemo(() => {
+    if (!filteredSellers.length) return false;
+    return filteredSellers.every(s => selectedSellers.has(s.seller));
+  }, [filteredSellers, selectedSellers]);
+
+  const selectedSellersEnquiryCount = useMemo(() => {
+    let sum = 0;
+    sellerSummaries.forEach(s => {
+      if (selectedSellers.has(s.seller)) sum += (s.total || 0);
+    });
+    return sum;
+  }, [sellerSummaries, selectedSellers]);
+
+  const toggleSelectSeller = (sellerName) => {
+    setSelectedSellers(prev => {
+      const next = new Set(prev);
+      if (next.has(sellerName)) next.delete(sellerName);
+      else next.add(sellerName);
+      return next;
+    });
+  };
+
+  const toggleSelectAllSellers = () => {
+    if (isAllSellersSelected) {
+      setSelectedSellers(new Set());
+    } else {
+      setSelectedSellers(new Set(filteredSellers.map(s => s.seller)));
+    }
+  };
 
   // Selected Seller's Enquiries
   const currentSellerEnquiries = useMemo(() => {
@@ -260,21 +325,119 @@ export default function SellerEnquiriesTab({
   };
 
   // ----------------------------------------------------
-  // Delete / Clear Actions
+  // Detailed Enquiries Selection Helpers
   // ----------------------------------------------------
-  const handleDeleteSingleEnquiry = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this enquiry record?')) return;
-    await deleteEnquiry(id);
-    notify('Enquiry record deleted.');
-    if (onRefresh) onRefresh();
+  const isAllEnquiriesSelected = useMemo(() => {
+    if (!paginatedEnquiries.length) return false;
+    return paginatedEnquiries.every(e => selectedEnquiryIds.has(String(e.id || e._id)));
+  }, [paginatedEnquiries, selectedEnquiryIds]);
+
+  const toggleSelectEnquiry = (id) => {
+    const str = String(id);
+    setSelectedEnquiryIds(prev => {
+      const next = new Set(prev);
+      if (next.has(str)) next.delete(str);
+      else next.add(str);
+      return next;
+    });
   };
 
-  const handleClearSeller = async (sellerName) => {
-    if (!window.confirm(`Are you sure you want to clear all enquiries for "${sellerName}"?`)) return;
-    await clearSellerEnquiries(sellerName);
-    notify(`All enquiries for ${sellerName} cleared.`);
-    setSelectedSellerName(null);
-    if (onRefresh) onRefresh();
+  const toggleSelectAllEnquiries = () => {
+    if (isAllEnquiriesSelected) {
+      setSelectedEnquiryIds(new Set());
+    } else {
+      setSelectedEnquiryIds(new Set(paginatedEnquiries.map(e => String(e.id || e._id))));
+    }
+  };
+
+  // ----------------------------------------------------
+  // Deletion Request & Confirmation Handlers
+  // ----------------------------------------------------
+  const handleRequestDeleteSingleSeller = (sellerName, totalCount = 0) => {
+    setConfirmModalState({
+      isOpen: true,
+      type: 'sellers',
+      sellerNames: [sellerName],
+      sellerDetails: [{ name: sellerName, count: totalCount }],
+      totalEnquiries: totalCount,
+      isProcessing: false
+    });
+  };
+
+  const handleRequestDeleteSelectedSellers = () => {
+    if (!selectedSellers.size) return;
+    const names = Array.from(selectedSellers);
+    const details = names.map(name => {
+      const summary = sellerSummaries.find(s => s.seller === name);
+      return { name, count: summary ? summary.total : 0 };
+    });
+    const total = details.reduce((sum, d) => sum + d.count, 0);
+
+    setConfirmModalState({
+      isOpen: true,
+      type: 'sellers',
+      sellerNames: names,
+      sellerDetails: details,
+      totalEnquiries: total,
+      isProcessing: false
+    });
+  };
+
+  const handleRequestDeleteSingleEnquiry = (id, title = 'Enquiry') => {
+    setConfirmModalState({
+      isOpen: true,
+      type: 'enquiries',
+      enquiryIds: [String(id)],
+      enquiryDetails: [{ title, ref: String(id) }],
+      totalEnquiries: 1,
+      isProcessing: false
+    });
+  };
+
+  const handleRequestDeleteSelectedEnquiries = () => {
+    if (!selectedEnquiryIds.size) return;
+    const ids = Array.from(selectedEnquiryIds);
+    const details = ids.map(id => {
+      const record = enquiries.find(e => String(e.id || e._id) === id);
+      return {
+        title: record?.listing_title || `Enquiry #${id}`,
+        ref: record?.reference_id || `REF-${id}`
+      };
+    });
+
+    setConfirmModalState({
+      isOpen: true,
+      type: 'enquiries',
+      enquiryIds: ids,
+      enquiryDetails: details,
+      totalEnquiries: ids.length,
+      isProcessing: false
+    });
+  };
+
+  const executeConfirmedDeletion = async () => {
+    if (!confirmModalState) return;
+    setConfirmModalState(prev => ({ ...prev, isProcessing: true }));
+
+    try {
+      if (confirmModalState.type === 'sellers') {
+        await clearMultipleSellersEnquiries(confirmModalState.sellerNames);
+        notify(`Deleted enquiries for ${confirmModalState.sellerNames.length} seller(s).`);
+        setSelectedSellers(new Set());
+        if (selectedSellerName && confirmModalState.sellerNames.includes(selectedSellerName)) {
+          setSelectedSellerName(null);
+        }
+      } else {
+        await deleteMultipleEnquiries(confirmModalState.enquiryIds);
+        notify(`Deleted ${confirmModalState.enquiryIds.length} enquiry record(s).`);
+        setSelectedEnquiryIds(new Set());
+      }
+      setConfirmModalState(null);
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      notify(err?.message || 'Failed to delete enquiries. Please try again.');
+      setConfirmModalState(prev => ({ ...prev, isProcessing: false }));
+    }
   };
 
   // ----------------------------------------------------
@@ -324,7 +487,7 @@ export default function SellerEnquiriesTab({
         </div>
       </div>
 
-      {/* KPI Stats Cards */}
+      {/* KPI Stats Cards - Strictly driven by current active list data */}
       <div className="enquiries-kpi-grid">
         <div className="enquiries-kpi-card">
           <div className="kpi-icon-wrap" style={{ background: 'rgba(37, 211, 102, 0.12)', color: '#25D366' }}>
@@ -332,7 +495,7 @@ export default function SellerEnquiriesTab({
           </div>
           <div>
             <div className="kpi-label">Total WhatsApp Enquiries</div>
-            <div className="kpi-value">{totalEnquiries}</div>
+            <div className="kpi-value">{displayTotalEnquiries}</div>
             <div className="kpi-hint">Across all vehicle listings</div>
           </div>
         </div>
@@ -343,9 +506,9 @@ export default function SellerEnquiriesTab({
           </div>
           <div>
             <div className="kpi-label">For Sale Enquiries</div>
-            <div className="kpi-value" style={{ color: '#059669' }}>{totalSale}</div>
+            <div className="kpi-value" style={{ color: '#059669' }}>{displayTotalSale}</div>
             <div className="kpi-hint">
-              {totalEnquiries > 0 ? `${Math.round((totalSale / totalEnquiries) * 100)}% of total enquiries` : '0%'}
+              {displayTotalEnquiries > 0 ? `${Math.round((displayTotalSale / displayTotalEnquiries) * 100)}% of total enquiries` : '0%'}
             </div>
           </div>
         </div>
@@ -356,9 +519,9 @@ export default function SellerEnquiriesTab({
           </div>
           <div>
             <div className="kpi-label">For Rent Enquiries</div>
-            <div className="kpi-value" style={{ color: '#2563eb' }}>{totalRent}</div>
+            <div className="kpi-value" style={{ color: '#2563eb' }}>{displayTotalRent}</div>
             <div className="kpi-hint">
-              {totalEnquiries > 0 ? `${Math.round((totalRent / totalEnquiries) * 100)}% of total enquiries` : '0%'}
+              {displayTotalEnquiries > 0 ? `${Math.round((displayTotalRent / displayTotalEnquiries) * 100)}% of total enquiries` : '0%'}
             </div>
           </div>
         </div>
@@ -369,7 +532,7 @@ export default function SellerEnquiriesTab({
           </div>
           <div>
             <div className="kpi-label">Active Sellers</div>
-            <div className="kpi-value">{totalSellers}</div>
+            <div className="kpi-value">{displayTotalSellers}</div>
             <div className="kpi-hint">Receiving buyer contacts</div>
           </div>
         </div>
@@ -430,22 +593,63 @@ export default function SellerEnquiriesTab({
             </div>
           </div>
 
+          {/* Selection Action Bar (when 1 or more sellers selected) */}
+          {selectedSellers.size > 0 && (
+            <div className="selection-action-bar">
+              <div className="selection-info">
+                <CheckCircle2 size={18} color="#059669" />
+                <span>
+                  <strong>{selectedSellers.size}</strong> seller{selectedSellers.size > 1 ? 's' : ''} selected
+                  {' '}(<strong>{selectedSellersEnquiryCount}</strong> total enquiries)
+                </span>
+              </div>
+              <div className="selection-actions">
+                <button
+                  type="button"
+                  className="btn-selection-delete"
+                  onClick={handleRequestDeleteSelectedSellers}
+                  title="Delete enquiries for selected sellers"
+                >
+                  <Trash2 size={14} />
+                  <span>Delete Selected ({selectedSellers.size})</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-selection-cancel"
+                  onClick={() => setSelectedSellers(new Set())}
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Grouped Sellers Table */}
           <div className="table-responsive">
             <table className="enquiries-table">
               <thead>
                 <tr>
-                  <th style={{ width: '30%' }}>Seller</th>
-                  <th style={{ width: '18%', textAlign: 'center' }}>Total Enquiries</th>
+                  <th style={{ width: '44px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isAllSellersSelected}
+                      onChange={toggleSelectAllSellers}
+                      className="enquiry-checkbox"
+                      aria-label="Select all sellers"
+                      title="Select all sellers"
+                    />
+                  </th>
+                  <th style={{ width: '28%' }}>Seller</th>
+                  <th style={{ width: '16%', textAlign: 'center' }}>Total Enquiries</th>
                   <th style={{ width: '22%' }}>Enquiry Breakdown</th>
-                  <th style={{ width: '15%' }}>Latest Activity</th>
-                  <th style={{ width: '15%', textAlign: 'right' }}>Actions</th>
+                  <th style={{ width: '14%' }}>Latest Activity</th>
+                  <th style={{ width: '16%', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredSellers.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="empty-cell">
+                    <td colSpan={6} className="empty-cell">
                       <div className="empty-state">
                         <MessageSquare size={36} style={{ opacity: 0.3, marginBottom: '8px' }} />
                         <div style={{ fontWeight: 600 }}>No seller enquiries found</div>
@@ -457,7 +661,21 @@ export default function SellerEnquiriesTab({
                   </tr>
                 ) : (
                   filteredSellers.map((item) => (
-                    <tr key={item.seller} className="seller-row">
+                    <tr
+                      key={item.seller}
+                      className={`seller-row ${selectedSellers.has(item.seller) ? 'row-selected' : ''}`}
+                    >
+                      {/* Selection Checkbox */}
+                      <td style={{ textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedSellers.has(item.seller)}
+                          onChange={() => toggleSelectSeller(item.seller)}
+                          className="enquiry-checkbox"
+                          aria-label={`Select ${item.seller}`}
+                        />
+                      </td>
+
                       {/* Seller Column */}
                       <td>
                         <div className="seller-cell-info">
@@ -471,7 +689,7 @@ export default function SellerEnquiriesTab({
                             </div>
                             <div className="seller-phone-sub">
                               <WhatsAppIcon size={12} color="#25D366" />
-                              <span dir="ltr">{item.seller_phone || '+971 50 123 4567'}</span>
+                              <span dir="ltr">{item.seller_phone || '+971 52 653 9699'}</span>
                             </div>
                           </div>
                         </div>
@@ -546,6 +764,15 @@ export default function SellerEnquiriesTab({
                           >
                             <WhatsAppIcon size={14} color="#ffffff" />
                             <span>Share</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            className="btn-action-delete-seller"
+                            onClick={() => handleRequestDeleteSingleSeller(item.seller, item.total)}
+                            title={`Delete enquiries for ${item.seller}`}
+                          >
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </td>
@@ -623,7 +850,7 @@ export default function SellerEnquiriesTab({
                 <button
                   type="button"
                   className="btn-clear-seller"
-                  onClick={() => handleClearSeller(selectedSellerName)}
+                  onClick={() => handleRequestDeleteSingleSeller(selectedSellerName, currentSellerEnquiries.length)}
                   title="Clear all records for this seller"
                 >
                   <Trash2 size={15} />
@@ -713,15 +940,55 @@ export default function SellerEnquiriesTab({
             </div>
           </div>
 
+          {/* Selection Action Bar for Detailed View (when 1 or more enquiries selected) */}
+          {selectedEnquiryIds.size > 0 && (
+            <div className="selection-action-bar" style={{ marginTop: '1rem', marginBottom: '0.5rem' }}>
+              <div className="selection-info">
+                <CheckCircle2 size={18} color="#059669" />
+                <span>
+                  <strong>{selectedEnquiryIds.size}</strong> enquiry record{selectedEnquiryIds.size > 1 ? 's' : ''} selected
+                </span>
+              </div>
+              <div className="selection-actions">
+                <button
+                  type="button"
+                  className="btn-selection-delete"
+                  onClick={handleRequestDeleteSelectedEnquiries}
+                  title="Delete selected enquiry records"
+                >
+                  <Trash2 size={14} />
+                  <span>Delete Selected ({selectedEnquiryIds.size})</span>
+                </button>
+                <button
+                  type="button"
+                  className="btn-selection-cancel"
+                  onClick={() => setSelectedEnquiryIds(new Set())}
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Detailed Enquiries Table */}
           <div className="table-responsive" style={{ marginTop: '1rem' }}>
             <table className="enquiries-table">
               <thead>
                 <tr>
+                  <th style={{ width: '44px', textAlign: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={isAllEnquiriesSelected}
+                      onChange={toggleSelectAllEnquiries}
+                      className="enquiry-checkbox"
+                      aria-label="Select all enquiries"
+                      title="Select all enquiries on this page"
+                    />
+                  </th>
                   <th style={{ width: '12%' }}>Ref ID</th>
-                  <th style={{ width: '32%' }}>Vehicle Listing / Title</th>
+                  <th style={{ width: '30%' }}>Vehicle Listing / Title</th>
                   <th style={{ width: '12%' }}>Type</th>
-                  <th style={{ width: '22%' }}>Customer Contact</th>
+                  <th style={{ width: '20%' }}>Customer Contact</th>
                   <th style={{ width: '14%' }}>Date & Time</th>
                   <th style={{ width: '8%', textAlign: 'right' }}>Actions</th>
                 </tr>
@@ -729,7 +996,7 @@ export default function SellerEnquiriesTab({
               <tbody>
                 {paginatedEnquiries.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="empty-cell">
+                    <td colSpan={7} className="empty-cell">
                       <div className="empty-state">
                         <Car size={32} style={{ opacity: 0.3, marginBottom: '6px' }} />
                         <div>No enquiry records match your search criteria.</div>
@@ -739,8 +1006,20 @@ export default function SellerEnquiriesTab({
                 ) : (
                   paginatedEnquiries.map((enq) => {
                     const isRent = (enq.enquiry_type || 'sale').toLowerCase() === 'rent';
+                    const isEnqSelected = selectedEnquiryIds.has(String(enq.id || enq._id));
                     return (
-                      <tr key={enq.id || enq._id}>
+                      <tr key={enq.id || enq._id} className={isEnqSelected ? 'row-selected' : ''}>
+                        {/* Selection Checkbox */}
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            checked={isEnqSelected}
+                            onChange={() => toggleSelectEnquiry(enq.id || enq._id)}
+                            className="enquiry-checkbox"
+                            aria-label={`Select enquiry ${enq.reference_id}`}
+                          />
+                        </td>
+
                         {/* Reference ID */}
                         <td>
                           <span className="ref-tag">
@@ -835,7 +1114,7 @@ export default function SellerEnquiriesTab({
                             <button
                               type="button"
                               className="btn-delete-row"
-                              onClick={() => handleDeleteSingleEnquiry(enq.id || enq._id)}
+                              onClick={() => handleRequestDeleteSingleEnquiry(enq.id || enq._id, enq.listing_title)}
                               title="Delete record"
                             >
                               <Trash2 size={14} />
@@ -1010,6 +1289,110 @@ export default function SellerEnquiriesTab({
               >
                 <WhatsAppIcon size={18} color="#ffffff" />
                 <span>Send to Seller on WhatsApp</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ==================================================== */}
+      {/* DEDICATED DELETION CONFIRMATION MODAL               */}
+      {/* ==================================================== */}
+      {confirmModalState && confirmModalState.isOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => !confirmModalState.isProcessing && setConfirmModalState(null)}
+        >
+          <div
+            className="confirm-delete-modal"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+          >
+            {/* Header */}
+            <div className="confirm-modal-header">
+              <div className="confirm-icon-badge">
+                <Trash2 size={22} color="#dc2626" />
+              </div>
+              <div>
+                <h3 className="confirm-modal-title">
+                  {confirmModalState.type === 'sellers'
+                    ? `Delete Enquiries: ${confirmModalState.sellerNames.length} Seller${confirmModalState.sellerNames.length > 1 ? 's' : ''}`
+                    : `Delete Enquiry Record${confirmModalState.enquiryIds.length > 1 ? 's' : ''}`}
+                </h3>
+                <p className="confirm-modal-subtitle">
+                  Confirmation required before proceeding with deletion
+                </p>
+              </div>
+            </div>
+
+            {/* Body */}
+            <div className="confirm-modal-body">
+              <div className="confirm-warning-banner">
+                <AlertTriangle size={18} color="#c2410c" style={{ flexShrink: 0, marginTop: '2px' }} />
+                <div>
+                  {confirmModalState.type === 'sellers' ? (
+                    <>
+                      Are you sure you want to delete all enquiries for <strong>{confirmModalState.sellerNames.length} seller(s)</strong>?
+                      This will permanently remove <strong>{confirmModalState.totalEnquiries} enquiry record(s)</strong>.
+                    </>
+                  ) : (
+                    <>
+                      Are you sure you want to delete <strong>{confirmModalState.totalEnquiries} enquiry record(s)</strong>?
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="confirm-items-preview">
+                <div className="confirm-items-heading">
+                  {confirmModalState.type === 'sellers' ? 'Sellers to be cleared:' : 'Records to be deleted:'}
+                </div>
+                <div className="confirm-items-list">
+                  {confirmModalState.type === 'sellers' ? (
+                    confirmModalState.sellerDetails.map((s, idx) => (
+                      <div key={idx} className="confirm-item-row">
+                        <span className="confirm-item-name">{s.name}</span>
+                        <span className="confirm-item-badge">{s.count} enquiries</span>
+                      </div>
+                    ))
+                  ) : (
+                    confirmModalState.enquiryDetails.map((e, idx) => (
+                      <div key={idx} className="confirm-item-row">
+                        <span className="confirm-item-name">{e.title}</span>
+                        {e.ref && <span className="confirm-item-badge">{e.ref}</span>}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              <p className="confirm-irreversible-note">
+                ⚠️ <strong>Note:</strong> This action cannot be undone. Dashboard KPI numbers, seller enquiry counters, and reports will update immediately to reflect the new figures.
+              </p>
+            </div>
+
+            {/* Footer */}
+            <div className="confirm-modal-footer">
+              <button
+                type="button"
+                className="btn-confirm-cancel"
+                onClick={() => setConfirmModalState(null)}
+                disabled={confirmModalState.isProcessing}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                className="btn-confirm-delete"
+                onClick={executeConfirmedDeletion}
+                disabled={confirmModalState.isProcessing}
+              >
+                <Trash2 size={16} />
+                <span>
+                  {confirmModalState.isProcessing ? 'Deleting...' : 'Yes, Delete Permanently'}
+                </span>
               </button>
             </div>
           </div>
