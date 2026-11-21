@@ -109,7 +109,27 @@ export default function BlogPostTab({ notify }) {
   };
 
   useEffect(() => {
+    try {
+      const raw = localStorage.getItem('binmar_blog_posts');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const sampleSlugs = [
+            'how-to-buy-used-car-in-dubai-uae-2026',
+            'how-to-sell-luxury-car-gcc-maximum-value',
+            'car-ownership-costs-dubai-salik-insurance-fuel',
+            'essential-summer-car-maintenance-middle-east'
+          ];
+          const cleaned = parsed.filter(p => p && !sampleSlugs.includes(p.slug) && !String(p.id).startsWith('post_guide_') && !String(p.id).startsWith('post_sell_') && !String(p.id).startsWith('post_ownership_') && !String(p.id).startsWith('post_summer_'));
+          localStorage.setItem('binmar_blog_posts', JSON.stringify(cleaned));
+        }
+      }
+    } catch {}
     loadPosts();
+
+    const handleUpdate = () => loadPosts();
+    window.addEventListener('binmar_blog_updated', handleUpdate);
+    return () => window.removeEventListener('binmar_blog_updated', handleUpdate);
   }, []);
 
   // Handle title change & auto-generate slug unless user typed custom slug
@@ -1052,8 +1072,8 @@ export default function BlogPostTab({ notify }) {
           justifyContent: 'space-between'
         }}
       >
-        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ position: 'relative', minWidth: '240px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>
+          <div style={{ position: 'relative', minWidth: '220px', maxWidth: '320px', flex: '1 1 auto' }}>
             <Search size={15} style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }} />
             <input
               type="text"
@@ -1071,9 +1091,10 @@ export default function BlogPostTab({ notify }) {
           </div>
 
           <select
+            className="filter-select"
             value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem' }}
+            style={{ width: 'auto', minWidth: '160px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem', background: '#fff' }}
           >
             <option value="All">All Categories</option>
             {PRESET_CATEGORIES.map(c => (
@@ -1082,9 +1103,10 @@ export default function BlogPostTab({ notify }) {
           </select>
 
           <select
+            className="filter-select"
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem' }}
+            style={{ width: 'auto', minWidth: '140px', padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', fontSize: '0.88rem', background: '#fff' }}
           >
             <option value="All">All Statuses</option>
             <option value="published">Published</option>
@@ -1113,10 +1135,21 @@ export default function BlogPostTab({ notify }) {
             <p style={{ color: '#6b7280' }}>Loading blog articles...</p>
           </div>
         ) : filteredPosts.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#6b7280' }}>
-            <FileText size={40} style={{ color: '#9ca3af', margin: '0 auto 0.75rem' }} />
-            <h4 style={{ margin: '0 0 0.5rem', color: '#111827' }}>No articles match your filter</h4>
-            <p style={{ margin: 0, fontSize: '0.88rem' }}>Create a new post or adjust your filters above.</p>
+          <div style={{ textAlign: 'center', padding: '3.5rem 1.5rem', color: '#6b7280' }}>
+            <FileText size={44} style={{ color: '#9ca3af', margin: '0 auto 0.75rem' }} />
+            <h4 style={{ margin: '0 0 0.5rem', color: '#111827', fontSize: '1.15rem' }}>No articles yet</h4>
+            <p style={{ margin: '0 0 1.25rem', fontSize: '0.9rem' }}>
+              Your blog editorial list is completely clean. Click the button below to publish your first post.
+            </p>
+            <button
+              type="button"
+              className="btn-gold"
+              onClick={handleNewPost}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '8px 18px' }}
+            >
+              <Plus size={15} />
+              <span>Write First Article</span>
+            </button>
           </div>
         ) : (
           <div style={{ overflowX: 'auto' }}>

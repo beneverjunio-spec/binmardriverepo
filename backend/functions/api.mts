@@ -506,80 +506,7 @@ let inMemoryAdmins: AdminItem[] = [
 
 let inMemoryUsers: UserItem[] = [];
 let inMemoryListings: ListingItem[] = [];
-let inMemoryBlogPosts: BlogPostItem[] = [
-  {
-    id: 'post_guide_buy_used_car_uae',
-    title: 'Complete Guide: How to Buy a Used Car in Dubai & the UAE (2026)',
-    slug: 'how-to-buy-used-car-in-dubai-uae-2026',
-    excerpt: 'Everything you need to know about buying a pre-owned vehicle in the UAE — from RTA technical inspections and GCC specs to transfer fees and registration.',
-    cover_image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80',
-    cover_image_alt: 'Luxury sports car parked in Dubai against urban skyline',
-    category: 'Buying Guides',
-    author: 'Binmar Drive Team',
-    reading_time: '6 min read',
-    meta_title: 'How to Buy a Used Car in Dubai & UAE (2026 Guide) | Binmar',
-    meta_description: 'Complete step-by-step checklist to buying a used car in Dubai, Sharjah, and Abu Dhabi. RTA test, transfer process, GCC specs, and insurance explained.',
-    status: 'published',
-    published_at: '2026-11-15T10:00:00.000Z',
-    created_at: '2026-11-15T09:00:00.000Z',
-    views: 482,
-    content: '## Complete Guide to Buying a Used Car in the UAE\\n\\nNavigating vehicle purchases in Dubai and the UAE requires checking GCC specifications, RTA inspection certificates, and official transfer procedures.'
-  },
-  {
-    id: 'post_sell_luxury_car_gcc',
-    title: 'How to Sell Your Luxury Car in the GCC for Maximum Market Value',
-    slug: 'how-to-sell-luxury-car-gcc-maximum-value',
-    excerpt: 'Proven strategies to price, present, and close the sale of your luxury SUV or sports car across the Emirates without leaving money on the table.',
-    cover_image: 'https://images.unsplash.com/photo-1544829099-b9a0c07fad1a?auto=format&fit=crop&w=1200&q=80',
-    cover_image_alt: 'Showroom condition luxury vehicle parked in showroom',
-    category: 'Selling Tips',
-    author: 'Binmar Drive Team',
-    reading_time: '5 min read',
-    meta_title: 'How to Sell Your Luxury Car in UAE for Max Value | Binmar',
-    meta_description: 'Proven insider tips to sell your luxury vehicle in Dubai and Abu Dhabi for top dirhams. Photography, service history, pricing, and buyer negotiation.',
-    status: 'published',
-    published_at: '2026-11-16T12:00:00.000Z',
-    created_at: '2026-11-16T11:00:00.000Z',
-    views: 310,
-    content: '## Maximizing Your Luxury Vehicle Resale Value\\n\\nFrom full detailing to organizing agency service history folders, discover how top sellers close deals faster in Dubai and Abu Dhabi.'
-  },
-  {
-    id: 'post_ownership_costs_dubai',
-    title: 'Car Ownership Costs in Dubai: Registration, Salik, Insurance & Fuel Breakdown',
-    slug: 'car-ownership-costs-dubai-salik-insurance-fuel',
-    excerpt: 'A realistic annual financial breakdown of owning, maintaining, and commuting in a car across Dubai and the Northern Emirates.',
-    cover_image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80',
-    cover_image_alt: 'Dubai highway toll gate and city skyline',
-    category: 'UAE Car Market',
-    author: 'Binmar Drive Team',
-    reading_time: '5 min read',
-    meta_title: 'Car Ownership Costs in Dubai & UAE Breakdown | Binmar',
-    meta_description: 'Complete breakdown of annual car ownership expenses in Dubai: RTA registration, Salik tolls, parking zones, insurance rates, and fuel budgeting.',
-    status: 'published',
-    published_at: '2026-11-17T08:00:00.000Z',
-    created_at: '2026-11-17T07:00:00.000Z',
-    views: 620,
-    content: '## Budgeting for UAE Vehicle Ownership\\n\\nDetailed breakdown of annual RTA registration renewals, comprehensive insurance percentages, monthly Salik tolls, and fuel expenses.'
-  },
-  {
-    id: 'post_summer_maintenance_middle_east',
-    title: 'Essential Summer Car Maintenance Tips for the Middle East Climate',
-    slug: 'essential-summer-car-maintenance-middle-east',
-    excerpt: 'Protect your engine, air conditioning, battery, and tires from extreme 50°C GCC summer heat with this preventative inspection guide.',
-    cover_image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=1200&q=80',
-    cover_image_alt: 'Vehicle mechanics and engine maintenance inspection',
-    category: 'Maintenance',
-    author: 'Binmar Drive Team',
-    reading_time: '4 min read',
-    meta_title: 'Summer Car Maintenance Guide for GCC Climate | Binmar Drive',
-    meta_description: 'Vital automotive maintenance tips for the Middle East summer. Keep your AC ice-cold, prevent radiator boil-over, and safeguard tires from heat blowouts.',
-    status: 'published',
-    published_at: '2026-11-18T09:30:00.000Z',
-    created_at: '2026-11-18T08:00:00.000Z',
-    views: 290,
-    content: '## Keeping Your Vehicle Reliable in 50°C Heat\\n\\nLearn how to safeguard coolant systems, battery charge, cabin AC compressors, and high-speed tire inflation during GCC summers.'
-  }
-];
+let inMemoryBlogPosts: BlogPostItem[] = [];
 let inMemoryNotifications: NotificationItem[] = [
   {
     id: 'notif_1',
@@ -683,18 +610,25 @@ async function saveListings(listingsList: ListingItem[]): Promise<void> {
   }
 }
 
+const SAMPLE_BLOG_SLUGS = [
+  'how-to-buy-used-car-in-dubai-uae-2026',
+  'how-to-sell-luxury-car-gcc-maximum-value',
+  'car-ownership-costs-dubai-salik-insurance-fuel',
+  'essential-summer-car-maintenance-middle-east'
+];
+
 async function loadBlogPosts(): Promise<BlogPostItem[]> {
   const store = getCloudStore();
   if (store) {
     try {
       const data = await store.get('blog_posts', { type: 'json' }) as BlogPostItem[];
-      if (Array.isArray(data) && data.length > 0) {
-        inMemoryBlogPosts = data;
+      if (Array.isArray(data)) {
+        inMemoryBlogPosts = data.filter(p => !SAMPLE_BLOG_SLUGS.includes(p.slug) && !String(p.id).startsWith('post_guide_') && !String(p.id).startsWith('post_sell_'));
         return inMemoryBlogPosts;
       }
     } catch {}
   }
-  return inMemoryBlogPosts;
+  return inMemoryBlogPosts.filter(p => !SAMPLE_BLOG_SLUGS.includes(p.slug) && !String(p.id).startsWith('post_guide_'));
 }
 
 async function saveBlogPosts(postsList: BlogPostItem[]): Promise<void> {

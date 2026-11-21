@@ -163,11 +163,17 @@ const BlogPost = mongoose.models.BlogPost || mongoose.model('BlogPost', blogPost
 // ==========================================
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
-const seedBlogPosts = require('../data/seedBlogPosts');
+
+const SAMPLE_BLOG_SLUGS = [
+  'how-to-buy-used-car-in-dubai-uae-2026',
+  'how-to-sell-luxury-car-gcc-maximum-value',
+  'car-ownership-costs-dubai-salik-insurance-fuel',
+  'essential-summer-car-maintenance-middle-east'
+];
 
 let inMemoryListings = [];
 let inMemoryUsers = [];
-let inMemoryBlogPosts = Array.isArray(seedBlogPosts) ? [...seedBlogPosts] : [];
+let inMemoryBlogPosts = [];
 let inMemoryAdmins = [
   {
     id: 1,
@@ -328,6 +334,9 @@ function loadStoreFromFile() {
       if (Array.isArray(data.notifications)) inMemoryNotifications = data.notifications;
       if (Array.isArray(data.admins) && data.admins.length > 0) inMemoryAdmins = data.admins;
       if (Array.isArray(data.enquiries) && data.enquiries.length > 0) inMemoryEnquiries = data.enquiries;
+      if (Array.isArray(data.blogPosts)) {
+        inMemoryBlogPosts = data.blogPosts.filter(p => !SAMPLE_BLOG_SLUGS.includes(p.slug) && !String(p.id).startsWith('post_guide_') && !String(p.id).startsWith('post_sell_'));
+      }
     } catch (e) {
       console.warn('[DB] Could not read store.json:', e.message);
     }
@@ -342,7 +351,8 @@ function saveStoreToFile() {
       users: inMemoryUsers,
       notifications: inMemoryNotifications,
       admins: inMemoryAdmins,
-      enquiries: inMemoryEnquiries
+      enquiries: inMemoryEnquiries,
+      blogPosts: inMemoryBlogPosts
     };
     fs.writeFileSync(STORE_FILE, JSON.stringify(data, null, 2), 'utf8');
   } catch (e) {
@@ -369,6 +379,17 @@ async function connectMongoDB(uri) {
   });
 
   console.log('[MongoDB] Connected successfully to Atlas cluster.');
+
+  // Clean out any legacy sample blog posts
+  try {
+    await BlogPost.deleteMany({
+      $or: [
+        { slug: { $in: SAMPLE_BLOG_SLUGS } },
+        { id: { $regex: /^post_(guide|sell|ownership|summer)/i } }
+      ]
+    });
+  } catch {}
+
   return mongoose.connection;
 }
 
@@ -956,6 +977,7 @@ async function saveBlogPost(data) {
     updated_at: now.toISOString()
   };
   inMemoryBlogPosts.unshift(newPost);
+  saveStoreToFile();
   return newPost;
 }
 
@@ -972,6 +994,7 @@ async function deleteBlogPost(idOrSlug) {
 
   const clean = String(idOrSlug).toLowerCase().trim();
   inMemoryBlogPosts = inMemoryBlogPosts.filter(p => String(p.id) !== clean && (p.slug || '').toLowerCase() !== clean);
+  saveStoreToFile();
   return { success: true };
 }
 

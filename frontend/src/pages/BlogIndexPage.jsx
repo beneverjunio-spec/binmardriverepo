@@ -279,19 +279,32 @@ export default function BlogIndexPage({ onNavigateToPost, onNavigateToMarketplac
             }}
           >
             <BookOpen size={48} style={{ color: '#9ca3af', margin: '0 auto 1rem' }} />
-            <h3 style={{ fontSize: '1.25rem', color: '#111827', margin: '0 0 0.5rem' }}>No articles found</h3>
+            <h3 style={{ fontSize: '1.25rem', color: '#111827', margin: '0 0 0.5rem' }}>
+              {posts.length === 0 ? 'No articles published yet' : 'No articles found'}
+            </h3>
             <p style={{ color: '#6b7280', margin: '0 0 1.5rem' }}>
-              We couldn't find any articles matching your search or category filter.
+              {posts.length === 0
+                ? 'Check back soon for the latest automotive buying guides, market trends, and vehicle tips from Binmar Drive.'
+                : "We couldn't find any articles matching your search or category filter."}
             </p>
-            <button
-              className="btn-outline-gold"
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedCategory('All');
-              }}
-            >
-              Reset Filters
-            </button>
+            {posts.length === 0 ? (
+              <button
+                className="btn-gold"
+                onClick={onNavigateToMarketplace}
+              >
+                Explore Marketplace
+              </button>
+            ) : (
+              <button
+                className="btn-outline-gold"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSelectedCategory('All');
+                }}
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         )}
 
