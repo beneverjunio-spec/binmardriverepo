@@ -376,13 +376,19 @@ button {
   font-weight: 700;
 }
 
+select.filter-select,
 .filter-select {
   display: inline-flex;
   align-items: center;
   height: 38px;
-  padding: 0 2rem 0 1rem;
+  width: auto !important;
+  max-width: 220px;
+  margin-bottom: 0 !important;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  padding: 0 2.2rem 0 1.1rem;
   border: 1.5px solid var(--card-border);
-  border-radius: 8px;
+  border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 600;
   font-family: inherit;
@@ -1202,7 +1208,7 @@ label {
   margin-bottom: 6px;
 }
 
-input, select, textarea {
+input, select:not(.filter-select), textarea {
   width: 100%;
   padding: 0.7rem 0.85rem;
   border: 1.5px solid var(--input-border);
@@ -1221,7 +1227,7 @@ textarea {
   min-height: 80px;
 }
 
-input:focus, select:focus, textarea:focus {
+input:focus, select:not(.filter-select):focus, textarea:focus {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(198, 161, 91, 0.2);
 }

@@ -56,9 +56,14 @@ export default function CategoryStrip({
         </>
       )}
 
+      {(setSelectedSeller || setSortBy) && (
+        <div className="cat-strip-divider" aria-hidden="true" />
+      )}
+
       {setSelectedSeller && (
         <select
           className={`filter-select ${selectedSeller ? 'active' : ''}`}
+          style={{ width: 'auto', display: 'inline-flex', marginBottom: 0, flexShrink: 0 }}
           value={selectedSeller}
           onChange={e => setSelectedSeller(e.target.value)}
           title={t('label_seller') || 'Seller'}
@@ -78,6 +83,7 @@ export default function CategoryStrip({
       {setSortBy && (
         <select
           className={`filter-select ${sortBy && sortBy !== 'newest' ? 'active' : ''}`}
+          style={{ width: 'auto', display: 'inline-flex', marginBottom: 0, flexShrink: 0 }}
           value={sortBy}
           onChange={e => setSortBy(e.target.value)}
           title={t('sort_title') || 'Sort listings'}
