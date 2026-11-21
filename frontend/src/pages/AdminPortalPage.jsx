@@ -8,6 +8,7 @@ import LiveListingsTab from '../components/admin/LiveListingsTab';
 import AdminsTab from '../components/admin/AdminsTab';
 import NotificationsTab from '../components/admin/NotificationsTab';
 import SellerEnquiriesTab from '../components/admin/SellerEnquiriesTab';
+import BlogPostTab from '../components/admin/BlogPostTab';
 import {
   fetchAdminPortalData,
   resolveModerationListing,
@@ -25,7 +26,13 @@ export default function AdminPortalPage({
   onRefreshListings,
   notify
 }) {
-  const [adminTab, setAdminTab] = useState('dashboard');
+  const [adminTab, setAdminTab] = useState(() => {
+    try {
+      const path = (window.location.pathname || '').toLowerCase();
+      if (path.includes('blog')) return 'blog';
+    } catch {}
+    return 'dashboard';
+  });
   const [adminStats, setAdminStats] = useState({
     liveListings: 0,
     pendingModeration: 0,
@@ -479,6 +486,10 @@ export default function AdminPortalPage({
             onRemoveAdmin={handleRemoveAdmin}
             onToggleAdminStatus={handleToggleAdminStatus}
           />
+        )}
+
+        {adminTab === 'blog' && (
+          <BlogPostTab notify={notify} />
         )}
       </div>
     </div>

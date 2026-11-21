@@ -59,6 +59,12 @@ export default function Navbar({
         >
           {t('nav_contact')}
         </a>
+        <a
+          className={currentPage === 'blog-index' || currentPage === 'blog-post' ? 'active' : ''}
+          onClick={() => setCurrentPage('blog-index')}
+        >
+          {t('nav_blog') || 'Blog'}
+        </a>
         {currentUser?.user_type === 'admin' ? (
           <a
             className={currentPage === 'admin' ? 'active' : ''}

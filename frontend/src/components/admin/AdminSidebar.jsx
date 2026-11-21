@@ -1,5 +1,5 @@
 import React from 'react';
-import { Car, Clock, ShieldCheck, CheckCircle2, MessageSquare, Users, Bell, ArrowLeft } from 'lucide-react';
+import { Car, Clock, ShieldCheck, CheckCircle2, MessageSquare, Users, Bell, ArrowLeft, BookOpen } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
 
 export default function AdminSidebar({
@@ -79,6 +79,14 @@ export default function AdminSidebar({
         ) : (
           <span className="admin-nav-count">0</span>
         )}
+      </div>
+
+      <div
+        className={`admin-nav-item ${adminTab === 'blog' ? 'active' : ''}`}
+        onClick={() => setAdminTab('blog')}
+      >
+        <BookOpen size={18} />
+        <span>Blog Posts</span>
       </div>
 
       <div

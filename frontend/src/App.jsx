@@ -24,11 +24,26 @@ import SellerPortalPage from './pages/SellerPortalPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
 import TermsOfUsePage from './pages/TermsOfUsePage';
 import VehicleDetailPage from './pages/VehicleDetailPage';
-import { getVehicleUrl, extractListingIdFromSlug, generateSellerSlug, getSellerUrl, extractSellerSlugFromPath } from './utils/seo';
+import BlogIndexPage from './pages/BlogIndexPage';
+import BlogPostPage from './pages/BlogPostPage';
+import { getVehicleUrl, extractListingIdFromSlug, generateSellerSlug, getSellerUrl, extractSellerSlugFromPath, getBlogUrl } from './utils/seo';
+
+function getInitialBlogSlug() {
+  try {
+    const path = window.location.pathname || '';
+    if (path.startsWith('/blog/') && path !== '/blog/' && path !== '/blog') {
+      return path.replace(/^\/blog\/?/, '').replace(/\/$/, '');
+    }
+  } catch {}
+  return '';
+}
 
 function getInitialPage() {
   try {
     const path = (window.location.pathname || '').toLowerCase();
+    if (path.startsWith('/blog/') && path !== '/blog/' && path !== '/blog') return 'blog-post';
+    if (path === '/blog' || path === '/blog/') return 'blog-index';
+    if (path.startsWith('/admin/blog')) return 'admin';
     if (path.startsWith('/car/') || path === '/car') return 'vehicle-detail';
     const sellerSlug = extractSellerSlugFromPath(path);
     if (sellerSlug) return 'marketplace';
@@ -122,6 +137,7 @@ export default function App() {
   const [selectedListing, setSelectedListing] = useState(null);
   const [loadingListing, setLoadingListing] = useState(() => (window.location.pathname || '').startsWith('/car/'));
   const [showListingModal, setShowListingModal] = useState(false);
+  const [currentBlogSlug, setCurrentBlogSlug] = useState(getInitialBlogSlug);
 
   // Toast Helper
   const notify = (msg) => {
@@ -291,9 +307,16 @@ export default function App() {
         'how-it-works': '/how-it-works',
         'contact': '/contact',
         'privacy-policy': '/privacy-policy',
-        'terms-of-use': '/terms-of-use'
+        'terms-of-use': '/terms-of-use',
+        'blog-index': '/blog',
+        'blog-post': currentBlogSlug ? `/blog/${currentBlogSlug}` : '/blog'
       };
-      if (currentPage === 'vehicle-detail' && selectedListing) {
+      if (currentPage === 'blog-post' && currentBlogSlug) {
+        const blogUrl = `/blog/${currentBlogSlug}`;
+        if (window.location.pathname !== blogUrl) {
+          window.history.pushState({ page: 'blog-post', slug: currentBlogSlug }, '', blogUrl);
+        }
+      } else if (currentPage === 'vehicle-detail' && selectedListing) {
         const vehicleUrl = getVehicleUrl(selectedListing);
         if (window.location.pathname !== vehicleUrl) {
           window.history.pushState({ page: 'vehicle-detail', listingId: selectedListing.id }, '', vehicleUrl);
@@ -310,7 +333,7 @@ export default function App() {
         }
       }
     } catch {}
-  }, [currentPage, selectedSeller, selectedListing]);
+  }, [currentPage, selectedSeller, selectedListing, currentBlogSlug]);
 
   // Handle browser back / forward navigation
   useEffect(() => {
@@ -325,6 +348,13 @@ export default function App() {
             setCurrentPage('vehicle-detail');
           }
         });
+      } else if (path.startsWith('/blog/') && path !== '/blog/' && path !== '/blog') {
+        const rawBlogSlug = path.replace(/^\/blog\/?/, '').replace(/\/$/, '');
+        setCurrentBlogSlug(rawBlogSlug);
+        setCurrentPage('blog-post');
+      } else if (path === '/blog' || path === '/blog/') {
+        setCurrentBlogSlug('');
+        setCurrentPage('blog-index');
       } else {
         const sellerSlug = extractSellerSlugFromPath(path);
         if (sellerSlug) {
@@ -499,6 +529,30 @@ export default function App() {
 
         {currentPage === 'terms-of-use' && (
           <TermsOfUsePage onBack={() => setCurrentPage('marketplace')} />
+        )}
+
+        {currentPage === 'blog-index' && (
+          <BlogIndexPage
+            onNavigateToPost={(slug) => {
+              setCurrentBlogSlug(slug);
+              setCurrentPage('blog-post');
+            }}
+            onNavigateToMarketplace={() => setCurrentPage('marketplace')}
+            onPostListingClick={handlePostListingClick}
+          />
+        )}
+
+        {currentPage === 'blog-post' && (
+          <BlogPostPage
+            slug={currentBlogSlug}
+            onBackToBlog={() => setCurrentPage('blog-index')}
+            onNavigateToPost={(slug) => {
+              setCurrentBlogSlug(slug);
+              setCurrentPage('blog-post');
+            }}
+            onNavigateToMarketplace={() => setCurrentPage('marketplace')}
+            notify={notify}
+          />
         )}
 
         {currentPage === 'registration' && (

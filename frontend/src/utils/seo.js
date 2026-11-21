@@ -220,3 +220,107 @@ export function generateVehicleSchema(listing, canonicalUrl) {
     ]
   };
 }
+
+/**
+ * Returns the public URL path for a blog post: /blog/{slug}
+ */
+export function getBlogUrl(postOrSlug) {
+  if (!postOrSlug) return '/blog';
+  const slug = typeof postOrSlug === 'object' ? (postOrSlug.slug || slugifySegment(postOrSlug.title)) : postOrSlug;
+  return slug ? `/blog/${slug}` : '/blog';
+}
+
+/**
+ * Returns the absolute canonical URL for a blog post
+ */
+export function getBlogCanonicalUrl(postOrSlug, baseUrl = 'https://binmardrive.binmargroup.com') {
+  const path = getBlogUrl(postOrSlug);
+  return `${baseUrl.replace(/\/$/, '')}${path}`;
+}
+
+/**
+ * Generates JSON-LD schema markup for a single Blog post: BlogPosting + BreadcrumbList
+ */
+export function generateBlogPostJsonLd(post) {
+  if (!post) return null;
+  const canonicalUrl = getBlogCanonicalUrl(post);
+  const title = post.meta_title || post.title || 'Binmar Drive Blog';
+  const description = post.meta_description || post.excerpt || '';
+  const publishDate = post.published_at || post.created_at || new Date().toISOString();
+  const modifiedDate = post.updated_at || publishDate;
+  const imageUrl = post.cover_image || 'https://binmardrive.binmargroup.com/binmardrive-logo-transparent.png';
+
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'BlogPosting',
+        '@id': `${canonicalUrl}#article`,
+        isPartOf: {
+          '@type': 'Blog',
+          '@id': 'https://binmardrive.binmargroup.com/blog#blog',
+          name: 'Binmar Drive UAE Automotive Journal',
+          publisher: {
+            '@type': 'Organization',
+            name: 'Binmar Drive',
+            url: 'https://binmardrive.binmargroup.com',
+            logo: {
+              '@type': 'ImageObject',
+              url: 'https://binmardrive.binmargroup.com/binmardrive-logo-transparent.png'
+            }
+          }
+        },
+        headline: title,
+        description: description,
+        image: [imageUrl],
+        datePublished: publishDate,
+        dateModified: modifiedDate,
+        mainEntityOfPage: {
+          '@type': 'WebPage',
+          '@id': canonicalUrl
+        },
+        author: {
+          '@type': 'Organization',
+          name: post.author || 'Binmar Drive Team',
+          url: 'https://binmardrive.binmargroup.com'
+        },
+        publisher: {
+          '@type': 'Organization',
+          name: 'Binmar Drive',
+          url: 'https://binmardrive.binmargroup.com',
+          logo: {
+            '@type': 'ImageObject',
+            url: 'https://binmardrive.binmargroup.com/binmardrive-logo-transparent.png'
+          }
+        },
+        articleSection: post.category || 'Automotive',
+        inLanguage: 'en-US'
+      },
+      {
+        '@type': 'BreadcrumbList',
+        '@id': `${canonicalUrl}#breadcrumb`,
+        itemListElement: [
+          {
+            '@type': 'ListItem',
+            position: 1,
+            name: 'Home',
+            item: 'https://binmardrive.binmargroup.com/'
+          },
+          {
+            '@type': 'ListItem',
+            position: 2,
+            name: 'Blog',
+            item: 'https://binmardrive.binmargroup.com/blog'
+          },
+          {
+            '@type': 'ListItem',
+            position: 3,
+            name: title,
+            item: canonicalUrl
+          }
+        ]
+      }
+    ]
+  };
+}
+

@@ -51,6 +51,7 @@ export default function Footer({
           </div>
           <div className="footer-col">
             <h4>{t('footer_col_company')}</h4>
+            <a onClick={() => setCurrentPage('blog-index')} style={{ cursor: 'pointer' }}>{t('footer_blog') || 'Blog & Guides'}</a>
             <a onClick={() => setCurrentPage('about')}>{t('footer_about')}</a>
             <a onClick={() => setCurrentPage('how-it-works')}>{t('footer_how_it_works')}</a>
             <a onClick={() => setCurrentPage('contact')}>{t('footer_contact')}</a>

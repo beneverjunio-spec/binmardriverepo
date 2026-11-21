@@ -131,14 +131,43 @@ const Admin = mongoose.models.Admin || mongoose.model('Admin', adminSchema);
 const Notification = mongoose.models.Notification || mongoose.model('Notification', notificationSchema);
 const Enquiry = mongoose.models.Enquiry || mongoose.model('Enquiry', enquirySchema);
 
+const blogPostSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  slug: { type: String, required: true, unique: true, index: true },
+  excerpt: { type: String, default: '' },
+  content: { type: String, default: '' },
+  cover_image: { type: String, default: '' },
+  cover_image_alt: { type: String, default: '' },
+  category: { type: String, default: 'General', index: true },
+  author: { type: String, default: 'Binmar Drive Team' },
+  reading_time: { type: String, default: '5 min read' },
+  meta_title: { type: String, default: '' },
+  meta_description: { type: String, default: '' },
+  status: { type: String, enum: ['published', 'draft'], default: 'published', index: true },
+  views: { type: Number, default: 0 },
+  published_at: { type: Date, default: Date.now },
+  created_at: { type: Date, default: Date.now },
+  updated_at: { type: Date, default: Date.now }
+}, { bufferCommands: false });
+
+blogPostSchema.virtual('id').get(function() {
+  return this._id.toHexString();
+});
+blogPostSchema.set('toJSON', { virtuals: true });
+blogPostSchema.set('toObject', { virtuals: true });
+
+const BlogPost = mongoose.models.BlogPost || mongoose.model('BlogPost', blogPostSchema);
+
 // ==========================================
 // In-Memory & File Store Persistence
 // ==========================================
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const STORE_FILE = path.join(DATA_DIR, 'store.json');
+const seedBlogPosts = require('../data/seedBlogPosts');
 
 let inMemoryListings = [];
 let inMemoryUsers = [];
+let inMemoryBlogPosts = Array.isArray(seedBlogPosts) ? [...seedBlogPosts] : [];
 let inMemoryAdmins = [
   {
     id: 1,
@@ -847,6 +876,105 @@ async function getEnquiryStats() {
   };
 }
 
+async function findBlogPosts(filter = {}) {
+  if (isConnected()) {
+    try {
+      const q = {};
+      if (filter.status) q.status = filter.status;
+      if (filter.category && filter.category !== 'All') q.category = filter.category;
+      return await BlogPost.find(q).sort({ published_at: -1, created_at: -1 }).lean();
+    } catch (e) {
+      console.warn('[MongoDB findBlogPosts fallback]', e.message);
+    }
+  }
+
+  let posts = [...inMemoryBlogPosts];
+  if (filter.status) {
+    posts = posts.filter(p => p.status === filter.status);
+  }
+  if (filter.category && filter.category !== 'All') {
+    posts = posts.filter(p => p.category === filter.category);
+  }
+  return posts.sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
+}
+
+async function findBlogPostBySlugOrId(slugOrId) {
+  if (isConnected()) {
+    try {
+      const post = await BlogPost.findOne({
+        $or: [{ slug: slugOrId }, { _id: mongoose.isValidObjectId(slugOrId) ? slugOrId : null }, { id: slugOrId }]
+      }).lean();
+      if (post) return post;
+    } catch (e) {
+      console.warn('[MongoDB findBlogPostBySlugOrId fallback]', e.message);
+    }
+  }
+
+  const clean = String(slugOrId).toLowerCase().trim();
+  return inMemoryBlogPosts.find(p => String(p.id) === clean || (p.slug || '').toLowerCase() === clean) || null;
+}
+
+async function saveBlogPost(data) {
+  const isEdit = Boolean(data.id || data._id);
+  const now = new Date();
+
+  if (isConnected()) {
+    try {
+      if (isEdit) {
+        const idVal = data._id || data.id;
+        const updated = await BlogPost.findOneAndUpdate(
+          { $or: [{ _id: mongoose.isValidObjectId(idVal) ? idVal : null }, { slug: data.slug }] },
+          { ...data, updated_at: now },
+          { new: true, lean: true }
+        );
+        if (updated) return updated;
+      } else {
+        const created = await BlogPost.create({
+          ...data,
+          created_at: now,
+          updated_at: now
+        });
+        return created.toObject();
+      }
+    } catch (e) {
+      console.warn('[MongoDB saveBlogPost fallback]', e.message);
+    }
+  }
+
+  if (isEdit) {
+    const idx = inMemoryBlogPosts.findIndex(p => String(p.id) === String(data.id) || p.slug === data.slug);
+    if (idx !== -1) {
+      inMemoryBlogPosts[idx] = { ...inMemoryBlogPosts[idx], ...data, updated_at: now.toISOString() };
+      return inMemoryBlogPosts[idx];
+    }
+  }
+
+  const newPost = {
+    ...data,
+    id: data.id || `post_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+    created_at: now.toISOString(),
+    updated_at: now.toISOString()
+  };
+  inMemoryBlogPosts.unshift(newPost);
+  return newPost;
+}
+
+async function deleteBlogPost(idOrSlug) {
+  if (isConnected()) {
+    try {
+      await BlogPost.deleteOne({
+        $or: [{ slug: idOrSlug }, { _id: mongoose.isValidObjectId(idOrSlug) ? idOrSlug : null }, { id: idOrSlug }]
+      });
+    } catch (e) {
+      console.warn('[MongoDB deleteBlogPost fallback]', e.message);
+    }
+  }
+
+  const clean = String(idOrSlug).toLowerCase().trim();
+  inMemoryBlogPosts = inMemoryBlogPosts.filter(p => String(p.id) !== clean && (p.slug || '').toLowerCase() !== clean);
+  return { success: true };
+}
+
 module.exports = {
   connectMongoDB,
   isConnected,
@@ -855,6 +983,7 @@ module.exports = {
   Admin,
   Notification,
   Enquiry,
+  BlogPost,
   findListings,
   createListing,
   updateListing,
@@ -877,5 +1006,9 @@ module.exports = {
   deleteEnquiry,
   deleteEnquiriesBySeller,
   getEnquiryStats,
+  findBlogPosts,
+  findBlogPostBySlugOrId,
+  saveBlogPost,
+  deleteBlogPost,
   getStats
 };

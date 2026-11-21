@@ -194,14 +194,19 @@ function generateSellerSlug(seller) {
 app.get('/sitemap.xml', async (req, res) => {
   try {
     let listings = [];
+    let blogPosts = [];
     if (USE_MONGO) {
       listings = await mongoDB.findListings({ status: 'approved' });
+      if (mongoDB.findBlogPosts) {
+        blogPosts = await mongoDB.findBlogPosts({ status: 'published' });
+      }
     }
     const today = new Date().toISOString().split('T')[0];
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/?type=sale</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/?type=rent</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.9</priority></url>\n';
+    xml += '  <url><loc>https://binmardrive.binmargroup.com/blog</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.8</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/about</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/how-it-works</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/contact</loc><lastmod>' + today + '</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>\n';
@@ -221,6 +226,15 @@ app.get('/sitemap.xml', async (req, res) => {
       xml += '  <url><loc>' + sLoc + '</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>0.7</priority></url>\n';
     });
 
+    // Add all published blog post URLs for instant Googlebot indexation
+    blogPosts.forEach(post => {
+      if (post.slug) {
+        const bLoc = 'https://binmardrive.binmargroup.com/blog/' + post.slug;
+        const bDate = (post.published_at || today).toString().split('T')[0];
+        xml += '  <url><loc>' + bLoc + '</loc><lastmod>' + bDate + '</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>\n';
+      }
+    });
+
     xml += '</urlset>';
 
     res.header('Content-Type', 'application/xml; charset=utf-8');
@@ -228,6 +242,58 @@ app.get('/sitemap.xml', async (req, res) => {
   } catch (err) {
     return res.status(500).send('Error generating sitemap');
   }
+});
+
+// SSR Crawler & Social Preview Bot Handler for /blog/:slug
+app.get(['/blog/:slug', '/blog'], async (req, res, next) => {
+  const ua = req.headers['user-agent'] || '';
+  const isBot = /bot|crawler|spider|facebookexternalhit|whatsapp|twitterbot|slackbot|preview/i.test(ua);
+  if (!isBot) return next();
+
+  try {
+    const slug = req.params.slug;
+    if (slug) {
+      let post = null;
+      if (USE_MONGO && mongoDB.findBlogPostBySlugOrId) {
+        post = await mongoDB.findBlogPostBySlugOrId(slug);
+      }
+      if (post) {
+        const title = post.meta_title || post.title;
+        const desc = post.meta_description || post.excerpt;
+        const img = post.cover_image || 'https://binmardrive.binmargroup.com/binmardrive-logo-transparent.png';
+        const canonical = 'https://binmardrive.binmargroup.com/blog/' + post.slug;
+        const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>${title} | Binmar Drive</title>
+  <meta name="description" content="${desc}">
+  <link rel="canonical" href="${canonical}">
+  <meta property="og:title" content="${title}">
+  <meta property="og:description" content="${desc}">
+  <meta property="og:url" content="${canonical}">
+  <meta property="og:type" content="article">
+  <meta property="og:image" content="${img}">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="${title}">
+  <meta name="twitter:description" content="${desc}">
+  <meta name="twitter:image" content="${img}">
+</head>
+<body>
+  <article>
+    <h1>${post.title}</h1>
+    <p><em>${post.category} &bull; ${post.author || 'Binmar Drive Team'}</em></p>
+    <div>${post.content}</div>
+  </article>
+</body>
+</html>`;
+        return res.send(html);
+      }
+    }
+  } catch (e) {
+    console.warn('[Blog SSR Bot Error]', e.message);
+  }
+  next();
 });
 
 app.get('/api/listings/:idOrSlug', async (req, res) => {
@@ -1574,6 +1640,99 @@ app.delete(['/api/dealers/:id', '/api/admin/dealers/:id', '/api/sellers/:id'], a
     }
 
     res.json({ success: true, message: `Seller #${id} and associated vehicles deleted successfully.` });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// ==========================================
+// Blog System Endpoints (SEO & Editorial)
+// ==========================================
+
+// Public: Get published blog posts
+app.get('/api/blog/posts', async (req, res) => {
+  try {
+    const { category } = req.query || {};
+    let posts = [];
+    if (USE_MONGO && mongoDB.findBlogPosts) {
+      posts = await mongoDB.findBlogPosts({ status: 'published', category });
+    }
+    res.json({ success: true, posts });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Public: Get single blog post by slug or ID
+app.get('/api/blog/posts/:slugOrId', async (req, res) => {
+  try {
+    const { slugOrId } = req.params;
+    let post = null;
+    if (USE_MONGO && mongoDB.findBlogPostBySlugOrId) {
+      post = await mongoDB.findBlogPostBySlugOrId(slugOrId);
+    }
+    if (!post) {
+      return res.status(404).json({ success: false, error: 'Post not found' });
+    }
+    res.json({ success: true, post });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Get all blog posts (published & drafts)
+app.get('/api/admin/blog/posts', async (req, res) => {
+  try {
+    let posts = [];
+    if (USE_MONGO && mongoDB.findBlogPosts) {
+      posts = await mongoDB.findBlogPosts({});
+    }
+    res.json({ success: true, posts });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Create new blog post
+app.post('/api/admin/blog/posts', async (req, res) => {
+  try {
+    const postData = req.body || {};
+    if (!postData.title) {
+      return res.status(400).json({ success: false, error: 'Post title is required.' });
+    }
+    let post = null;
+    if (USE_MONGO && mongoDB.saveBlogPost) {
+      post = await mongoDB.saveBlogPost(postData);
+    }
+    res.json({ success: true, post });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Update blog post
+app.put('/api/admin/blog/posts/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    const postData = { ...req.body, id };
+    let post = null;
+    if (USE_MONGO && mongoDB.saveBlogPost) {
+      post = await mongoDB.saveBlogPost(postData);
+    }
+    res.json({ success: true, post });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Admin: Delete blog post
+app.delete('/api/admin/blog/posts/:id', async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (USE_MONGO && mongoDB.deleteBlogPost) {
+      await mongoDB.deleteBlogPost(id);
+    }
+    res.json({ success: true, message: 'Blog post deleted successfully.' });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }

@@ -447,6 +447,26 @@ export interface EnquiryItem {
   created_at: string;
 }
 
+export interface BlogPostItem {
+  id: string;
+  title: string;
+  slug: string;
+  excerpt?: string;
+  content: string;
+  cover_image?: string;
+  cover_image_alt?: string;
+  category: string;
+  author: string;
+  reading_time?: string;
+  meta_title?: string;
+  meta_description?: string;
+  status: 'published' | 'draft';
+  views?: number;
+  published_at?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 // In-Memory caches initialized with real system administrators
 let inMemoryAdmins: AdminItem[] = [
   {
@@ -486,6 +506,80 @@ let inMemoryAdmins: AdminItem[] = [
 
 let inMemoryUsers: UserItem[] = [];
 let inMemoryListings: ListingItem[] = [];
+let inMemoryBlogPosts: BlogPostItem[] = [
+  {
+    id: 'post_guide_buy_used_car_uae',
+    title: 'Complete Guide: How to Buy a Used Car in Dubai & the UAE (2026)',
+    slug: 'how-to-buy-used-car-in-dubai-uae-2026',
+    excerpt: 'Everything you need to know about buying a pre-owned vehicle in the UAE — from RTA technical inspections and GCC specs to transfer fees and registration.',
+    cover_image: 'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1200&q=80',
+    cover_image_alt: 'Luxury sports car parked in Dubai against urban skyline',
+    category: 'Buying Guides',
+    author: 'Binmar Drive Team',
+    reading_time: '6 min read',
+    meta_title: 'How to Buy a Used Car in Dubai & UAE (2026 Guide) | Binmar',
+    meta_description: 'Complete step-by-step checklist to buying a used car in Dubai, Sharjah, and Abu Dhabi. RTA test, transfer process, GCC specs, and insurance explained.',
+    status: 'published',
+    published_at: '2026-11-15T10:00:00.000Z',
+    created_at: '2026-11-15T09:00:00.000Z',
+    views: 482,
+    content: '## Complete Guide to Buying a Used Car in the UAE\\n\\nNavigating vehicle purchases in Dubai and the UAE requires checking GCC specifications, RTA inspection certificates, and official transfer procedures.'
+  },
+  {
+    id: 'post_sell_luxury_car_gcc',
+    title: 'How to Sell Your Luxury Car in the GCC for Maximum Market Value',
+    slug: 'how-to-sell-luxury-car-gcc-maximum-value',
+    excerpt: 'Proven strategies to price, present, and close the sale of your luxury SUV or sports car across the Emirates without leaving money on the table.',
+    cover_image: 'https://images.unsplash.com/photo-1544829099-b9a0c07fad1a?auto=format&fit=crop&w=1200&q=80',
+    cover_image_alt: 'Showroom condition luxury vehicle parked in showroom',
+    category: 'Selling Tips',
+    author: 'Binmar Drive Team',
+    reading_time: '5 min read',
+    meta_title: 'How to Sell Your Luxury Car in UAE for Max Value | Binmar',
+    meta_description: 'Proven insider tips to sell your luxury vehicle in Dubai and Abu Dhabi for top dirhams. Photography, service history, pricing, and buyer negotiation.',
+    status: 'published',
+    published_at: '2026-11-16T12:00:00.000Z',
+    created_at: '2026-11-16T11:00:00.000Z',
+    views: 310,
+    content: '## Maximizing Your Luxury Vehicle Resale Value\\n\\nFrom full detailing to organizing agency service history folders, discover how top sellers close deals faster in Dubai and Abu Dhabi.'
+  },
+  {
+    id: 'post_ownership_costs_dubai',
+    title: 'Car Ownership Costs in Dubai: Registration, Salik, Insurance & Fuel Breakdown',
+    slug: 'car-ownership-costs-dubai-salik-insurance-fuel',
+    excerpt: 'A realistic annual financial breakdown of owning, maintaining, and commuting in a car across Dubai and the Northern Emirates.',
+    cover_image: 'https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1200&q=80',
+    cover_image_alt: 'Dubai highway toll gate and city skyline',
+    category: 'UAE Car Market',
+    author: 'Binmar Drive Team',
+    reading_time: '5 min read',
+    meta_title: 'Car Ownership Costs in Dubai & UAE Breakdown | Binmar',
+    meta_description: 'Complete breakdown of annual car ownership expenses in Dubai: RTA registration, Salik tolls, parking zones, insurance rates, and fuel budgeting.',
+    status: 'published',
+    published_at: '2026-11-17T08:00:00.000Z',
+    created_at: '2026-11-17T07:00:00.000Z',
+    views: 620,
+    content: '## Budgeting for UAE Vehicle Ownership\\n\\nDetailed breakdown of annual RTA registration renewals, comprehensive insurance percentages, monthly Salik tolls, and fuel expenses.'
+  },
+  {
+    id: 'post_summer_maintenance_middle_east',
+    title: 'Essential Summer Car Maintenance Tips for the Middle East Climate',
+    slug: 'essential-summer-car-maintenance-middle-east',
+    excerpt: 'Protect your engine, air conditioning, battery, and tires from extreme 50°C GCC summer heat with this preventative inspection guide.',
+    cover_image: 'https://images.unsplash.com/photo-1486006920555-c77dce18193b?auto=format&fit=crop&w=1200&q=80',
+    cover_image_alt: 'Vehicle mechanics and engine maintenance inspection',
+    category: 'Maintenance',
+    author: 'Binmar Drive Team',
+    reading_time: '4 min read',
+    meta_title: 'Summer Car Maintenance Guide for GCC Climate | Binmar Drive',
+    meta_description: 'Vital automotive maintenance tips for the Middle East summer. Keep your AC ice-cold, prevent radiator boil-over, and safeguard tires from heat blowouts.',
+    status: 'published',
+    published_at: '2026-11-18T09:30:00.000Z',
+    created_at: '2026-11-18T08:00:00.000Z',
+    views: 290,
+    content: '## Keeping Your Vehicle Reliable in 50°C Heat\\n\\nLearn how to safeguard coolant systems, battery charge, cabin AC compressors, and high-speed tire inflation during GCC summers.'
+  }
+];
 let inMemoryNotifications: NotificationItem[] = [
   {
     id: 'notif_1',
@@ -585,6 +679,30 @@ async function saveListings(listingsList: ListingItem[]): Promise<void> {
   if (store) {
     try {
       await store.setJSON('listings', listingsList);
+    } catch {}
+  }
+}
+
+async function loadBlogPosts(): Promise<BlogPostItem[]> {
+  const store = getCloudStore();
+  if (store) {
+    try {
+      const data = await store.get('blog_posts', { type: 'json' }) as BlogPostItem[];
+      if (Array.isArray(data) && data.length > 0) {
+        inMemoryBlogPosts = data;
+        return inMemoryBlogPosts;
+      }
+    } catch {}
+  }
+  return inMemoryBlogPosts;
+}
+
+async function saveBlogPosts(postsList: BlogPostItem[]): Promise<void> {
+  inMemoryBlogPosts = postsList;
+  const store = getCloudStore();
+  if (store) {
+    try {
+      await store.setJSON('blog_posts', postsList);
     } catch {}
   }
 }
@@ -776,6 +894,18 @@ export default async (request: Request) => {
       xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/about</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
       xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/how-it-works</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
       xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/contact</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>monthly</changefreq>\n    <priority>0.5</priority>\n  </url>\n';
+      xml += '  <url>\n    <loc>https://binmardrive.binmargroup.com/blog</loc>\n    <lastmod>' + today + '</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.8</priority>\n  </url>\n';
+
+      // Include all published blog post URLs for instant search indexation
+      const allBlogPosts = await loadBlogPosts();
+      const publishedPosts = allBlogPosts.filter(p => p.status === 'published');
+      for (const post of publishedPosts) {
+        if (post.slug) {
+          const bUrl = `https://binmardrive.binmargroup.com/blog/${post.slug}`;
+          const bDate = (post.published_at || today).split('T')[0];
+          xml += '  <url>\n    <loc>' + bUrl + '</loc>\n    <lastmod>' + bDate + '</lastmod>\n    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>\n';
+        }
+      }
 
       for (const listing of approvedListings) {
         const canonicalUrl = getVehicleCanonicalUrl(listing);
@@ -1975,6 +2105,81 @@ export default async (request: Request) => {
         success: true,
         message: `Seller #${dealerId} and associated listings have been deleted.`
       });
+    }
+
+    // ----------------------------------------------------
+    // Blog System Endpoints (Public & Admin)
+    // ----------------------------------------------------
+    if (path === '/api/blog/posts' && method === 'GET') {
+      const allPosts = await loadBlogPosts();
+      const category = url.searchParams.get('category');
+      let filtered = allPosts.filter(p => p.status === 'published');
+      if (category && category !== 'All') {
+        filtered = filtered.filter(p => p.category === category);
+      }
+      return reply({ success: true, posts: filtered });
+    }
+
+    const blogPostMatch = path.match(/^\/api\/blog\/posts\/([^\/]+)$/);
+    if (blogPostMatch && method === 'GET') {
+      const slugOrId = decodeURIComponent(blogPostMatch[1]).toLowerCase().trim();
+      const allPosts = await loadBlogPosts();
+      const found = allPosts.find(p => String(p.id).toLowerCase() === slugOrId || (p.slug || '').toLowerCase() === slugOrId);
+      if (!found) {
+        return reply({ success: false, error: 'Post not found' }, 404);
+      }
+      return reply({ success: true, post: found });
+    }
+
+    if (path === '/api/admin/blog/posts' && method === 'GET') {
+      const allPosts = await loadBlogPosts();
+      return reply({ success: true, posts: allPosts });
+    }
+
+    if (path === '/api/admin/blog/posts' && method === 'POST') {
+      const body = await request.json();
+      const allPosts = await loadBlogPosts();
+      const now = new Date().toISOString();
+      const newPost: BlogPostItem = {
+        ...body,
+        id: body.id || ('post_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+        created_at: now,
+        updated_at: now,
+        published_at: body.status === 'published' ? (body.published_at || now) : body.published_at
+      };
+      await saveBlogPosts([newPost, ...allPosts]);
+      return reply({ success: true, post: newPost }, 201);
+    }
+
+    const adminBlogEditMatch = path.match(/^\/api\/admin\/blog\/posts\/([^\/]+)$/);
+    if (adminBlogEditMatch && method === 'PUT') {
+      const postId = adminBlogEditMatch[1];
+      const body = await request.json();
+      const allPosts = await loadBlogPosts();
+      const now = new Date().toISOString();
+      const updated = allPosts.map(p => {
+        if (String(p.id) === String(postId) || p.slug === postId) {
+          return {
+            ...p,
+            ...body,
+            id: p.id,
+            updated_at: now,
+            published_at: body.status === 'published' ? (body.published_at || now) : body.published_at
+          };
+        }
+        return p;
+      });
+      await saveBlogPosts(updated);
+      const saved = updated.find(p => String(p.id) === String(postId) || p.slug === postId);
+      return reply({ success: true, post: saved });
+    }
+
+    if (adminBlogEditMatch && method === 'DELETE') {
+      const postId = adminBlogEditMatch[1];
+      const allPosts = await loadBlogPosts();
+      const updated = allPosts.filter(p => String(p.id) !== String(postId) && p.slug !== postId);
+      await saveBlogPosts(updated);
+      return reply({ success: true, message: 'Post deleted successfully.' });
     }
 
     return reply({ error: 'API route not found.' }, 404);
