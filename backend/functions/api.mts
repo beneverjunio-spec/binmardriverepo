@@ -2074,14 +2074,16 @@ export default async (request: Request) => {
       const body = await request.json();
       const allPosts = await loadBlogPosts();
       const now = new Date().toISOString();
+      const postId = body.id || ('post_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6));
       const newPost: BlogPostItem = {
         ...body,
-        id: body.id || ('post_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
-        created_at: now,
+        id: postId,
+        created_at: body.created_at || now,
         updated_at: now,
         published_at: body.status === 'published' ? (body.published_at || now) : body.published_at
       };
-      await saveBlogPosts([newPost, ...allPosts]);
+      const filtered = allPosts.filter(p => String(p.id) !== String(postId) && p.slug !== body.slug);
+      await saveBlogPosts([newPost, ...filtered]);
       return reply({ success: true, post: newPost }, 201);
     }
 
@@ -2091,21 +2093,17 @@ export default async (request: Request) => {
       const body = await request.json();
       const allPosts = await loadBlogPosts();
       const now = new Date().toISOString();
-      const updated = allPosts.map(p => {
-        if (String(p.id) === String(postId) || p.slug === postId) {
-          return {
-            ...p,
-            ...body,
-            id: p.id,
-            updated_at: now,
-            published_at: body.status === 'published' ? (body.published_at || now) : body.published_at
-          };
-        }
-        return p;
-      });
-      await saveBlogPosts(updated);
-      const saved = updated.find(p => String(p.id) === String(postId) || p.slug === postId);
-      return reply({ success: true, post: saved });
+      const targetPost = allPosts.find(p => String(p.id) === String(postId) || p.slug === postId);
+      const updatedPost: BlogPostItem = {
+        ...(targetPost || {}),
+        ...body,
+        id: postId,
+        updated_at: now,
+        published_at: body.status === 'published' ? (body.published_at || targetPost?.published_at || now) : body.published_at
+      };
+      const filtered = allPosts.filter(p => String(p.id) !== String(postId) && p.slug !== postId && p.slug !== body.slug);
+      await saveBlogPosts([updatedPost, ...filtered]);
+      return reply({ success: true, post: updatedPost });
     }
 
     if (adminBlogEditMatch && method === 'DELETE') {

@@ -197,10 +197,13 @@ app.get('/sitemap.xml', async (req, res) => {
     let blogPosts = [];
     if (USE_MONGO) {
       listings = await mongoDB.findListings({ status: 'approved' });
-      if (mongoDB.findBlogPosts) {
-        blogPosts = await mongoDB.findBlogPosts({ status: 'published' });
-      }
     }
+    try {
+      const bStore = mongoDB || require('./db/mongodb');
+      if (bStore && bStore.findBlogPosts) {
+        blogPosts = await bStore.findBlogPosts({ status: 'published' });
+      }
+    } catch {}
     const today = new Date().toISOString().split('T')[0];
     let xml = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
     xml += '  <url><loc>https://binmardrive.binmargroup.com/</loc><lastmod>' + today + '</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n';
@@ -254,9 +257,12 @@ app.get(['/blog/:slug', '/blog'], async (req, res, next) => {
     const slug = req.params.slug;
     if (slug) {
       let post = null;
-      if (USE_MONGO && mongoDB.findBlogPostBySlugOrId) {
-        post = await mongoDB.findBlogPostBySlugOrId(slug);
-      }
+      try {
+        const bStore = mongoDB || require('./db/mongodb');
+        if (bStore && bStore.findBlogPostBySlugOrId) {
+          post = await bStore.findBlogPostBySlugOrId(slug);
+        }
+      } catch {}
       if (post) {
         const title = post.meta_title || post.title;
         const desc = post.meta_description || post.excerpt;
@@ -1648,14 +1654,22 @@ app.delete(['/api/dealers/:id', '/api/admin/dealers/:id', '/api/sellers/:id'], a
 // ==========================================
 // Blog System Endpoints (SEO & Editorial)
 // ==========================================
+const getBlogStore = () => {
+  try {
+    return mongoDB || require('./db/mongodb');
+  } catch {
+    return null;
+  }
+};
 
 // Public: Get published blog posts
 app.get('/api/blog/posts', async (req, res) => {
   try {
     const { category } = req.query || {};
     let posts = [];
-    if (USE_MONGO && mongoDB.findBlogPosts) {
-      posts = await mongoDB.findBlogPosts({ status: 'published', category });
+    const store = getBlogStore();
+    if (store && store.findBlogPosts) {
+      posts = await store.findBlogPosts({ status: 'published', category });
     }
     res.json({ success: true, posts });
   } catch (err) {
@@ -1668,8 +1682,9 @@ app.get('/api/blog/posts/:slugOrId', async (req, res) => {
   try {
     const { slugOrId } = req.params;
     let post = null;
-    if (USE_MONGO && mongoDB.findBlogPostBySlugOrId) {
-      post = await mongoDB.findBlogPostBySlugOrId(slugOrId);
+    const store = getBlogStore();
+    if (store && store.findBlogPostBySlugOrId) {
+      post = await store.findBlogPostBySlugOrId(slugOrId);
     }
     if (!post) {
       return res.status(404).json({ success: false, error: 'Post not found' });
@@ -1684,8 +1699,9 @@ app.get('/api/blog/posts/:slugOrId', async (req, res) => {
 app.get('/api/admin/blog/posts', async (req, res) => {
   try {
     let posts = [];
-    if (USE_MONGO && mongoDB.findBlogPosts) {
-      posts = await mongoDB.findBlogPosts({});
+    const store = getBlogStore();
+    if (store && store.findBlogPosts) {
+      posts = await store.findBlogPosts({});
     }
     res.json({ success: true, posts });
   } catch (err) {
@@ -1701,8 +1717,9 @@ app.post('/api/admin/blog/posts', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Post title is required.' });
     }
     let post = null;
-    if (USE_MONGO && mongoDB.saveBlogPost) {
-      post = await mongoDB.saveBlogPost(postData);
+    const store = getBlogStore();
+    if (store && store.saveBlogPost) {
+      post = await store.saveBlogPost(postData);
     }
     res.json({ success: true, post });
   } catch (err) {
@@ -1716,8 +1733,9 @@ app.put('/api/admin/blog/posts/:id', async (req, res) => {
     const id = req.params.id;
     const postData = { ...req.body, id };
     let post = null;
-    if (USE_MONGO && mongoDB.saveBlogPost) {
-      post = await mongoDB.saveBlogPost(postData);
+    const store = getBlogStore();
+    if (store && store.saveBlogPost) {
+      post = await store.saveBlogPost(postData);
     }
     res.json({ success: true, post });
   } catch (err) {
@@ -1729,8 +1747,9 @@ app.put('/api/admin/blog/posts/:id', async (req, res) => {
 app.delete('/api/admin/blog/posts/:id', async (req, res) => {
   try {
     const id = req.params.id;
-    if (USE_MONGO && mongoDB.deleteBlogPost) {
-      await mongoDB.deleteBlogPost(id);
+    const store = getBlogStore();
+    if (store && store.deleteBlogPost) {
+      await store.deleteBlogPost(id);
     }
     res.json({ success: true, message: 'Blog post deleted successfully.' });
   } catch (err) {

@@ -65,7 +65,8 @@ export function calculateReadingTime(content) {
 
 // Fetch published blog posts for public /blog page
 export async function fetchPublishedBlogPosts(options = {}) {
-  let posts = [];
+  const localPosts = getLocalPosts();
+  let posts = [...localPosts];
 
   try {
     const queryParams = new URLSearchParams();
@@ -74,25 +75,24 @@ export async function fetchPublishedBlogPosts(options = {}) {
     const qStr = queryParams.toString() ? `?${queryParams.toString()}` : '';
 
     const res = await apiRequest(`/api/blog/posts${qStr}`);
-    if (res && res.success && Array.isArray(res.posts)) {
-      posts = sanitizePosts(res.posts);
+    if (res && res.success && Array.isArray(res.posts) && res.posts.length > 0) {
+      const serverPosts = sanitizePosts(res.posts);
+      const serverIds = new Set(serverPosts.map(p => String(p.id)));
+      const serverSlugs = new Set(serverPosts.map(p => p.slug));
+      posts = [
+        ...serverPosts,
+        ...localPosts.filter(p => !serverIds.has(String(p.id)) && !serverSlugs.has(p.slug))
+      ];
       try {
-        // Sync local storage with latest server published posts
-        const currentLocal = getLocalPosts();
-        const drafts = currentLocal.filter(p => p.status === 'draft');
-        localStorage.setItem('binmar_blog_posts', JSON.stringify([...posts, ...drafts]));
+        localStorage.setItem('binmar_blog_posts', JSON.stringify(posts));
       } catch {}
     }
   } catch (err) {
     console.warn('[Blog API Note] Using local store fallback:', err?.message);
   }
 
-  if (posts.length === 0) {
-    posts = getLocalPosts();
-  }
-
   // Filter only published
-  let published = posts.filter(p => p.status === 'published');
+  let published = posts.filter(p => p && p.status === 'published');
   if (options.category && options.category !== 'All' && options.category !== 'all') {
     published = published.filter(p => (p.category || '').toLowerCase() === options.category.toLowerCase());
   }
@@ -116,6 +116,16 @@ export async function fetchBlogPostBySlug(slug) {
   try {
     const res = await apiRequest(`/api/blog/posts/${encodeURIComponent(cleanSlug)}`);
     if (res && res.success && res.post) {
+      try {
+        let current = getLocalPosts();
+        const existingIdx = current.findIndex(p => String(p.id) === String(res.post.id) || p.slug === res.post.slug);
+        if (existingIdx !== -1) {
+          current[existingIdx] = { ...current[existingIdx], ...res.post };
+        } else {
+          current.unshift(res.post);
+        }
+        localStorage.setItem('binmar_blog_posts', JSON.stringify(current));
+      } catch {}
       return res.post;
     }
   } catch (err) {
@@ -124,25 +134,32 @@ export async function fetchBlogPostBySlug(slug) {
 
   // Fallback to local store
   const localPosts = getLocalPosts();
-  return localPosts.find(p => p.slug === cleanSlug || String(p.id) === cleanSlug) || null;
+  return localPosts.find(p => (p.slug || '').toLowerCase() === cleanSlug.toLowerCase() || String(p.id) === cleanSlug) || null;
 }
 
 // Fetch all posts for Admin Panel (including drafts)
 export async function fetchAdminBlogPosts() {
+  const localPosts = getLocalPosts();
   try {
     const res = await apiRequest('/api/admin/blog/posts');
-    if (res && res.success && Array.isArray(res.posts)) {
-      const cleaned = sanitizePosts(res.posts);
+    if (res && res.success && Array.isArray(res.posts) && res.posts.length > 0) {
+      const serverPosts = sanitizePosts(res.posts);
+      const serverIds = new Set(serverPosts.map(p => String(p.id)));
+      const serverSlugs = new Set(serverPosts.map(p => p.slug));
+      const merged = [
+        ...serverPosts,
+        ...localPosts.filter(p => !serverIds.has(String(p.id)) && !serverSlugs.has(p.slug))
+      ];
       try {
-        localStorage.setItem('binmar_blog_posts', JSON.stringify(cleaned));
+        localStorage.setItem('binmar_blog_posts', JSON.stringify(merged));
       } catch {}
-      return cleaned;
+      return merged;
     }
   } catch (err) {
     console.warn('[Admin Blog API Note] Using local store:', err?.message);
   }
 
-  return getLocalPosts();
+  return localPosts;
 }
 
 // Create or save a blog post
@@ -190,13 +207,19 @@ export async function saveBlogPost(postData) {
   try {
     const endpoint = isEdit ? `/api/admin/blog/posts/${payload.id}` : '/api/admin/blog/posts';
     const method = isEdit ? 'PUT' : 'POST';
-    const res = await apiRequest(endpoint, { method, body: payload });
+    const res = await apiRequest(endpoint, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
     if (res && res.post) {
       try {
         let list = getLocalPosts();
-        list = list.map(item => String(item.id) === String(payload.id) ? { ...item, ...res.post } : item);
+        list = list.map(item => (String(item.id) === String(payload.id) || item.slug === payload.slug) ? { ...item, ...res.post } : item);
         localStorage.setItem('binmar_blog_posts', JSON.stringify(list));
       } catch {}
+      window.dispatchEvent(new CustomEvent('binmar_blog_updated'));
+      return { success: true, post: res.post };
     }
   } catch (err) {
     console.warn('[Blog Save Server Note]', err?.message);
